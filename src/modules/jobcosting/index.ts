@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
-import { addJobCostAction } from './actions';
+import { addJobCostAction, removeJobCostAction, setPayRateAction } from './actions';
 
 export const jobcostingModule: ModuleManifest = {
   id: 'jobcosting',
@@ -12,8 +12,12 @@ export const jobcostingModule: ModuleManifest = {
   Screen: lazy(() => import('./ui/JobCostingScreen')),
   register({ actions }) {
     actions.register(addJobCostAction);
+    actions.register(removeJobCostAction);
+    actions.register(setPayRateAction);
   },
 };
 
-export type { JobCost, CostKind } from './types';
-export { totalCostForJob } from './services/jobCostService';
+export type { CostKind, JobCost, PayRate } from './types';
+export { computeJobCost } from './calc';
+export type { JobCostResult } from './calc';
+export { costJob, expectedCost, loadCostingData } from './services/jobCostService';

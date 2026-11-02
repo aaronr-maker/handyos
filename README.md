@@ -191,6 +191,16 @@ committed to this repository.
   approve an AI agent's requests. Techs keep jobs and the time clock. The database backs this up: techs can't read
   estimates, invoices, payments or the price book at all, and the menu hides those sections from them.
 
+### Job costing
+
+- Per job: **invoiced** (sent invoices, not drafts or void) and **collected**, versus **cost**: labor from the time clock (hours x each
+  person's hourly cost) plus costs you record by hand (materials, subcontractors, dump fees), giving **profit and margin**. If the
+  job came from an estimate, what the estimate *expected* it to cost (quantity x the price book's cost) is shown for comparison.
+- **Pay rates are private:** only owners and admins can see or set what someone costs per hour (the database enforces it; a
+  person can read only their own). Time from someone with no rate set counts as $0 and is flagged.
+- Costs and the whole Job costing section are hidden from techs. Pay-for-performance distributions build on these numbers
+  (rules to be defined with the owner).
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -216,5 +226,5 @@ Vercel project's environment variables when the database is connected.
 2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
 3. ~~**Jobs, scheduling, tech clock in/out**~~ (done; next: tech-friendly mobile polish, photos, job checklists)
 4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
-5. **Job costing + pay-for-performance (P4P) distributions**
+5. **Job costing + pay-for-performance (P4P) distributions**: job costing done; P4P distribution rules next (needs the owner's formula)
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry

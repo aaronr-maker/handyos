@@ -1,16 +1,12 @@
-import { ModulePlaceholder } from '@/core';
+import { Route, Routes } from 'react-router-dom';
+import JobCostDetail from './JobCostDetail';
+import { JobCostingOverview } from './JobCostingOverview';
 
 export default function JobCostingScreen() {
   return (
-    <ModulePlaceholder
-      title="Job costing"
-      icon="jobcosting"
-      summary="Know what every job really earned."
-      planned={[
-        'Labor, materials and overhead per job',
-        'Profit and margin by job and by tech',
-        'Pay-for-performance (P4P) distributions',
-      ]}
-    />
+    <Routes>
+      <Route index element={<JobCostingOverview />} />
+      <Route path=":id" element={<JobCostDetail />} />
+    </Routes>
   );
 }
