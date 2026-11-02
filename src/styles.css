@@ -152,3 +152,17 @@ details summary { cursor: pointer; font-weight: 600; }
 .slot button { min-height: 36px; padding: 0 12px; }
 .rate-row { align-items: center; margin: 6px 0; }
 .rate-row input { max-width: 120px; min-width: 0; }
+
+/* Pay-for-performance settings */
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.choice-card { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; margin: 0; font-weight: 400; }
+.choice-card.on { border-color: var(--brand); background: #f0fdfa; }
+.choice-card input { align-self: flex-start; }
+.level { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.level-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+.small-note { font-size: 0.8rem; margin: 4px 0 0; }
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #e2e8f0; margin: 12px 0 6px; }
+.bar span { display: block; height: 100%; }
+.person { border-top: 1px solid var(--border); padding: 10px 0; }
+.person:first-of-type { border-top: 0; }

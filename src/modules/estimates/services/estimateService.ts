@@ -8,6 +8,7 @@ export interface EstimateDraft {
   customer_id: Id;
   owed_by_customer_id: Id | null;
   property_id: Id | null;
+  sold_by: Id | null;
   title: string;
   line_items: EstimateLineItem[];
   tax_rate_bps: number;

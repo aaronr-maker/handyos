@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
 import { resolveBilling } from '@/modules/customers';
-import { clockIn, clockOut, completeJob, createJob, getJob, setAssignees, updateJob } from './services/jobService';
+import { clockIn, clockOut, completeJob, createJob, getJob, setAssignees, setSeller, updateJob } from './services/jobService';
 
 const whoFor = z
   .object({ customer_id: z.string().min(1).nullable().default(null), property_id: z.string().min(1).nullable().default(null) })
@@ -21,14 +21,16 @@ export const createJobAction = defineAction({
       scheduled_end: z.iso.datetime().nullable().default(null),
       assignee_ids: z.array(z.string()).max(50).default([]),
       estimate_id: z.string().nullable().default(null),
+      /** Team member who sold the job. Defaults to the person creating it. */
+      sold_by: z.string().min(1).nullable().optional(),
     }),
   ),
   risk: 'low',
   requiresApproval: false,
   example: { customer_id: null, property_id: 'property-id', title: 'Fix fence gate', notes: null, scheduled_start: null, scheduled_end: null, assignee_ids: [], estimate_id: null },
-  async handler({ customer_id, property_id, title, notes, scheduled_start, scheduled_end, assignee_ids, estimate_id }, ctx) {
+  async handler({ customer_id, property_id, title, notes, scheduled_start, scheduled_end, assignee_ids, estimate_id, sold_by }, ctx) {
     const billing = await resolveBilling(ctx.companyId, { customerId: customer_id, propertyId: property_id });
-    const job = await createJob(ctx.companyId, { ...billing, estimate_id, title, notes }, scheduled_start ? { start: scheduled_start, end: scheduled_end } : undefined);
+    const job = await createJob(ctx.companyId, { ...billing, estimate_id, sold_by: sold_by !== undefined ? sold_by : ctx.actor.kind === 'user' ? ctx.actor.id : null, title, notes }, scheduled_start ? { start: scheduled_start, end: scheduled_end } : undefined);
     if (assignee_ids.length) await setAssignees(ctx.companyId, job.id, assignee_ids);
     await ctx.events.emit(ctx.companyId, 'job.created', { jobId: job.id, customerId: job.customer_id });
     if (assignee_ids.length) await ctx.events.emit(ctx.companyId, 'job.assigned', { jobId: job.id, userIds: assignee_ids });
@@ -45,6 +47,20 @@ export const updateJobAction = defineAction({
   requiresApproval: false,
   example: { job_id: 'job-id', title: 'Fix fence gate', notes: 'Gate code 1234' },
   handler: ({ job_id, ...data }, ctx) => updateJob(ctx.companyId, job_id, data),
+});
+
+export const setSellerAction = defineAction({
+  name: 'jobs.set_seller',
+  module: 'jobs',
+  description: 'Set who sold a job (they earn the seller share of pay-for-performance). Use null for nobody.',
+  input: z.object({ job_id: z.string().min(1), sold_by: z.string().min(1).nullable() }),
+  risk: 'medium',
+  roles: ['owner', 'admin', 'office'],
+  requiresApproval: (_input, ctx) => ctx.actor.kind === 'agent',
+  example: { job_id: 'job-id', sold_by: 'user-id' },
+  async handler({ job_id, sold_by }, ctx) {
+    return setSeller(ctx.companyId, job_id, sold_by);
+  },
 });
 
 export const assignJobAction = defineAction({

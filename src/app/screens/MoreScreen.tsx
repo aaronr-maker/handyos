@@ -18,6 +18,16 @@ export function MoreScreen() {
             <span>{m.label}</span>
           </Link>
         ))}
+        <Link to="/earnings">
+          <Icon name="jobcosting" />
+          <span>My earnings</span>
+        </Link>
+        {(role === 'owner' || role === 'admin') && (
+          <Link to="/settings">
+            <Icon name="system" />
+            <span>Settings</span>
+          </Link>
+        )}
         <Link to="/team">
           <Icon name="customers" />
           <span>Team</span>

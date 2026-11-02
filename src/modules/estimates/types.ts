@@ -21,6 +21,8 @@ export interface Estimate extends BaseRecord {
   /** Who it is labeled as owed by: the owner (the manager when no owner is listed). */
   owed_by_customer_id: Id | null;
   property_id: Id | null;
+  /** The team member who sold the job (earns the seller share of pay-for-performance). */
+  sold_by: Id | null;
   title: string;
   status: EstimateStatus;
   line_items: EstimateLineItem[];

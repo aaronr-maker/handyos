@@ -32,6 +32,11 @@ export function JobCostingOverview() {
           </p>
         </div>
       </header>
+      <div className="row">
+        <Link to="payouts" className="button secondary">
+          Payouts
+        </Link>
+      </div>
       <PayRates onChanged={reload} />
       {error && <p className="err">{error}</p>}
       {loading && <p className="muted">Loading…</p>}

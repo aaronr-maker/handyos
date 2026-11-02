@@ -201,6 +201,23 @@ committed to this repository.
 - Costs and the whole Job costing section are hidden from techs. Pay-for-performance distributions build on these numbers
   (rules to be defined with the owner).
 
+### Pay-for-performance (P4P)
+
+Set up under **Settings, Pay-for-performance** (owner and admins), in four plain steps:
+
+1. **What the pool is based on:** revenue, gross profit (revenue minus materials and other non-labor costs) or net profit (revenue minus all costs including labor).
+2. **What the company keeps first:** a protected percent comes off the top; the rest is the pool.
+3. **How the pool is shared:** any number of **levels**, each with a name you choose and a percent of the pool. A level is one of:
+   a **seller** level (paid to whoever sold the job), a **worker** level (shared by each person's share of the hours on the job: two techs at 5 hours
+   each get 50% each, one tech gets all of it), or **supervisor** levels (each paid to whoever the people on the level before it report to, for example
+   general foreman, then regional manager). Anything that can't be given to a person (no seller recorded, nobody set as a boss) stays with the company.
+4. **Your team:** which level each person is on and who they report to. A "Try it out" box shows what the setup pays on an example job.
+
+A job's payout is a **projection** until the job is completed and fully paid, then an owner or admin **locks it in** (once). Locking in saves a
+snapshot, so changing the settings later never rewrites what was already earned. People see their own earnings under **My earnings**; owners and admins
+see everyone's under Job costing, Payouts, and can mark them paid. A job with no profit pays nothing. The seller defaults to whoever created the
+estimate or job and can be changed. The calculation is plain, tested code (`p4pCalc.ts`) with no money rounding drift: every cent is accounted for.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -226,5 +243,5 @@ Vercel project's environment variables when the database is connected.
 2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
 3. ~~**Jobs, scheduling, tech clock in/out**~~ (done; next: tech-friendly mobile polish, photos, job checklists)
 4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
-5. **Job costing + pay-for-performance (P4P) distributions**: job costing done; P4P distribution rules next (needs the owner's formula)
+5. **Job costing + pay-for-performance (P4P) distributions**: job costing and P4P done
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry

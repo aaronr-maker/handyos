@@ -7,7 +7,9 @@ import { modules } from './modules';
 import { HomeScreen } from './screens/HomeScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { SystemScreen } from './screens/SystemScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { TeamScreen } from './screens/TeamScreen';
+import { EarningsScreen } from './screens/EarningsScreen';
 
 export function App() {
   return (
@@ -22,6 +24,8 @@ export function App() {
               <Route key={m.id} path={`${m.path}/*`} element={<m.Screen />} />
             ))}
             <Route path="/more" element={<MoreScreen />} />
+            <Route path="/settings" element={<SettingsScreen />} />
+            <Route path="/earnings" element={<EarningsScreen />} />
             <Route path="/team" element={<TeamScreen />} />
             <Route path="/system" element={<SystemScreen />} />
             <Route path="*" element={<HomeScreen />} />

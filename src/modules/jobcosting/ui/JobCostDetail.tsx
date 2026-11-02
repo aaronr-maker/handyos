@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { formatDuration, formatMoney, parseMoney, resultError, useAction, useAsync, useSession } from '@/core';
 import { getJob } from '@/modules/jobs';
 import { addJobCostAction, removeJobCostAction } from '../actions';
+import { JobP4PPanel } from './JobP4PPanel';
 import { costJob, expectedCost, listCostsForJob, loadCostingData } from '../services/jobCostService';
 import type { CostKind } from '../types';
 
@@ -86,6 +87,8 @@ export default function JobCostDetail() {
         {r.invoiced_cents === 0 && <p className="muted">Nothing has been invoiced for this job yet, so profit shows the cost so far.</p>}
         {r.unrated_user_ids.length > 0 && <p className="err">Some time on this job is from people with no hourly rate set, so it's counted as $0 until you add their rate.</p>}
       </div>
+
+      <JobP4PPanel jobId={job.id} onChanged={reload} />
 
       <div className="card">
         <h2>Costs recorded</h2>

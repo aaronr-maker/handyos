@@ -19,6 +19,8 @@ const body = {
   tax_rate_bps: z.number().int().min(0).max(10000).default(0),
   valid_until: z.iso.date().nullable().default(null),
   notes: z.string().trim().max(4000).nullable().default(null),
+  /** Team member who sold it. Defaults to the person creating the estimate. */
+  sold_by: z.string().min(1).nullable().optional(),
 };
 
 const whoFor = z
@@ -44,9 +46,10 @@ export const createEstimateAction = defineAction({
   risk: 'low',
   requiresApproval: false,
   example,
-  async handler({ customer_id, property_id, ...rest }, ctx) {
+  async handler({ customer_id, property_id, sold_by, ...rest }, ctx) {
     const billing = await resolveBilling(ctx.companyId, { customerId: customer_id, propertyId: property_id });
-    const estimate = await createEstimate(ctx.companyId, { ...billing, ...rest } as EstimateDraft);
+    const seller = sold_by !== undefined ? sold_by : ctx.actor.kind === 'user' ? ctx.actor.id : null;
+    const estimate = await createEstimate(ctx.companyId, { ...billing, sold_by: seller, ...rest } as EstimateDraft);
     await ctx.events.emit(ctx.companyId, 'estimate.created', { estimateId: estimate.id, customerId: estimate.customer_id, totalCents: estimate.total_cents });
     return estimate;
   },
@@ -61,9 +64,10 @@ export const updateEstimateAction = defineAction({
   risk: 'low',
   requiresApproval: false,
   example: { estimate_id: 'estimate-id', ...example },
-  async handler({ estimate_id, customer_id, property_id, ...rest }, ctx) {
+  async handler({ estimate_id, customer_id, property_id, sold_by, ...rest }, ctx) {
     const billing = await resolveBilling(ctx.companyId, { customerId: customer_id, propertyId: property_id });
-    return updateDraft(ctx.companyId, estimate_id, { ...billing, ...rest } as EstimateDraft);
+    const existing = await getEstimate(ctx.companyId, estimate_id);
+    return updateDraft(ctx.companyId, estimate_id, { ...billing, sold_by: sold_by !== undefined ? sold_by : (existing?.sold_by ?? null), ...rest } as EstimateDraft);
   },
 });
 
@@ -101,6 +105,7 @@ export const approveEstimateAction = defineAction({
       title: estimate.title,
       propertyId: estimate.property_id,
       owedById: estimate.owed_by_customer_id,
+      soldBy: estimate.sold_by,
     });
     return estimate;
   },

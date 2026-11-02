@@ -10,6 +10,7 @@ export interface JobDraft {
   owed_by_customer_id: Id | null;
   property_id: Id | null;
   estimate_id: Id | null;
+  sold_by: Id | null;
   title: string;
   notes: string | null;
 }
@@ -26,6 +27,11 @@ export async function createJob(companyId: Id, draft: JobDraft, schedule?: { sta
 }
 
 export const getJob = (companyId: Id, id: Id) => jobs.get(companyId, id);
+
+export async function setSeller(companyId: Id, id: Id, soldBy: Id | null): Promise<Job> {
+  if (!(await jobs.get(companyId, id))) throw new Error('Job not found');
+  return jobs.update(companyId, id, { sold_by: soldBy });
+}
 export const listJobs = async (companyId: Id) => (await jobs.list(companyId)).sort((a, b) => b.job_number - a.job_number);
 
 export async function updateJob(companyId: Id, id: Id, data: Pick<Job, 'title' | 'notes'>): Promise<Job> {

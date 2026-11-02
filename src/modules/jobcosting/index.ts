@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
 import { addJobCostAction, removeJobCostAction, setPayRateAction } from './actions';
+import { finalizePayoutAction, markPayoutsPaidAction, savePayForPerformanceAction } from './p4pActions';
 
 export const jobcostingModule: ModuleManifest = {
   id: 'jobcosting',
@@ -14,10 +15,23 @@ export const jobcostingModule: ModuleManifest = {
     actions.register(addJobCostAction);
     actions.register(removeJobCostAction);
     actions.register(setPayRateAction);
+    actions.register(savePayForPerformanceAction);
+    actions.register(finalizePayoutAction);
+    actions.register(markPayoutsPaidAction);
   },
 };
 
+/** A person's own pay-for-performance earnings (every role can see their own). */
+export const MyEarnings = lazy(() => import('./ui/MyEarnings'));
+
+/** The pay-for-performance settings editor (rendered by the app's Settings screen). */
+export const P4PSettings = lazy(() => import('./ui/P4PSettings'));
 export type { CostKind, JobCost, PayRate } from './types';
+export * from './p4pTypes';
+export { computeP4P, validateSetup, splitCents } from './p4pCalc';
+export type { P4PResult, LevelResult } from './p4pCalc';
+export { finalizeJob, getSetup, jobP4P, listPayouts, saveSetup } from './services/p4pService';
+export type { JobP4P, JobP4PStatus, Setup, SetupInput } from './services/p4pService';
 export { computeJobCost } from './calc';
 export type { JobCostResult } from './calc';
 export { costJob, expectedCost, loadCostingData } from './services/jobCostService';

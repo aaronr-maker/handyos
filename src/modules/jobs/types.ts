@@ -11,6 +11,8 @@ export interface Job extends BaseRecord {
   owed_by_customer_id: Id | null;
   property_id: Id | null;
   estimate_id: Id | null;
+  /** The team member who sold the job (earns the seller share of pay-for-performance). */
+  sold_by: Id | null;
   title: string;
   notes: string | null;
   status: JobStatus;

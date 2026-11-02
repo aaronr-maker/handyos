@@ -19,7 +19,9 @@ const itemsFor = (role: UserRole) => {
     all: [
       home,
       ...visible.map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
+      { to: '/earnings', label: 'My earnings', icon: 'jobcosting' as IconName },
       { to: '/team', label: 'Team', icon: 'customers' as IconName },
+      ...(role === 'owner' || role === 'admin' ? [{ to: '/settings', label: 'Settings', icon: 'system' as IconName }] : []),
       { to: '/system', label: 'System', icon: 'system' as IconName },
     ] as NavItem[],
     tabs: [

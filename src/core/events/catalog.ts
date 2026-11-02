@@ -17,7 +17,7 @@ export interface EventCatalog {
   'customer.updated': { customerId: Id; what: 'details' | 'contact' | 'property' };
   'estimate.created': { estimateId: Id; customerId: Id; totalCents: Cents };
   'estimate.sent': { estimateId: Id; customerId: Id };
-  'estimate.approved': { estimateId: Id; customerId: Id; title: string; propertyId: Id | null; owedById: Id | null };
+  'estimate.approved': { estimateId: Id; customerId: Id; title: string; propertyId: Id | null; owedById: Id | null; soldBy: Id | null };
   'job.created': { jobId: Id; customerId: Id };
   'job.rescheduled': { jobId: Id; from: string | null; to: string };
   'job.completed': { jobId: Id; customerId: Id };
