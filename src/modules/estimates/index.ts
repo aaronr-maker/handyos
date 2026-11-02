@@ -8,6 +8,7 @@ export const estimatesModule: ModuleManifest = {
   label: 'Estimates',
   description: 'Price book and estimates.',
   path: '/estimates',
+  hiddenFromRoles: ['tech'],
   icon: 'estimates',
   Screen: lazy(() => import('./ui/EstimatesScreen')),
   register({ actions }) {

@@ -188,7 +188,8 @@ committed to this repository.
   automation will run it; there is also a button on the Invoices screen).
 - **Roles** are enforced where actions run, for people and AI agents alike: techs can't touch estimates, invoices, payments or
   prices; office can invoice and take payments; only owners and admins can refund or change prices; only owners and admins
-  approve an AI agent's requests. Techs keep jobs and the time clock.
+  approve an AI agent's requests. Techs keep jobs and the time clock. The database backs this up: techs can't read
+  estimates, invoices, payments or the price book at all, and the menu hides those sections from them.
 
 ### Database (Supabase)
 

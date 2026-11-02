@@ -15,6 +15,7 @@ export const invoicingModule: ModuleManifest = {
   label: 'Invoices',
   description: 'Invoices and receivables.',
   path: '/invoices',
+  hiddenFromRoles: ['tech'],
   icon: 'invoicing',
   Screen: lazy(() => import('./ui/InvoicingScreen')),
   register({ actions }) {

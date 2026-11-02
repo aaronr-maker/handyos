@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Icon, isSupabaseConfigured, signOut } from '@/core';
+import { Icon, isSupabaseConfigured, signOut, useSession } from '@/core';
 import { modules } from '../modules';
 
 /** Mobile overflow: every area that does not fit in the bottom tab bar. */
 export function MoreScreen() {
-  const rest = modules.filter((m) => !m.mobileTab);
+  const { role } = useSession();
+  const rest = modules.filter((m) => !m.mobileTab && !m.hiddenFromRoles?.includes(role));
   return (
     <section className="page">
       <header className="page-header">

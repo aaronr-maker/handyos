@@ -4,7 +4,7 @@ import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
 export function HomeScreen() {
-  const { companyName } = useSession();
+  const { companyName, role } = useSession();
   return (
     <section className="page">
       <header className="page-header">
@@ -26,7 +26,7 @@ export function HomeScreen() {
         </p>
       </div>
       <div className="grid">
-        {modules.map((m) => (
+        {modules.filter((m) => !m.hiddenFromRoles?.includes(role)).map((m) => (
           <Link key={m.id} to={m.path} className="card tile">
             <Icon name={m.icon} width={28} height={28} />
             <strong>{m.label}</strong>

@@ -7,6 +7,7 @@ export const jobcostingModule: ModuleManifest = {
   label: 'Job costing',
   description: 'Job profitability and P4P.',
   path: '/job-costing',
+  hiddenFromRoles: ['tech'],
   icon: 'jobcosting',
   Screen: lazy(() => import('./ui/JobCostingScreen')),
   register({ actions }) {

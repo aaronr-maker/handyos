@@ -7,6 +7,7 @@ export const paymentsModule: ModuleManifest = {
   label: 'Payments',
   description: 'Payments and Stripe.',
   path: '/payments',
+  hiddenFromRoles: ['tech'],
   icon: 'payments',
   Screen: lazy(() => import('./ui/PaymentsScreen')),
   register({ actions }) {

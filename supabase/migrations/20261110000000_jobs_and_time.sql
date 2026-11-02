@@ -58,13 +58,18 @@ create policy job_assignments_update on public.job_assignments for update to aut
 create policy job_assignments_delete on public.job_assignments for delete to authenticated using (company_id = public.current_company_id());
 
 -- Everyone in the company can see time entries (the schedule needs them); you can only clock yourself in/out;
--- fixing someone else's entry is for the owner and admins.
+-- closing someone else's open entry (for example when a job is completed) is allowed; editing finished ones is for the owner and admins.
 create policy time_entries_select on public.time_entries for select to authenticated using (company_id = public.current_company_id());
 create policy time_entries_insert on public.time_entries for insert to authenticated
   with check (company_id = public.current_company_id() and user_id = auth.uid());
 create policy time_entries_update on public.time_entries for update to authenticated
-  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin')))
+  using (
+    company_id = public.current_company_id()
+    and (user_id = auth.uid() or clock_out is null or public.current_user_role() in ('owner', 'admin'))
+  )
   with check (company_id = public.current_company_id());
+-- (anyone in the company may close an open entry, so finishing a job can clock out a coworker who forgot;
+--  changing finished entries is for the owner and admins.)
 create policy time_entries_delete on public.time_entries for delete to authenticated
   using (company_id = public.current_company_id() and public.current_user_role() in ('owner', 'admin'));
 
