@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { resultError, useAction, useSession, useAsync } from '@/core';
+import { parseCsv, resultError, useAction, useSession, useAsync } from '@/core';
 import { importCustomersAction } from '../actions';
-import { parseCsv } from '../import/csv';
 import { FIELDS, FIELD_LABELS, autoMap, detectSource, duplicateKeys, mapRow, type Field, type ImportRow, type Mapping } from '../import/mapping';
 import { listCustomers } from '../services/customerService';
 

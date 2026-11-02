@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
 import { addJobCostAction, removeJobCostAction, setPayRateAction } from './actions';
 import { finalizePayoutAction, markPayoutsPaidAction, savePayForPerformanceAction } from './p4pActions';
+import { saveOverheadMonthAction, saveRateSettingsAction } from './rateActions';
 
 export const jobcostingModule: ModuleManifest = {
   id: 'jobcosting',
@@ -18,6 +19,8 @@ export const jobcostingModule: ModuleManifest = {
     actions.register(savePayForPerformanceAction);
     actions.register(finalizePayoutAction);
     actions.register(markPayoutsPaidAction);
+    actions.register(saveOverheadMonthAction);
+    actions.register(saveRateSettingsAction);
   },
 };
 
@@ -28,6 +31,11 @@ export const MyEarnings = lazy(() => import('./ui/MyEarnings'));
 export const P4PSettings = lazy(() => import('./ui/P4PSettings'));
 export type { CostKind, JobCost, PayRate } from './types';
 export * from './p4pTypes';
+export * from './rateTypes';
+export { computeRate, minutesByMonth, monthKey } from './rateCalc';
+export type { RateResult } from './rateCalc';
+export { defaultCategory, parseAmount, parsePnl } from './qbPnl';
+export type { PnlLine, PnlResult } from './qbPnl';
 export { computeP4P, validateSetup, splitCents } from './p4pCalc';
 export type { P4PResult, LevelResult } from './p4pCalc';
 export { finalizeJob, getSetup, jobP4P, listPayouts, saveSetup } from './services/p4pService';
