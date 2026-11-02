@@ -176,6 +176,20 @@ committed to this repository.
 - A shared **customer + property picker** (exported by the customers module) is used wherever work is created, so the
   billing rule is shown the same way everywhere.
 
+### Invoices and payments
+
+- An **invoice** is numbered per company, created for a property or customer (billing follows the same property rule: billed to
+  the manager, owed by the owner), or straight from a job (**Invoice this job** copies its estimate's lines, tax and billing).
+  Only drafts can be edited; once sent it is what the customer received. Statuses: draft, sent, overdue, paid, void.
+- **Payments** (cash, check, card, bank transfer) are recorded against a sent invoice and update its balance and status. A
+  payment can never exceed what is owed, a paid invoice can't be voided, and a refund reopens the balance. Payments are stored
+  as signed amounts, so the history is a ledger. **Stripe** card payments plug into the same `payments.record` action later.
+- **Overdue:** `invoicing.check_overdue` flags every sent invoice past its due date and announces `invoice.overdue` (a daily
+  automation will run it; there is also a button on the Invoices screen).
+- **Roles** are enforced where actions run, for people and AI agents alike: techs can't touch estimates, invoices, payments or
+  prices; office can invoice and take payments; only owners and admins can refund or change prices; only owners and admins
+  approve an AI agent's requests. Techs keep jobs and the time clock.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -200,6 +214,6 @@ Vercel project's environment variables when the database is connected.
 1. ~~**Customers**: login, team access, contacts, properties, import, merge~~ (done)
 2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
 3. ~~**Jobs, scheduling, tech clock in/out**~~ (done; next: tech-friendly mobile polish, photos, job checklists)
-4. **Invoicing + Stripe payments**
+4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
 5. **Job costing + pay-for-performance (P4P) distributions**
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry

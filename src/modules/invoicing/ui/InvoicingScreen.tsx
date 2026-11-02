@@ -1,5 +1,15 @@
-import { ModulePlaceholder } from '@/core';
+import { Route, Routes } from 'react-router-dom';
+import InvoiceDetail from './InvoiceDetail';
+import InvoiceEditor from './InvoiceEditor';
+import { InvoicesList } from './InvoicesList';
 
 export default function InvoicingScreen() {
-  return <ModulePlaceholder title="Invoices" icon="invoicing" summary="Invoices." planned={['Coming next']} />;
+  return (
+    <Routes>
+      <Route index element={<InvoicesList />} />
+      <Route path="new" element={<InvoiceEditor />} />
+      <Route path=":id" element={<InvoiceDetail />} />
+      <Route path=":id/edit" element={<InvoiceEditor />} />
+    </Routes>
+  );
 }

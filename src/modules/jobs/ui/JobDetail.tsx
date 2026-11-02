@@ -258,7 +258,12 @@ export default function JobDetail() {
           Mark job completed
         </button>
       )}
-      {done && <p className="notice">Completed {formatDateTime(job.completed_at)}.</p>}
+      {done && (
+        <p className="notice">
+          Completed {formatDateTime(job.completed_at)}.{' '}
+          {role !== 'tech' && <Link to={`/invoices/new?job=${job.id}`}>Invoice this job</Link>}
+        </p>
+      )}
     </section>
   );
 }

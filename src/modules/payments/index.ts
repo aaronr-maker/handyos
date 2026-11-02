@@ -17,3 +17,4 @@ export const paymentsModule: ModuleManifest = {
 
 export type { Payment, PaymentMethod } from './types';
 export { listPayments, listPaymentsFor } from './services/paymentService';
+export { InvoicePaymentsPanel } from './ui/InvoicePaymentsPanel';
