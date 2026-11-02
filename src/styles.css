@@ -134,3 +134,5 @@ details summary { cursor: pointer; font-weight: 600; }
 .danger-button:hover { background: #991b1b; }
 .dup-row { align-items: flex-start; margin: 10px 0; }
 .dup-row input { margin-top: 3px; }
+.item { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.faded { opacity: 0.6; }

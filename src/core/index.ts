@@ -1,5 +1,6 @@
 /** Public surface of the shared core. Modules may import from '@/core' only (never deep paths). */
 export * from './types';
+export * from './format';
 export * from './events';
 export * from './actions';
 export * from './data';
