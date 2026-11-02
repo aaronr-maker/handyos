@@ -128,6 +128,17 @@ enforced in the database, not just hidden in the UI. Supabase email confirmation
   Their changes to existing records wait for a person's approval, are audit-logged as made by an agent, and announce
   `customer.updated` events.
 
+### Importing customers
+
+**Customers → Import** takes a CSV export from Housecall Pro (recognised automatically, including its repeated
+`Address_N` column groups), Jobber or any customer list. It shows what will happen before anything is saved.
+Each customer's old-system id is stored (`external_ref`), so importing the same file twice never duplicates; matching
+on phone/email is only used for files without ids (two real customers can share a phone number). A property
+manager's addresses become managed rentals with no owner listed yet; everyone else's become properties they own. A
+billing-flagged address is kept as a note when the customer has other addresses. Import runs through the
+`customers.import` action, so it is validated and audit-logged like everything else. Real customer exports are never
+committed to this repository.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,

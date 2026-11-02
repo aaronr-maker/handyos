@@ -1,10 +1,7 @@
-import { createRepo, type Id } from '@/core';
+import type { Id } from '@/core';
 import type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from '../types';
 
-const customers = createRepo<Customer>('customers');
-const contacts = createRepo<CustomerContact>('customer_contacts');
-const properties = createRepo<Property>('properties');
-const parties = createRepo<PropertyParty>('property_parties');
+import { contacts, customers, parties, properties } from './repos';
 
 export type CustomerFields = Pick<Customer, 'name' | 'first_name' | 'last_name' | 'display_name' | 'display_name_source' | 'company_name' | 'is_property_manager' | 'email' | 'phone' | 'notes'>;
 export type ContactFields = Pick<CustomerContact, 'name' | 'first_name' | 'last_name' | 'phone' | 'email'>;
@@ -15,7 +12,7 @@ export type PartyDetails = Pick<PropertyParty, 'name' | 'first_name' | 'last_nam
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const createCustomer = (companyId: Id, data: CustomerFields) =>
-  customers.insert(companyId, { ...data, display_contact_id: null });
+  customers.insert(companyId, { ...data, display_contact_id: null, external_ref: null });
 export const updateCustomer = (companyId: Id, id: Id, data: CustomerFields) => customers.update(companyId, id, data);
 export const getCustomer = (companyId: Id, id: Id) => customers.get(companyId, id);
 export const listCustomers = (companyId: Id) => customers.list(companyId, { orderBy: 'name' });

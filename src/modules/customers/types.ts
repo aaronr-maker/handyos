@@ -22,6 +22,8 @@ export interface Customer extends BaseRecord {
   /** Property managers have several properties, each with its own owner and tenant. */
   is_property_manager: boolean;
   display_contact_id: Id | null;
+  /** Where this customer was imported from, e.g. "hcp:12345" (Housecall Pro id). Null for customers created here. */
+  external_ref: string | null;
 }
 
 export interface CustomerContact extends BaseRecord {

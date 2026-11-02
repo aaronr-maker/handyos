@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
 import { resolveName } from './display';
+import { importCustomers } from './services/importService';
 import {
   addContact,
   addProperty,
@@ -28,7 +29,7 @@ const nameFields = {
   first_name: optionalText(100),
   last_name: optionalText(100),
 };
-const needsName = (v: { name: string | null; first_name: string | null; last_name: string | null; company_name?: string | null }) =>
+const needsName = (v: { name?: string | null; first_name: string | null; last_name: string | null; company_name?: string | null }) =>
   Boolean(resolveName(v));
 
 const customerFields = {
@@ -315,5 +316,48 @@ export const endTenantAction = defineAction({
     const tenant = await endTenant(ctx.companyId, input.property_id, input.ended_on);
     await emitProperty(ctx, existing);
     return tenant;
+  },
+});
+
+const importAddress = z.object({
+  address_line1: z.string().trim().min(1).max(300),
+  city: z.string().trim().max(100).default(''),
+  state: z.string().trim().max(50).default(''),
+  postal_code: z.string().trim().max(20).default(''),
+});
+
+const importRow = z.object({
+  external_ref: optionalText(100),
+  first_name: optionalText(100),
+  last_name: optionalText(100),
+  company_name: optionalText(200),
+  display_name: optionalText(200),
+  display_name_source: z.enum(['person', 'company', 'custom']).default('person'),
+  is_property_manager: z.boolean().default(false),
+  email: optionalEmail,
+  phone: optionalText(40),
+  notes: optionalText(8000),
+  addresses: z.array(importAddress).max(200).default([]),
+});
+
+export const importCustomersAction = defineAction({
+  name: 'customers.import',
+  module: 'customers',
+  description:
+    'Bulk-create customers and their addresses (as properties) from rows exported from another system. Skips customers already imported (same old-system id) or already present (same email or phone).',
+  input: z.object({
+    rows: z.array(importRow.refine(needsName, { message: 'Each row needs a name or company' })).min(1).max(500),
+    skip_duplicates: z.boolean().default(true),
+  }),
+  risk: 'medium',
+  requiresApproval: agentNeedsApproval,
+  example: {
+    rows: [{ external_ref: 'hcp:123', first_name: 'Pat', last_name: 'Rivera', company_name: null, display_name: null, display_name_source: 'person' as const, is_property_manager: false, email: 'pat@example.com', phone: '555-0100', notes: null, addresses: [{ address_line1: '12 Oak St', city: 'Austin', state: 'TX', postal_code: '78701' }] }],
+    skip_duplicates: true,
+  },
+  async handler({ rows, skip_duplicates }, ctx) {
+    const result = await importCustomers(ctx.companyId, rows, skip_duplicates);
+    if (result.created > 0) await ctx.events.emit(ctx.companyId, 'customer.created', { customerId: 'bulk-import' });
+    return result;
   },
 });

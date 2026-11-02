@@ -34,9 +34,12 @@ export function CustomerList() {
           <h1>Customers</h1>
           <p className="muted">{data ? `${data.customers.length} total` : ' '}</p>
         </div>
-        <button className="push-right" onClick={() => setAdding(true)}>
-          Add customer
-        </button>
+        <div className="row push-right">
+          <Link to="import" className="button secondary">
+            Import
+          </Link>
+          <button onClick={() => setAdding(true)}>Add customer</button>
+        </div>
       </header>
 
       {adding && (

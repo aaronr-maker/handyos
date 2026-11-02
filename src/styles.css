@@ -126,3 +126,6 @@ select { min-height: 44px; }
 .grow { flex: 1 1 140px; min-width: 0; }
 .main-check { white-space: nowrap; margin: 0; }
 fieldset .check { margin: 6px 0; }
+a.button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 10px; font-weight: 600; background: var(--brand); color: #fff; }
+a.button.secondary { background: #e2e8f0; color: #0f172a; }
+details summary { cursor: pointer; font-weight: 600; }
