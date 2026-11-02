@@ -245,3 +245,15 @@ Vercel project's environment variables when the database is connected.
 4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
 5. **Job costing + pay-for-performance (P4P) distributions**: job costing and P4P done
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry
+
+### Planned: company hourly rate, integrations, cash distribution (decisions so far)
+
+- **Burdened cost rate** = last month's total company costs (from QuickBooks, by the accounts the owner marks as overhead) divided by the man-hours
+  clocked that same month. Job costing applies it to each job's hours; a target margin on top gives the **hourly price** (shop rate).
+- **Wages and payroll tax** come from QuickBooks (Gusto feeds payroll into it), not typed into the app. Their share of total cost tells the owner what
+  percent of each hourly cost needs to flow into the wages account as jobs are paid. Per-person wages are optional; Gusto's own API may be partner-only and
+  needs checking before we depend on it.
+- **Cash distribution module** (later): when a job is paid it suggests where the money goes (payroll, taxes, P4P, company reserve, overhead). It only
+  suggests; the owner moves money manually.
+- **Integrations foundation** first: a small server piece (Supabase Edge Functions) to hold secrets, handle QuickBooks sign-in and scheduled syncs. Stripe,
+  messaging and the AI agents need the same piece.
