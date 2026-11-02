@@ -14,6 +14,8 @@ export interface ListOptions {
  */
 export interface AsyncRepo<T extends BaseRecord> {
   insert(companyId: Id, data: Omit<T, keyof BaseRecord>): Promise<T>;
+  /** Inserts many rows at once (returned in the same order). */
+  insertMany(companyId: Id, data: Omit<T, keyof BaseRecord>[]): Promise<T[]>;
   get(companyId: Id, id: Id): Promise<T | undefined>;
   list(companyId: Id, options?: ListOptions): Promise<T[]>;
   update(companyId: Id, id: Id, patch: Partial<Omit<T, keyof BaseRecord>>): Promise<T>;
@@ -30,6 +32,18 @@ export function createRepo<T extends BaseRecord>(table: string): AsyncRepo<T> {
       const { data: row, error } = await db.from(table).insert({ ...data, company_id: companyId }).select().single();
       if (error) throw new Error(error.message);
       return row as T;
+    },
+    async insertMany(companyId, data) {
+      const db = getSupabase();
+      if (!db) return data.map((d) => memory.insert(companyId, d));
+      const out: T[] = [];
+      for (let i = 0; i < data.length; i += 200) {
+        const chunk = data.slice(i, i + 200).map((d) => ({ ...d, company_id: companyId }));
+        const { data: rows, error } = await db.from(table).insert(chunk).select();
+        if (error) throw new Error(error.message);
+        out.push(...((rows ?? []) as T[]));
+      }
+      return out;
     },
     async get(companyId, id) {
       const db = getSupabase();

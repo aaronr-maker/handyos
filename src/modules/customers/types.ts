@@ -1,13 +1,20 @@
 import type { BaseRecord, Id } from '@/core';
 
+export type DisplayNameSource = 'person' | 'company' | 'custom';
+
 /**
  * A customer has a main contact (name / phone / email on the record itself) plus any number of
  * additional contacts. `display_contact_id` picks which contact is shown in lists; null = the main contact.
  */
 export interface Customer extends BaseRecord {
-  /** Customer name (the main contact). */
+  /** Full name (first + last), or the business name when there is no first/last. */
   name: string;
+  first_name: string | null;
+  last_name: string | null;
+  /** Custom display name; used when display_name_source is 'custom'. */
   display_name: string | null;
+  /** Which name to show: the person's name, the company name, or the custom display name. */
+  display_name_source: DisplayNameSource;
   company_name: string | null;
   email: string | null;
   phone: string | null;
@@ -15,11 +22,15 @@ export interface Customer extends BaseRecord {
   /** Property managers have several properties, each with its own owner and tenant. */
   is_property_manager: boolean;
   display_contact_id: Id | null;
+  /** Where this customer was imported from, e.g. "hcp:12345" (Housecall Pro id). Null for customers created here. */
+  external_ref: string | null;
 }
 
 export interface CustomerContact extends BaseRecord {
   customer_id: Id;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   email: string | null;
 }
@@ -47,8 +58,10 @@ export interface PropertyParty extends BaseRecord {
   role: PartyRole;
   /** Set for owner and manager (they are customers). Null for tenants. */
   customer_id: Id | null;
-  /** Tenant details (name or company name required). */
+  /** Tenant details (a name or company name is required). `name` is the full name. */
   name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   company_name: string | null;
   phone: string | null;
   email: string | null;

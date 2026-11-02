@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
+import { splitName } from '../display';
 import type { PropertyParty } from '../types';
 
 export interface TenantValues {
-  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   company_name: string | null;
   phone: string | null;
   email: string | null;
@@ -21,7 +23,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Set, correct, replace or end the tenant of a property. */
 export function TenantForm({ current, onSave, onEnd, onCancel }: Props) {
   const [mode, setMode] = useState<'correct' | 'replace'>(current ? 'correct' : 'replace');
-  const [name, setName] = useState(current?.name ?? '');
+  const initialName = current ? splitName({ ...current, name: current.name }) : { first: '', last: '' };
+  const [first, setFirst] = useState(initialName.first);
+  const [last, setLast] = useState(initialName.last);
   const [company, setCompany] = useState(current?.company_name ?? '');
   const [phone, setPhone] = useState(current?.phone ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
@@ -31,7 +35,9 @@ export function TenantForm({ current, onSave, onEnd, onCancel }: Props) {
   // "New tenant" starts with a blank form; "fix a mistake" restores the current record.
   const choose = (next: 'correct' | 'replace') => {
     setMode(next);
-    setName(next === 'correct' ? (current?.name ?? '') : '');
+    const n = next === 'correct' && current ? splitName(current) : { first: '', last: '' };
+    setFirst(n.first);
+    setLast(n.last);
     setCompany(next === 'correct' ? (current?.company_name ?? '') : '');
     setPhone(next === 'correct' ? (current?.phone ?? '') : '');
     setEmail(next === 'correct' ? (current?.email ?? '') : '');
@@ -42,7 +48,7 @@ export function TenantForm({ current, onSave, onEnd, onCancel }: Props) {
     setError(
       await onSave({
         mode,
-        details: { name: blank(name), company_name: blank(company), phone: blank(phone), email: blank(email) },
+        details: { first_name: blank(first), last_name: blank(last), company_name: blank(company), phone: blank(phone), email: blank(email) },
         effective_on: date,
       }),
     );
@@ -62,10 +68,16 @@ export function TenantForm({ current, onSave, onEnd, onCancel }: Props) {
           </label>
         </div>
       )}
-      <label>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
+      <div className="row">
+        <label className="grow">
+          First name
+          <input value={first} onChange={(e) => setFirst(e.target.value)} />
+        </label>
+        <label className="grow">
+          Last name
+          <input value={last} onChange={(e) => setLast(e.target.value)} />
+        </label>
+      </div>
       <label>
         Company name
         <input value={company} onChange={(e) => setCompany(e.target.value)} />

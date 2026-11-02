@@ -153,3 +153,33 @@ describe('property billing rule', () => {
     expect(bad.status).toBe('invalid');
   });
 });
+
+describe('names and main contact', () => {
+  it('builds the full name from first + last, falls back to company, and refuses an empty name', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule, getCustomer, customerLabel } = await import('../src/modules/customers');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    const caller = { companyId: 'coNames', actor: user };
+    const create = async (input: unknown) => rt.actions.executeByName('customers.create', input, caller);
+
+    const person = (await create({ first_name: 'Pat', last_name: 'Rivera' })) as { output: { id: string; name: string } };
+    expect(person.output.name).toBe('Pat Rivera');
+
+    const biz = (await create({ company_name: 'Acme Plumbing' })) as { output: { id: string; name: string } };
+    expect(biz.output.name).toBe('Acme Plumbing');
+    expect((await create({})).status).toBe('invalid');
+
+    // custom / company display choices
+    const both = (await create({ first_name: 'Sam', last_name: 'Lee', company_name: 'Lee Rentals', display_name_source: 'company' })) as { output: { id: string } };
+    expect(customerLabel((await getCustomer('coNames', both.output.id))!)).toBe('Lee Rentals');
+
+    // a company with no person: its first additional contact becomes the main contact automatically
+    const r = await rt.actions.executeByName('customers.add_contact', { customer_id: biz.output.id, first_name: 'Dana', last_name: 'Cole' }, caller);
+    const contactId = (r as { output: { id: string } }).output.id;
+    expect((await getCustomer('coNames', biz.output.id))!.display_contact_id).toBe(contactId);
+    // a person customer keeps themselves as main contact when a contact is added
+    await rt.actions.executeByName('customers.add_contact', { customer_id: person.output.id, first_name: 'Kim' }, caller);
+    expect((await getCustomer('coNames', person.output.id))!.display_contact_id).toBeNull();
+  });
+});

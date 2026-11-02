@@ -112,8 +112,10 @@ enforced in the database, not just hidden in the UI. Supabase email confirmation
 
 ### Customers, properties and billing
 
-- A **customer** has a customer name, optional display name and company name, and any number of **additional contacts**
-  (name, phone, email each). Any one of them, or the main contact, can be the **display contact** shown in lists.
+- A **customer** has a first and last name (or just a company name for a business), and any number of **additional contacts**
+  (first/last, phone, email each). The **display name** is a checkbox choice: the person's name, the company name, or a custom
+  name, and it picks itself when only one of them is filled in. One contact is the **main contact** (a checkbox); the customer
+  is the main contact by default, and a business with no person of its own makes its first additional contact the main one.
 - A customer can be flagged as a **property manager**.
 - A **property** (address) stands on its own, with dated history of its **owner**, **manager** and **tenant**
   (`property_parties`). The **work belongs to the owner**, who is a customer. A **property manager** represents the
@@ -125,6 +127,17 @@ enforced in the database, not just hidden in the UI. Supabase email confirmation
 - **AI upkeep:** agents keep contacts, addresses and tenants current by calling the same `customers.*` actions as the UI.
   Their changes to existing records wait for a person's approval, are audit-logged as made by an agent, and announce
   `customer.updated` events.
+
+### Importing customers
+
+**Customers → Import** takes a CSV export from Housecall Pro (recognised automatically, including its repeated
+`Address_N` column groups), Jobber or any customer list. It shows what will happen before anything is saved.
+Each customer's old-system id is stored (`external_ref`), so importing the same file twice never duplicates; matching
+on phone/email is only used for files without ids (two real customers can share a phone number). A property
+manager's addresses become managed rentals with no owner listed yet; everyone else's become properties they own. A
+billing-flagged address is kept as a note when the customer has other addresses. Import runs through the
+`customers.import` action, so it is validated and audit-logged like everything else. Real customer exports are never
+committed to this repository.
 
 ### Database (Supabase)
 
