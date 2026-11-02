@@ -6,11 +6,11 @@ const contacts = createRepo<CustomerContact>('customer_contacts');
 const properties = createRepo<Property>('properties');
 const parties = createRepo<PropertyParty>('property_parties');
 
-export type CustomerFields = Pick<Customer, 'name' | 'display_name' | 'company_name' | 'is_property_manager' | 'email' | 'phone' | 'notes'>;
-export type ContactFields = Pick<CustomerContact, 'name' | 'phone' | 'email'>;
+export type CustomerFields = Pick<Customer, 'name' | 'first_name' | 'last_name' | 'display_name' | 'display_name_source' | 'company_name' | 'is_property_manager' | 'email' | 'phone' | 'notes'>;
+export type ContactFields = Pick<CustomerContact, 'name' | 'first_name' | 'last_name' | 'phone' | 'email'>;
 export type Address = Pick<Property, 'address_line1' | 'city' | 'state' | 'postal_code'>;
 /** Who an owner or tenant is. At least a name or company name. */
-export type PartyDetails = Pick<PropertyParty, 'name' | 'company_name' | 'phone' | 'email'>;
+export type PartyDetails = Pick<PropertyParty, 'name' | 'first_name' | 'last_name' | 'company_name' | 'phone' | 'email'>;
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -23,8 +23,24 @@ export const listCustomers = (companyId: Id) => customers.list(companyId, { orde
 export const setDisplayContact = (companyId: Id, customerId: Id, contactId: Id | null) =>
   customers.update(companyId, customerId, { display_contact_id: contactId });
 
-export const addContact = (companyId: Id, customerId: Id, data: ContactFields) =>
-  contacts.insert(companyId, { ...data, customer_id: customerId });
+/**
+ * A business customer with no person of its own (company name only) has no one to show as the main contact.
+ * When it has exactly one additional contact, that contact becomes the main contact automatically.
+ */
+async function autoSelectOnlyContact(companyId: Id, customerId: Id): Promise<void> {
+  const customer = await customers.get(companyId, customerId);
+  if (!customer || customer.first_name || customer.last_name || !customer.company_name) return;
+  const all = await contacts.list(companyId, { where: { customer_id: customerId } });
+  if (all.length === 1 && customer.display_contact_id !== all[0].id) {
+    await customers.update(companyId, customerId, { display_contact_id: all[0].id });
+  }
+}
+
+export async function addContact(companyId: Id, customerId: Id, data: ContactFields) {
+  const contact = await contacts.insert(companyId, { ...data, customer_id: customerId });
+  await autoSelectOnlyContact(companyId, customerId);
+  return contact;
+}
 export const getContact = (companyId: Id, id: Id) => contacts.get(companyId, id);
 export const updateContact = (companyId: Id, id: Id, data: ContactFields) => contacts.update(companyId, id, data);
 export const listContacts = (companyId: Id, customerId: Id) =>
@@ -37,6 +53,7 @@ export async function removeContact(companyId: Id, id: Id): Promise<void> {
   // The database does this itself; doing it here keeps demo mode consistent.
   if (customer?.display_contact_id === id) await customers.update(companyId, customer.id, { display_contact_id: null });
   await contacts.remove(companyId, id);
+  await autoSelectOnlyContact(companyId, contact.customer_id);
 }
 
 export const getProperty = (companyId: Id, id: Id) => properties.get(companyId, id);
@@ -47,7 +64,7 @@ export const listProperties = (companyId: Id, customerId: Id) =>
 export const listAllProperties = (companyId: Id) => properties.list(companyId);
 export const listAllParties = (companyId: Id) => parties.list(companyId);
 
-const noDetails: PartyDetails = { name: null, company_name: null, phone: null, email: null };
+const noDetails: PartyDetails = { name: null, first_name: null, last_name: null, company_name: null, phone: null, email: null };
 
 async function currentParty(companyId: Id, propertyId: Id, role: PartyRole) {
   const rows = await parties.list(companyId, { where: { property_id: propertyId, role } });

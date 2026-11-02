@@ -123,3 +123,6 @@ legend { font-size: 0.8rem; font-weight: 700; color: var(--muted); padding: 0 6p
 .history { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem; }
 .choice { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 select { min-height: 44px; }
+.grow { flex: 1 1 140px; min-width: 0; }
+.main-check { white-space: nowrap; margin: 0; }
+fieldset .check { margin: 6px 0; }

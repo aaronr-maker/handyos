@@ -34,14 +34,14 @@ export function PropertyForm({ initial, customers, fixed, submitLabel, onSubmit,
     postal_code: initial?.postal_code ?? '',
   });
   const [other, setOther] = useState('');
-  const [tenant, setTenant] = useState({ name: '', company: '', phone: '', email: '' });
+  const [tenant, setTenant] = useState({ first: '', last: '', company: '', phone: '', email: '' });
   const [error, setError] = useState<string | null>(null);
   const setAddr = (k: keyof typeof a) => (e: { target: { value: string } }) => setA({ ...a, [k]: e.target.value });
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const t = { name: blank(tenant.name), company_name: blank(tenant.company), phone: blank(tenant.phone), email: blank(tenant.email) };
-    const hasTenant = t.name || t.company_name || t.phone || t.email;
+    const t = { first_name: blank(tenant.first), last_name: blank(tenant.last), company_name: blank(tenant.company), phone: blank(tenant.phone), email: blank(tenant.email) };
+    const hasTenant = t.first_name || t.last_name || t.company_name || t.phone || t.email;
     const res = await onSubmit({
       owner_id: fixed.kind === 'owner' ? fixed.id || null : blank(other),
       manager_id: fixed.kind === 'manager' ? fixed.id : blank(other),
@@ -52,7 +52,7 @@ export function PropertyForm({ initial, customers, fixed, submitLabel, onSubmit,
     if (!res && !initial) {
       setA({ address_line1: '', city: '', state: '', postal_code: '' });
       setOther('');
-      setTenant({ name: '', company: '', phone: '', email: '' });
+      setTenant({ first: '', last: '', company: '', phone: '', email: '' });
     }
   };
 
@@ -98,10 +98,16 @@ export function PropertyForm({ initial, customers, fixed, submitLabel, onSubmit,
       {!initial && (
         <fieldset>
           <legend>Tenant (optional)</legend>
-          <label>
-            Name
-            <input value={tenant.name} onChange={(e) => setTenant({ ...tenant, name: e.target.value })} />
-          </label>
+          <div className="row">
+            <label className="grow">
+              First name
+              <input value={tenant.first} onChange={(e) => setTenant({ ...tenant, first: e.target.value })} />
+            </label>
+            <label className="grow">
+              Last name
+              <input value={tenant.last} onChange={(e) => setTenant({ ...tenant, last: e.target.value })} />
+            </label>
+          </div>
           <label>
             Company name
             <input value={tenant.company} onChange={(e) => setTenant({ ...tenant, company: e.target.value })} />

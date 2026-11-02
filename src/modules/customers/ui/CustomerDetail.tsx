@@ -126,13 +126,15 @@ export function CustomerDetail() {
               <div><Phone phone={c.phone} /></div>
               <div><Email email={c.email} /></div>
             </div>
-            {isDisplay(null) ? (
-              <span className="pill ok">Display contact</span>
-            ) : (
-              <button className="secondary" onClick={() => void run(() => setDisplay({ customer_id: id, contact_id: null }))}>
-                Show this one
-              </button>
-            )}
+            <label className="check main-check">
+              <input
+                type="checkbox"
+                checked={isDisplay(null)}
+                disabled={isDisplay(null)}
+                onChange={() => void run(() => setDisplay({ customer_id: id, contact_id: null }))}
+              />
+              Main contact
+            </label>
           </div>
           {c.notes && <p className="notes">{c.notes}</p>}
         </div>
@@ -170,13 +172,15 @@ export function CustomerDetail() {
                   </button>
                 </div>
               </div>
-              {isDisplay(k.id) ? (
-                <span className="pill ok">Display contact</span>
-              ) : (
-                <button className="secondary" onClick={() => void run(() => setDisplay({ customer_id: id, contact_id: k.id }))}>
-                  Show this one
-                </button>
-              )}
+              <label className="check main-check">
+                <input
+                  type="checkbox"
+                  checked={isDisplay(k.id)}
+                  disabled={isDisplay(k.id)}
+                  onChange={() => void run(() => setDisplay({ customer_id: id, contact_id: k.id }))}
+                />
+                Main contact
+              </label>
             </div>
           ),
         )}

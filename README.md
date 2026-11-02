@@ -112,8 +112,10 @@ enforced in the database, not just hidden in the UI. Supabase email confirmation
 
 ### Customers, properties and billing
 
-- A **customer** has a customer name, optional display name and company name, and any number of **additional contacts**
-  (name, phone, email each). Any one of them, or the main contact, can be the **display contact** shown in lists.
+- A **customer** has a first and last name (or just a company name for a business), and any number of **additional contacts**
+  (first/last, phone, email each). The **display name** is a checkbox choice: the person's name, the company name, or a custom
+  name, and it picks itself when only one of them is filled in. One contact is the **main contact** (a checkbox); the customer
+  is the main contact by default, and a business with no person of its own makes its first additional contact the main one.
 - A customer can be flagged as a **property manager**.
 - A **property** (address) stands on its own, with dated history of its **owner**, **manager** and **tenant**
   (`property_parties`). The **work belongs to the owner**, who is a customer. A **property manager** represents the
