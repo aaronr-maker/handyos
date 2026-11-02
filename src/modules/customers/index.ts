@@ -4,6 +4,7 @@ import {
   addContactAction,
   addPropertyAction,
   createCustomerAction,
+  deleteCustomerAction,
   changeOwnerAction,
   endTenantAction,
   importCustomersAction,
@@ -40,6 +41,7 @@ export const customersModule: ModuleManifest = {
       setTenantAction,
       endTenantAction,
       importCustomersAction,
+      deleteCustomerAction,
     ].forEach((a) => actions.register(a));
   },
 };

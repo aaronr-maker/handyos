@@ -205,3 +205,42 @@ export async function getPropertyBilling(companyId: Id, propertyId: Id) {
   if (!property) throw new Error('Property not found');
   return billingFor(property, await parties.list(companyId, { where: { property_id: propertyId } }));
 }
+
+export type DeleteBlock = 'has_addresses' | 'had_addresses';
+
+/**
+ * Why a customer can't be deleted, or null when they can. A customer can only be deleted when they have no
+ * addresses: none now (owned or managed), and none in the past (their history would lose its owner/manager).
+ */
+export async function deleteBlockReason(companyId: Id, customerId: Id): Promise<DeleteBlock | null> {
+  const [owned, history] = await Promise.all([
+    properties.list(companyId, { where: { customer_id: customerId } }),
+    parties.list(companyId),
+  ]);
+  const links = history.filter((p) => p.customer_id === customerId && (p.role === 'owner' || p.role === 'manager'));
+  if (owned.length > 0 || links.some((p) => p.ended_on === null)) return 'has_addresses';
+  if (links.length > 0) return 'had_addresses';
+  return null;
+}
+
+export const DELETE_MESSAGES: Record<DeleteBlock, string> = {
+  has_addresses: 'This customer still has addresses, so they can\u2019t be deleted.',
+  had_addresses: 'This customer was linked to an address before, and that history needs to keep them, so they can\u2019t be deleted.',
+};
+
+/** Deletes a customer (and their additional contacts) that has no addresses. */
+export async function deleteCustomer(companyId: Id, customerId: Id): Promise<void> {
+  if (!(await customers.get(companyId, customerId))) throw new Error('Customer not found');
+  const block = await deleteBlockReason(companyId, customerId);
+  if (block) throw new Error(DELETE_MESSAGES[block]);
+  // The database removes the contacts itself; doing it here keeps demo mode consistent.
+  for (const c of await contacts.list(companyId, { where: { customer_id: customerId } })) await contacts.remove(companyId, c.id);
+  try {
+    await customers.remove(companyId, customerId);
+  } catch (err) {
+    if (err instanceof Error && /foreign key|violates/i.test(err.message)) {
+      throw new Error('This customer is used by other records (such as jobs, estimates or invoices), so they can\u2019t be deleted.', { cause: err });
+    }
+    throw err;
+  }
+}

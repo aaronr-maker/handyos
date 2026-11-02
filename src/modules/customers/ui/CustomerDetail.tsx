@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { resultError, useAction, useAsync, useSession } from '@/core';
 import {
   addContactAction,
   addPropertyAction,
+  deleteCustomerAction,
   removeContactAction,
   setDisplayContactAction,
   updateContactAction,
@@ -32,6 +33,8 @@ export function CustomerDetail() {
   const removeContact = useAction(removeContactAction);
   const setDisplay = useAction(setDisplayContactAction);
   const addProperty = useAction(addPropertyAction);
+  const deleteCustomer = useAction(deleteCustomerAction);
+  const navigate = useNavigate();
 
   const customer = useAsync(() => getCustomer(companyId, id), [companyId, id]);
   const contacts = useAsync(() => listContacts(companyId, id), [companyId, id]);
@@ -256,6 +259,32 @@ export function CustomerDetail() {
               {f.address} <span className="muted">· was {f.role} until {f.endedOn}</span>
             </p>
           ))}
+        </div>
+      )}
+
+      {data && (
+        <div className="card danger">
+          <h2>Delete customer</h2>
+          {data.owned.length > 0 || data.managed.length > 0 ? (
+            <p className="muted">This customer has addresses, so they can't be deleted.</p>
+          ) : data.former.length > 0 ? (
+            <p className="muted">This customer was linked to an address before, and that history needs to keep them, so they can't be deleted.</p>
+          ) : (
+            <>
+              <p className="muted">Removes {customerLabel(c)} and their additional contacts for good. This can't be undone.</p>
+              <button
+                className="danger-button"
+                onClick={async () => {
+                  if (!confirm(`Delete ${customerLabel(c)}? This can't be undone.`)) return;
+                  const message = resultError(await deleteCustomer({ customer_id: id }));
+                  if (message) setError(message);
+                  else navigate('/customers');
+                }}
+              >
+                Delete customer
+              </button>
+            </>
+          )}
         </div>
       )}
     </section>

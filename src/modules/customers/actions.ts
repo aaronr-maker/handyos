@@ -7,6 +7,7 @@ import {
   addProperty,
   changeOwner,
   createCustomer,
+  deleteCustomer,
   endTenant,
   getContact,
   getCustomer,
@@ -359,5 +360,21 @@ export const importCustomersAction = defineAction({
     const result = await importCustomers(ctx.companyId, rows, skip_duplicates);
     if (result.created > 0) await ctx.events.emit(ctx.companyId, 'customer.created', { customerId: 'bulk-import' });
     return result;
+  },
+});
+
+export const deleteCustomerAction = defineAction({
+  name: 'customers.delete',
+  module: 'customers',
+  description: 'Permanently delete a customer and their additional contacts. Only allowed when the customer has no addresses (now or in the past).',
+  input: z.object({ customer_id: z.string().min(1) }),
+  risk: 'high',
+  // People confirm in the app; an AI agent always needs a person to approve first.
+  requiresApproval: agentNeedsApproval,
+  example: { customer_id: 'customer-id' },
+  async handler({ customer_id }, ctx) {
+    await deleteCustomer(ctx.companyId, customer_id);
+    await ctx.events.emit(ctx.companyId, 'customer.deleted', { customerId: customer_id });
+    return { deleted: customer_id };
   },
 });

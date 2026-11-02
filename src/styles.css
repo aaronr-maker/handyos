@@ -129,3 +129,6 @@ fieldset .check { margin: 6px 0; }
 a.button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 10px; font-weight: 600; background: var(--brand); color: #fff; }
 a.button.secondary { background: #e2e8f0; color: #0f172a; }
 details summary { cursor: pointer; font-weight: 600; }
+.danger { border-color: #fecaca; }
+.danger-button { background: #b91c1c; }
+.danger-button:hover { background: #991b1b; }
