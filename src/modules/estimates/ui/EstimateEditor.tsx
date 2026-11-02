@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { centsToInput, formatMoney, parseMoney, resultError, useAction, useAsync, useSession } from '@/core';
-import { customerLabel, getPropertyBilling, listCustomers, listPropertiesFor } from '@/modules/customers';
+import { CustomerPropertyPicker, type WhoValue } from '@/modules/customers';
 import { createEstimateAction, updateEstimateAction } from '../actions';
 import { getEstimate } from '../services/estimateService';
 import { listPriceItems } from '../services/priceBookService';
@@ -30,7 +30,6 @@ export default function EstimateEditor() {
 
   const base = useAsync(
     async () => ({
-      customers: await listCustomers(companyId),
       priceItems: (await listPriceItems(companyId)).filter((i) => i.active),
       existing: id ? await getEstimate(companyId, id) : undefined,
     }),
@@ -56,7 +55,7 @@ export default function EstimateEditor() {
 }
 
 interface FormProps {
-  data: { customers: Awaited<ReturnType<typeof listCustomers>>; priceItems: Awaited<ReturnType<typeof listPriceItems>>; existing?: Awaited<ReturnType<typeof getEstimate>> };
+  data: { priceItems: Awaited<ReturnType<typeof listPriceItems>>; existing?: Awaited<ReturnType<typeof getEstimate>> };
   onSave(v: {
     customer_id: string | null;
     property_id: string | null;
@@ -69,12 +68,9 @@ interface FormProps {
 }
 
 function Form({ data, onSave }: FormProps) {
-  const { companyId } = useSession();
   const ex = data.existing;
-  const [search, setSearch] = useState('');
-  // For an existing estimate we know the property and the billed customer; the property decides billing again on save.
-  const [customerId, setCustomerId] = useState(ex ? (ex.property_id ? '' : ex.customer_id) : '');
-  const [propertyId, setPropertyId] = useState(ex?.property_id ?? '');
+  // For an existing estimate the billed customer and property are known; the property decides billing again on save.
+  const [who, setWho] = useState<WhoValue>({ customerId: ex?.customer_id ?? '', propertyId: ex?.property_id ?? '' });
   const [title, setTitle] = useState(ex?.title ?? '');
   const [lines, setLines] = useState<Line[]>(
     ex ? ex.line_items.map((l) => ({ description: l.description, quantity: String(l.quantity), unit: l.unit, price: centsToInput(l.unit_price_cents), cost: l.unit_cost_cents, taxable: l.taxable, price_book_item_id: l.price_book_item_id })) : [blankLine()],
@@ -84,19 +80,6 @@ function Form({ data, onSave }: FormProps) {
   const [notes, setNotes] = useState(ex?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const customerForProperties = customerId || (ex?.property_id ? ex.customer_id : '');
-  const props = useAsync(async () => (customerForProperties ? listPropertiesFor(companyId, customerForProperties) : []), [companyId, customerForProperties]);
-  const billing = useAsync(async () => (propertyId ? getPropertyBilling(companyId, propertyId) : null), [companyId, propertyId]);
-
-  const name = (cid: string) => {
-    const c = data.customers.find((x) => x.id === cid);
-    return c ? customerLabel(c) : '';
-  };
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return data.customers.filter((c) => !q || `${customerLabel(c)} ${c.name} ${c.phone ?? ''} ${c.email ?? ''}`.toLowerCase().includes(q)).slice(0, 50);
-  }, [data.customers, search]);
 
   const parsed = lines.map((l) => ({ quantity: Number(l.quantity), cents: parseMoney(l.price), taxable: l.taxable }));
   const rate = Number(taxPct);
@@ -118,8 +101,8 @@ function Form({ data, onSave }: FormProps) {
     if (!Number.isFinite(rate) || rate < 0 || rate > 100) return setError('Tax rate must be between 0 and 100');
     setBusy(true);
     const message = await onSave({
-      customer_id: propertyId ? null : customerId || null,
-      property_id: propertyId || null,
+      customer_id: who.propertyId ? null : who.customerId || null,
+      property_id: who.propertyId || null,
       title,
       line_items: items,
       tax_rate_bps: Math.round(rate * 100),
@@ -141,45 +124,7 @@ function Form({ data, onSave }: FormProps) {
 
       <div className="card">
         <h2>Who is it for?</h2>
-        <label>
-          Customer
-          <input type="search" placeholder="Search customers" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        <select value={customerId} onChange={(e) => { setCustomerId(e.target.value); setPropertyId(''); }}>
-          <option value="">{ex?.property_id && !customerId ? `Currently billed to ${name(ex.customer_id)}` : 'Choose a customer…'}</option>
-          {matches.map((c) => (
-            <option key={c.id} value={c.id}>
-              {customerLabel(c)}
-              {c.phone ? ` · ${c.phone}` : ''}
-            </option>
-          ))}
-        </select>
-        {customerForProperties && (
-          <label>
-            Property <span className="muted">(optional; billing follows the property's owner and manager)</span>
-            <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
-              <option value="">No specific property</option>
-              {(props.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.address_line1}
-                  {p.city ? `, ${p.city}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {propertyId && billing.data && (
-          <p className="notice">
-            Billed to <strong>{name(billing.data.billToId)}</strong>
-            {billing.data.owedById !== billing.data.billToId && (
-              <>
-                {' '}
-                · owed by <strong>{name(billing.data.owedById)}</strong>
-              </>
-            )}
-          </p>
-        )}
-        {propertyId && !billing.loading && !billing.data && <p className="err">This property has no owner or property manager to bill.</p>}
+        <CustomerPropertyPicker value={who} onChange={setWho} />
       </div>
 
       <div className="card">

@@ -164,6 +164,18 @@ committed to this repository.
 - Prices are integer cents everywhere; numbers come from `next_company_number()` in the database so two people creating
   estimates at once never get the same number.
 
+### Jobs, scheduling and the time clock
+
+- A **job** is numbered per company (#1001...), billed through the same property rule as estimates (billed to the manager,
+  owed by the owner), and can come from an approved estimate or be created directly for a property or customer.
+- **Scheduling** puts a job on the **Schedule** week view (with a "Needs a date" list and a crew filter); moving a job keeps
+  its length. The scheduling module changes jobs only through the jobs module's public interface.
+- **Crew:** assign team members to a job. **Tech time clock:** clock in / out of a job from the job page. A person can be
+  clocked in to one job at a time (enforced by the database), only a real person can clock in or out (an AI agent cannot),
+  and completing a job clocks out anyone still on it. Clock events (`timeclock.in` / `timeclock.out`) feed job costing later.
+- A shared **customer + property picker** (exported by the customers module) is used wherever work is created, so the
+  billing rule is shown the same way everywhere.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -187,7 +199,7 @@ Vercel project's environment variables when the database is connected.
 
 1. ~~**Customers**: login, team access, contacts, properties, import, merge~~ (done)
 2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
-3. **Jobs, scheduling, tech clock in/out**
+3. ~~**Jobs, scheduling, tech clock in/out**~~ (done; next: tech-friendly mobile polish, photos, job checklists)
 4. **Invoicing + Stripe payments**
 5. **Job costing + pay-for-performance (P4P) distributions**
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry

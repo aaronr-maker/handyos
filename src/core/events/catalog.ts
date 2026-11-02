@@ -17,10 +17,14 @@ export interface EventCatalog {
   'customer.updated': { customerId: Id; what: 'details' | 'contact' | 'property' };
   'estimate.created': { estimateId: Id; customerId: Id; totalCents: Cents };
   'estimate.sent': { estimateId: Id; customerId: Id };
-  'estimate.approved': { estimateId: Id; customerId: Id; title: string; propertyId: Id | null };
+  'estimate.approved': { estimateId: Id; customerId: Id; title: string; propertyId: Id | null; owedById: Id | null };
   'job.created': { jobId: Id; customerId: Id };
   'job.rescheduled': { jobId: Id; from: string | null; to: string };
   'job.completed': { jobId: Id; customerId: Id };
+  'job.assigned': { jobId: Id; userIds: Id[] };
+  /** A tech clocked in/out of a job. Job costing turns these into labor cost. */
+  'timeclock.in': { jobId: Id; userId: Id };
+  'timeclock.out': { jobId: Id; userId: Id; minutes: number };
   'invoice.created': { invoiceId: Id; customerId: Id; totalCents: Cents };
   'invoice.sent': { invoiceId: Id; customerId: Id };
   'invoice.overdue': { invoiceId: Id; customerId: Id; amountDueCents: Cents; daysOverdue: number };

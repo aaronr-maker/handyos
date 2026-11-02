@@ -141,3 +141,12 @@ details summary { cursor: pointer; font-weight: 600; }
 .totals { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 12px 0; }
 .totals dt, .totals dd { margin: 0; }
 .totals dd { text-align: right; }
+
+/* Schedule */
+.week { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.day h3 { margin: 0 0 6px; font-size: 0.9rem; }
+.day.today { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.slot { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 0.85rem; }
+.slot:first-of-type { border-top: 0; }
+.slot input[type='datetime-local'] { font-size: 0.8rem; padding: 6px 8px; min-width: 0; flex: 1 1 100%; }
+.slot button { min-height: 36px; padding: 0 12px; }

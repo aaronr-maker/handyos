@@ -50,4 +50,6 @@ export const customersModule: ModuleManifest = {
 
 export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from './types';
 export { customerLabel, displayContact } from './display';
-export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers, listPropertiesFor } from './services/customerService';
+export { CustomerPropertyPicker } from './ui/CustomerPropertyPicker';
+export type { WhoValue } from './ui/CustomerPropertyPicker';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';

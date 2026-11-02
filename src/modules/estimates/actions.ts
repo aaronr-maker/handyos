@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
-import { getCustomer, getProperty, getPropertyBilling } from '@/modules/customers';
+import { resolveBilling } from '@/modules/customers';
 import { createEstimate, getEstimate, setEstimateStatus, updateDraft, type EstimateDraft } from './services/estimateService';
 
 const lineItem = z.object({
@@ -20,23 +20,6 @@ const body = {
   valid_until: z.iso.date().nullable().default(null),
   notes: z.string().trim().max(4000).nullable().default(null),
 };
-
-/**
- * Who the estimate is billed to and labeled as owed by. For a property: the customers module's billing rule
- * (rentals bill the manager, labeled as owed by the owner; the manager owes it when no owner is listed).
- * Without a property: the chosen customer.
- */
-async function resolveBilling(companyId: string, customerId: string | null, propertyId: string | null) {
-  if (propertyId) {
-    if (!(await getProperty(companyId, propertyId))) throw new Error('Property not found');
-    const billing = await getPropertyBilling(companyId, propertyId);
-    if (!billing) throw new Error('This property has no owner or property manager to bill');
-    return { customer_id: billing.billToId, owed_by_customer_id: billing.owedById, property_id: propertyId };
-  }
-  if (!customerId) throw new Error('Choose a customer or a property');
-  if (!(await getCustomer(companyId, customerId))) throw new Error('Customer not found');
-  return { customer_id: customerId, owed_by_customer_id: customerId, property_id: null };
-}
 
 const whoFor = z
   .object({ customer_id: z.string().min(1).nullable().default(null), property_id: z.string().min(1).nullable().default(null) })
@@ -61,7 +44,7 @@ export const createEstimateAction = defineAction({
   requiresApproval: false,
   example,
   async handler({ customer_id, property_id, ...rest }, ctx) {
-    const billing = await resolveBilling(ctx.companyId, customer_id, property_id);
+    const billing = await resolveBilling(ctx.companyId, { customerId: customer_id, propertyId: property_id });
     const estimate = await createEstimate(ctx.companyId, { ...billing, ...rest } as EstimateDraft);
     await ctx.events.emit(ctx.companyId, 'estimate.created', { estimateId: estimate.id, customerId: estimate.customer_id, totalCents: estimate.total_cents });
     return estimate;
@@ -77,7 +60,7 @@ export const updateEstimateAction = defineAction({
   requiresApproval: false,
   example: { estimate_id: 'estimate-id', ...example },
   async handler({ estimate_id, customer_id, property_id, ...rest }, ctx) {
-    const billing = await resolveBilling(ctx.companyId, customer_id, property_id);
+    const billing = await resolveBilling(ctx.companyId, { customerId: customer_id, propertyId: property_id });
     return updateDraft(ctx.companyId, estimate_id, { ...billing, ...rest } as EstimateDraft);
   },
 });
@@ -113,6 +96,7 @@ export const approveEstimateAction = defineAction({
       customerId: estimate.customer_id,
       title: estimate.title,
       propertyId: estimate.property_id,
+      owedById: estimate.owed_by_customer_id,
     });
     return estimate;
   },

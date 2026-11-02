@@ -315,3 +315,19 @@ export async function listPropertiesFor(companyId: Id, customerId: Id): Promise<
   const managed = all.filter((p) => managedIds.has(p.id) && p.customer_id !== customerId);
   return [...owned, ...managed].sort((a, b) => a.address_line1.localeCompare(b.address_line1));
 }
+
+/**
+ * Who is billed and who it is labeled as owed by for new work, from a property (its billing rule) or, with no
+ * property, a customer. Shared by estimates, jobs and (later) invoices so the rule lives in one place.
+ */
+export async function resolveBilling(companyId: Id, input: { customerId: Id | null; propertyId: Id | null }) {
+  if (input.propertyId) {
+    if (!(await properties.get(companyId, input.propertyId))) throw new Error('Property not found');
+    const billing = await getPropertyBilling(companyId, input.propertyId);
+    if (!billing) throw new Error('This property has no owner or property manager to bill');
+    return { customer_id: billing.billToId, owed_by_customer_id: billing.owedById, property_id: input.propertyId };
+  }
+  if (!input.customerId) throw new Error('Choose a customer or a property');
+  if (!(await customers.get(companyId, input.customerId))) throw new Error('Customer not found');
+  return { customer_id: input.customerId, owed_by_customer_id: input.customerId, property_id: null };
+}
