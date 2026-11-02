@@ -35,6 +35,9 @@ export function CustomerList() {
           <p className="muted">{data ? `${data.customers.length} total` : ' '}</p>
         </div>
         <div className="row push-right">
+          <Link to="duplicates" className="button secondary">
+            Duplicates
+          </Link>
           <Link to="import" className="button secondary">
             Import
           </Link>

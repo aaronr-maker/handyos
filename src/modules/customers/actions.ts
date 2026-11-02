@@ -12,6 +12,7 @@ import {
   getContact,
   getCustomer,
   getProperty,
+  mergeCustomers,
   removeContact,
   setDisplayContact,
   setManager,
@@ -376,5 +377,24 @@ export const deleteCustomerAction = defineAction({
     await deleteCustomer(ctx.companyId, customer_id);
     await ctx.events.emit(ctx.companyId, 'customer.deleted', { customerId: customer_id });
     return { deleted: customer_id };
+  },
+});
+
+export const mergeCustomersAction = defineAction({
+  name: 'customers.merge',
+  module: 'customers',
+  description:
+    "Merge a duplicate customer (merge_id) into the one to keep (keep_id). The duplicate's contacts and addresses move to the kept customer, blank details are filled in, and the duplicate is removed. Cannot be undone.",
+  input: z.object({ keep_id: z.string().min(1), merge_id: z.string().min(1) }),
+  risk: 'high',
+  requiresApproval: agentNeedsApproval,
+  example: { keep_id: 'customer-id-to-keep', merge_id: 'duplicate-customer-id' },
+  async handler({ keep_id, merge_id }, ctx) {
+    const customer = await mergeCustomers(ctx.companyId, keep_id, merge_id, async () => {
+      // other modules re-point their own records to the kept customer before the duplicate disappears
+      await ctx.events.emit(ctx.companyId, 'customer.merged', { fromId: merge_id, intoId: keep_id });
+    });
+    await ctx.events.emit(ctx.companyId, 'customer.updated', { customerId: keep_id, what: 'details' });
+    return customer;
   },
 });

@@ -5,6 +5,7 @@ import {
   addContactAction,
   addPropertyAction,
   deleteCustomerAction,
+  mergeCustomersAction,
   removeContactAction,
   setDisplayContactAction,
   updateContactAction,
@@ -34,6 +35,9 @@ export function CustomerDetail() {
   const setDisplay = useAction(setDisplayContactAction);
   const addProperty = useAction(addPropertyAction);
   const deleteCustomer = useAction(deleteCustomerAction);
+  const mergeCustomers = useAction(mergeCustomersAction);
+  const [mergeFrom, setMergeFrom] = useState('');
+  const [merged, setMerged] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const customer = useAsync(() => getCustomer(companyId, id), [companyId, id]);
@@ -259,6 +263,43 @@ export function CustomerDetail() {
               {f.address} <span className="muted">· was {f.role} until {f.endedOn}</span>
             </p>
           ))}
+        </div>
+      )}
+
+      {data && data.customers.length > 1 && (
+        <div className="card">
+          <h2>Merge a duplicate into this customer</h2>
+          <p className="muted">
+            Their contacts and addresses move here, blank details are filled in, and the other customer is removed. This can't be undone.
+          </p>
+          {merged && <p className="notice">{merged}</p>}
+          <select value={mergeFrom} onChange={(e) => setMergeFrom(e.target.value)}>
+            <option value="">Choose the duplicate…</option>
+            {data.customers
+              .filter((x) => x.id !== id)
+              .map((x) => (
+                <option key={x.id} value={x.id}>
+                  {customerLabel(x)}
+                  {x.phone ? ` · ${x.phone}` : ''}
+                </option>
+              ))}
+          </select>
+          <button
+            className="secondary"
+            disabled={!mergeFrom}
+            onClick={async () => {
+              const other = data.customers.find((x) => x.id === mergeFrom)!;
+              if (!confirm(`Merge ${customerLabel(other)} into ${customerLabel(c)}? ${customerLabel(other)} will be removed. This can't be undone.`)) return;
+              const message = await run(() => mergeCustomers({ keep_id: id, merge_id: mergeFrom }));
+              if (!message) {
+                setMerged(`Merged ${customerLabel(other)} into this customer.`);
+                setMergeFrom('');
+                props.reload();
+              }
+            }}
+          >
+            Merge into this customer
+          </button>
         </div>
       )}
 

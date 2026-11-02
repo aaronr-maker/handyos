@@ -8,6 +8,11 @@ import type { Cents, Id } from '../types';
 export interface EventCatalog {
   'customer.created': { customerId: Id };
   'customer.deleted': { customerId: Id };
+  /**
+   * Customer `fromId` was merged into `intoId` and no longer exists. Modules that keep their own records about a
+   * customer (jobs, estimates, invoices, messages...) must re-point them to `intoId` when they handle this event.
+   */
+  'customer.merged': { fromId: Id; intoId: Id };
   /** Contact details, additional contacts, or a property's owner/tenant changed. */
   'customer.updated': { customerId: Id; what: 'details' | 'contact' | 'property' };
   'estimate.created': { estimateId: Id; customerId: Id; totalCents: Cents };

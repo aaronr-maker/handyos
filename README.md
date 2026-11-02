@@ -139,6 +139,17 @@ billing-flagged address is kept as a note when the customer has other addresses.
 `customers.import` action, so it is validated and audit-logged like everything else. Real customer exports are never
 committed to this repository.
 
+### Deleting and merging customers
+
+- A customer can be **deleted only when they have no addresses**, now or in the past (the address history keeps its owners
+  and managers). Contacts go with them. The app says why when it can't.
+- **Merging duplicates** (Customers, then Duplicates, or from a customer's page): the duplicate's contacts and addresses
+  (with their history) move to the kept customer, blank details are filled in, a different phone/email becomes an additional
+  contact, notes are combined, and the old record is removed. The duplicate's old-system id is remembered so re-importing
+  the same export never brings it back. The merge announces a `customer.merged` event; any module that keeps its own
+  records about a customer (jobs, estimates, invoices, messages) must re-point them to the kept customer when it handles that event.
+- Both are actions, so an AI agent can propose them but a person must approve.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,

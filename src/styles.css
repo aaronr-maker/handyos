@@ -132,3 +132,5 @@ details summary { cursor: pointer; font-weight: 600; }
 .danger { border-color: #fecaca; }
 .danger-button { background: #b91c1c; }
 .danger-button:hover { background: #991b1b; }
+.dup-row { align-items: flex-start; margin: 10px 0; }
+.dup-row input { margin-top: 3px; }

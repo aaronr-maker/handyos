@@ -12,7 +12,7 @@ export type PartyDetails = Pick<PropertyParty, 'name' | 'first_name' | 'last_nam
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const createCustomer = (companyId: Id, data: CustomerFields) =>
-  customers.insert(companyId, { ...data, display_contact_id: null, external_ref: null });
+  customers.insert(companyId, { ...data, display_contact_id: null, external_ref: null, merged_external_refs: [] });
 export const updateCustomer = (companyId: Id, id: Id, data: CustomerFields) => customers.update(companyId, id, data);
 export const getCustomer = (companyId: Id, id: Id) => customers.get(companyId, id);
 export const listCustomers = (companyId: Id) => customers.list(companyId, { orderBy: 'name' });
@@ -243,4 +243,67 @@ export async function deleteCustomer(companyId: Id, customerId: Id): Promise<voi
     }
     throw err;
   }
+}
+
+const sameDigits = (a: string | null, b: string | null) => !!a && !!b && a.replace(/\D/g, '').slice(-10) === b.replace(/\D/g, '').slice(-10);
+
+/**
+ * Merges customer `mergeId` into `keepId`, then removes `mergeId`. Everything attached moves to the kept customer:
+ * additional contacts, addresses (as owner or manager, including their history). Blank details on the kept
+ * customer are filled from the other one, a different phone/email becomes an additional contact, and notes are
+ * combined. Records in other modules are re-pointed by their own handlers of the `customer.merged` event
+ * (the caller emits it before this removes the old customer).
+ */
+export async function mergeCustomers(
+  companyId: Id,
+  keepId: Id,
+  mergeId: Id,
+  beforeRemove: () => Promise<void> = async () => {},
+): Promise<Customer> {
+  if (keepId === mergeId) throw new Error('Choose two different customers');
+  const [keep, dup] = await Promise.all([customers.get(companyId, keepId), customers.get(companyId, mergeId)]);
+  if (!keep || !dup) throw new Error('Customer not found');
+
+  const hasPerson = Boolean(keep.first_name || keep.last_name);
+  const fill = !hasPerson && (dup.first_name || dup.last_name);
+  const email = keep.email ?? dup.email;
+  const phone = keep.phone ?? dup.phone;
+  const merged = await customers.update(companyId, keepId, {
+    first_name: fill ? dup.first_name : keep.first_name,
+    last_name: fill ? dup.last_name : keep.last_name,
+    name: fill ? dup.name : keep.name,
+    company_name: keep.company_name ?? dup.company_name,
+    email,
+    phone,
+    is_property_manager: keep.is_property_manager || dup.is_property_manager,
+    notes: [keep.notes, dup.notes ? `Merged from ${dup.name}:\n${dup.notes}` : null].filter(Boolean).join('\n\n') || null,
+    merged_external_refs: [...new Set([...keep.merged_external_refs, ...dup.merged_external_refs, ...(dup.external_ref ? [dup.external_ref] : [])])],
+  });
+
+  // The other customer's own phone/email, when different from what we now have, is kept as an additional contact.
+  const differentPhone = dup.phone && !sameDigits(dup.phone, phone);
+  const differentEmail = dup.email && dup.email.toLowerCase() !== (email ?? '').toLowerCase();
+  if (differentPhone || differentEmail) {
+    await contacts.insert(companyId, { customer_id: keepId, name: dup.name, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email });
+  }
+
+  for (const c of await contacts.list(companyId, { where: { customer_id: mergeId } })) await contacts.update(companyId, c.id, { customer_id: keepId });
+  for (const p of await properties.list(companyId, { where: { customer_id: mergeId } })) await properties.update(companyId, p.id, { customer_id: keepId });
+
+  const all = await parties.list(companyId);
+  for (const row of all.filter((p) => p.customer_id === mergeId)) {
+    const clash =
+      row.ended_on === null &&
+      all.some((o) => o.id !== row.id && o.property_id === row.property_id && o.role === row.role && o.ended_on === null && o.customer_id === keepId);
+    if (clash) await parties.remove(companyId, row.id); // the kept customer already holds this role here
+    else await parties.update(companyId, row.id, { customer_id: keepId });
+  }
+
+  await beforeRemove();
+  try {
+    await customers.remove(companyId, mergeId);
+  } catch (err) {
+    throw new Error('Everything was moved to the kept customer, but the old record could not be removed because other records still point at it. Run the merge again to retry.', { cause: err });
+  }
+  return merged;
 }
