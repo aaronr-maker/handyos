@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { bearer, realDeps, respond } from '../_lib/handler';
-import { startConnect } from '../_lib/qb';
+import { bearer, realDeps, respond } from '../_lib/handler.js';
+import { startConnect } from '../_lib/qb.js';
 
 /** POST: returns the QuickBooks sign-in address for the signed-in owner/admin's company. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

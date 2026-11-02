@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ApiError, type Deps } from './qb';
-import { serverEnv, supabaseStore } from './store';
+import { ApiError, type Deps } from './qb.js';
+import { serverEnv, supabaseStore } from './store.js';
 
 export const realDeps = (): Deps => {
   const env = serverEnv();
-  return { env, store: supabaseStore(env), fetch, now: () => Date.now() };
+  try {
+    return { env, store: supabaseStore(env), fetch, now: () => Date.now() };
+  } catch {
+    throw new ApiError(503, 'QuickBooks is not set up on the server yet (the Supabase server key is missing).');
+  }
 };
 
 export const bearer = (req: VercelRequest): string | null => {

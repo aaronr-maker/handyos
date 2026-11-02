@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { realDeps } from '../_lib/handler';
-import { finishConnect } from '../_lib/qb';
+import { realDeps } from '../_lib/handler.js';
+import { finishConnect } from '../_lib/qb.js';
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 

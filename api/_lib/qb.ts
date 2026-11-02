@@ -1,5 +1,5 @@
-import { decrypt, encrypt, signState, verifyState } from './crypto';
-import { monthRange, reportToLines, type ReportLine } from './report';
+import { decrypt, encrypt, signState, verifyState } from './crypto.js';
+import { monthRange, reportToLines, type ReportLine } from './report.js';
 
 /**
  * The QuickBooks connection logic, written against small interfaces (Store, fetch, env) so it can be tested without

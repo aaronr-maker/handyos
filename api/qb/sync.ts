@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { bearer, realDeps, respond } from '../_lib/handler';
-import { syncMonth } from '../_lib/qb';
+import { bearer, realDeps, respond } from '../_lib/handler.js';
+import { syncMonth } from '../_lib/qb.js';
 
 /** POST { month: "2026-10", method?: "Accrual" | "Cash" }: the month's cost accounts from QuickBooks, for review in the app. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

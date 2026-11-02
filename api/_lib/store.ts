@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Env, Store } from './qb';
+import type { Env, Store } from './qb.js';
 
 /** The real Store: talks to Supabase with the server-only service key (never sent to the browser). */
 export function supabaseStore(env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }): Store {
