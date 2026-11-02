@@ -95,9 +95,24 @@ Every record carries `company_id` (`BaseRecord` in code, a column in every table
 user's company, and composite foreign keys make it impossible for a row to reference another company's data.
 The initial migration also creates a private `company-files` storage bucket scoped by company folder.
 
+### Company accounts and team access
+
+A company is its own account; people sign in as members of it. Whoever creates the company is the **owner**.
+
+| Role | Can do |
+| --- | --- |
+| Owner | Everything: company settings, invite/approve anyone, change roles, remove members |
+| Admin | Invite/approve **office and tech** members, change/remove office and tech members |
+| Office, Tech | Work in the app; cannot manage the team |
+
+People get in two ways: an owner/admin **invites** an email address (the person signs up with that email and accepts),
+or the person signs up and asks to join with the company's **join code** and an owner/admin approves. All membership
+changes go through database functions (`supabase/migrations/20261103000000_team_access.sql`), so the rules above are
+enforced in the database, not just hidden in the UI. Supabase email confirmation should stay on, since invites are matched by email.
+
 ### Database (Supabase)
 
-`supabase/migrations/20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
+`supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
 estimates, jobs, invoices and an append-only audit log, all with RLS. Apply it with the Supabase CLI
 (`supabase link --project-ref <ref> && supabase db push`) or paste it into the Supabase SQL editor. The modules
 currently use in-memory repositories; swapping them to Supabase is a change inside each module's `services/` only.
@@ -116,7 +131,7 @@ Vercel project's environment variables when the database is connected.
 
 ## Roadmap
 
-1. **Customers**: list, properties, import from Housecall Pro and Jobber (wire to Supabase + auth)
+1. **Customers**: ~~login + team access~~ (done), then customer list/detail on Supabase and import from Housecall Pro and Jobber
 2. **Estimates + price book**
 3. **Jobs, scheduling, tech clock in/out**
 4. **Invoicing + Stripe payments**

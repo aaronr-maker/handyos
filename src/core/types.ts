@@ -14,6 +14,10 @@ export type ModuleId = (typeof MODULE_IDS)[number];
 
 export type Id = string;
 
+/** Mirrors the user_role enum in the database. */
+export const USER_ROLES = ['owner', 'admin', 'office', 'tech'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 /** Money is always stored as integer cents to avoid floating-point drift. */
 export type Cents = number;
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Icon } from '@/core';
+import { Icon, isSupabaseConfigured, signOut } from '@/core';
 import { modules } from '../modules';
 
 /** Mobile overflow: every area that does not fit in the bottom tab bar. */
@@ -17,11 +17,20 @@ export function MoreScreen() {
             <span>{m.label}</span>
           </Link>
         ))}
+        <Link to="/team">
+          <Icon name="customers" />
+          <span>Team</span>
+        </Link>
         <Link to="/system">
           <Icon name="system" />
           <span>System</span>
         </Link>
       </div>
+      {isSupabaseConfigured && (
+        <button className="secondary" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      )}
     </section>
   );
 }

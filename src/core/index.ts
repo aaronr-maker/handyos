@@ -6,6 +6,7 @@ export * from './data';
 export * from './tenancy';
 export * from './ui';
 export * from './supabase';
+export * from './auth';
 export type { ModuleContext, ModuleManifest } from './module';
 export { createRuntime } from './runtime';
 export type { Runtime } from './runtime';
