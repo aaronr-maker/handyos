@@ -1,0 +1,6 @@
+# Minimal Supabase CLI config. Run `supabase start` locally (needs Docker) or link a hosted project:
+#   supabase link --project-ref <ref> && supabase db push
+project_id = "handyos"
+
+[db]
+major_version = 15

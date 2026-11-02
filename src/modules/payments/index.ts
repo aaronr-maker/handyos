@@ -1,0 +1,19 @@
+import { lazy } from 'react';
+import type { ModuleManifest } from '@/core';
+import { recordPaymentAction, refundPaymentAction } from './actions';
+
+export const paymentsModule: ModuleManifest = {
+  id: 'payments',
+  label: 'Payments',
+  description: 'Payments and Stripe.',
+  path: '/payments',
+  icon: 'payments',
+  Screen: lazy(() => import('./ui/PaymentsScreen')),
+  register({ actions }) {
+    actions.register(recordPaymentAction);
+    actions.register(refundPaymentAction);
+  },
+};
+
+export type { Payment } from './types';
+export { listPayments } from './services/paymentService';
