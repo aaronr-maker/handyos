@@ -183,3 +183,100 @@ describe('names and main contact', () => {
     expect((await getCustomer('coNames', person.output.id))!.display_contact_id).toBeNull();
   });
 });
+
+describe('deleting a customer', () => {
+  it('only deletes customers with no addresses, removes their contacts, and needs approval for AI agents', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule, getCustomer } = await import('../src/modules/customers');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    const caller = { companyId: 'coDel', actor: user };
+    const run = async (name: string, input: unknown, c: { companyId: string; actor: { kind: 'user' | 'agent' | 'system'; id: string } } = caller) =>
+      rt.actions.executeByName(name, input, c);
+    const out = (r: unknown) => (r as { output: { id: string } }).output;
+
+    const plain = out(await run('customers.create', { first_name: 'No', last_name: 'Address' }));
+    await run('customers.add_contact', { customer_id: plain.id, first_name: 'Extra' });
+    const withAddr = out(await run('customers.create', { first_name: 'Has', last_name: 'Address' }));
+    await run('customers.add_property', { owner_id: withAddr.id, address_line1: '1 Main' });
+
+    // blocked while they have an address
+    const blocked = await run('customers.delete', { customer_id: withAddr.id });
+    expect(blocked.status).toBe('error');
+    expect((blocked as { message: string }).message).toContain('still has addresses');
+    expect(await getCustomer('coDel', withAddr.id)).toBeDefined();
+
+    // an AI agent's delete waits for approval; nothing is deleted yet
+    const byAgent = await run('customers.delete', { customer_id: plain.id }, { companyId: 'coDel', actor: agent });
+    expect(byAgent.status).toBe('pending_approval');
+    expect(await getCustomer('coDel', plain.id)).toBeDefined();
+
+    // a person can delete a customer with no addresses
+    expect((await run('customers.delete', { customer_id: plain.id })).status).toBe('ok');
+    expect(await getCustomer('coDel', plain.id)).toBeUndefined();
+
+    // an owner whose address moved away is still blocked, because the history needs them
+    const buyer = out(await run('customers.create', { first_name: 'Buyer' }));
+    const prop = out(await run('customers.add_property', { owner_id: withAddr.id, address_line1: '2 Main' }));
+    await run('customers.change_owner', { property_id: prop.id, new_owner_id: buyer.id });
+    const lone = out(await run('customers.create', { first_name: 'Past', last_name: 'Owner' }));
+    const prop2 = out(await run('customers.add_property', { owner_id: lone.id, address_line1: '3 Main' }));
+    await run('customers.change_owner', { property_id: prop2.id, new_owner_id: buyer.id });
+    const past = await run('customers.delete', { customer_id: lone.id });
+    expect((past as { message: string }).message).toContain('linked to an address before');
+  });
+});
+
+describe('merging duplicate customers', () => {
+  it('moves contacts and addresses, fills blanks, keeps the other phone, remembers its old id, and tells other modules', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule, getCustomer, listCustomers } = await import('../src/modules/customers');
+    const { findDuplicateGroups } = await import('../src/modules/customers/duplicates');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    const caller = { companyId: 'coMerge', actor: user };
+    const run = async (name: string, input: unknown) => rt.actions.executeByName(name, input, caller);
+    const merged: unknown[] = [];
+    rt.events.on('customer.merged', (e) => void merged.push(e.payload));
+
+    await run('customers.import', {
+      rows: [
+        { external_ref: 'hcp:1', first_name: 'Pat', last_name: 'Rivera', phone: '5550100' },
+        { external_ref: 'hcp:2', first_name: 'Pat', last_name: 'Rivera', email: 'pat@example.com', phone: '5550199', notes: 'Likes mornings', addresses: [{ address_line1: '12 Oak St' }] },
+      ],
+    });
+    const all = await listCustomers('coMerge');
+    const keep = all.find((c) => c.external_ref === 'hcp:1')!;
+    const dup = all.find((c) => c.external_ref === 'hcp:2')!;
+    await run('customers.add_contact', { customer_id: dup.id, first_name: 'Sam' });
+
+    // the duplicate finder suggests them (same name)
+    const groups = findDuplicateGroups(all);
+    expect(groups.some((g) => g.customers.length === 2 && g.reasons.includes('same name'))).toBe(true);
+
+    const res = await run('customers.merge', { keep_id: keep.id, merge_id: dup.id });
+    expect(res.status, JSON.stringify(res)).toBe('ok');
+    expect(await getCustomer('coMerge', dup.id)).toBeUndefined();
+    const k = (await getCustomer('coMerge', keep.id))!;
+    expect(k.email).toBe('pat@example.com'); // blank filled from the duplicate
+    expect(k.phone).toBe('5550100'); // kept customer's own phone wins
+    expect(k.notes).toContain('Likes mornings');
+    expect(k.merged_external_refs).toEqual(['hcp:2']);
+    expect(merged).toEqual([{ fromId: dup.id, intoId: keep.id }]);
+
+    // the duplicate's different phone is kept as an additional contact, its own contact moved over, address moved
+    const { listAllContacts, listProperties } = await import('../src/modules/customers/services/customerService');
+    const contacts = (await listAllContacts('coMerge')).filter((c) => c.customer_id === keep.id);
+    expect(contacts.map((c) => c.phone ?? c.name).sort()).toEqual(['5550199', 'Sam']);
+    expect((await listProperties('coMerge', keep.id)).map((p) => p.address_line1)).toEqual(['12 Oak St']);
+
+    // re-importing the old file does not bring the merged customer back
+    const again = await run('customers.import', { rows: [{ external_ref: 'hcp:2', first_name: 'Pat', last_name: 'Rivera' }] });
+    expect((again as { output: { created: number } }).output.created).toBe(0);
+
+    // can't merge a customer into itself; AI agents need approval
+    expect((await run('customers.merge', { keep_id: keep.id, merge_id: keep.id })).status).toBe('error');
+    const byAgent = await rt.actions.executeByName('customers.merge', { keep_id: keep.id, merge_id: keep.id }, { companyId: 'coMerge', actor: agent });
+    expect(byAgent.status).toBe('pending_approval');
+  });
+});

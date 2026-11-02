@@ -86,3 +86,9 @@ export const setMemberRole = async (memberId: string, role: UserRole) =>
   unwrap(await db().rpc('set_member_role', { member_id: memberId, new_role: role }));
 export const removeMember = async (memberId: string) => unwrap(await db().rpc('remove_member', { member_id: memberId }));
 export const rotateJoinCode = async () => unwrap(await db().rpc('rotate_join_code')) as string;
+
+/** The company's people for assigning work. In demo mode (no database) there is just one demo person. */
+export async function listTeamMembers(): Promise<Member[]> {
+  if (!getSupabase()) return [{ id: 'demo-owner', full_name: 'You (demo)', email: '', role: 'owner' }];
+  return listMembers();
+}

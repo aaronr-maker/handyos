@@ -15,10 +15,10 @@ export function useRuntime(): Runtime {
 /** Returns a function that runs an action as the signed-in person, in their company. */
 export function useAction<S extends z.ZodType, O>(action: ActionDefinition<S, O>) {
   const { actions } = useRuntime();
-  const { companyId, user } = useSession();
+  const { companyId, user, role } = useSession();
   return useCallback(
-    (input: z.input<S>) => actions.execute(action, input, { companyId, actor: user }),
-    [actions, action, companyId, user],
+    (input: z.input<S>) => actions.execute(action, input, { companyId, actor: user, role }),
+    [actions, action, companyId, user, role],
   );
 }
 

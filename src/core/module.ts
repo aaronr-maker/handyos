@@ -2,7 +2,7 @@ import type { ComponentType, LazyExoticComponent } from 'react';
 import type { ActionRegistry } from './actions';
 import type { EventBus } from './events';
 import type { IconName } from './ui/icons';
-import type { ModuleId } from './types';
+import type { ModuleId, UserRole } from './types';
 
 /** What the app hands each module at startup so it can register actions and subscribe to events. */
 export interface ModuleContext {
@@ -23,6 +23,8 @@ export interface ModuleManifest {
   icon: IconName;
   /** Show in the mobile bottom tab bar (the rest live under "More"). */
   mobileTab?: boolean;
+  /** Roles that don't see this section in the menu (the actions and the database enforce the real limits). */
+  hiddenFromRoles?: readonly UserRole[];
   /** Lazy-loaded main screen. */
   Screen: LazyExoticComponent<ComponentType>;
   /** Called once at startup: register actions, subscribe to events. */

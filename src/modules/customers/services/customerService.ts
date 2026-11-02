@@ -12,7 +12,7 @@ export type PartyDetails = Pick<PropertyParty, 'name' | 'first_name' | 'last_nam
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const createCustomer = (companyId: Id, data: CustomerFields) =>
-  customers.insert(companyId, { ...data, display_contact_id: null, external_ref: null });
+  customers.insert(companyId, { ...data, display_contact_id: null, external_ref: null, merged_external_refs: [] });
 export const updateCustomer = (companyId: Id, id: Id, data: CustomerFields) => customers.update(companyId, id, data);
 export const getCustomer = (companyId: Id, id: Id) => customers.get(companyId, id);
 export const listCustomers = (companyId: Id) => customers.list(companyId, { orderBy: 'name' });
@@ -204,4 +204,130 @@ export async function getPropertyBilling(companyId: Id, propertyId: Id) {
   const property = await properties.get(companyId, propertyId);
   if (!property) throw new Error('Property not found');
   return billingFor(property, await parties.list(companyId, { where: { property_id: propertyId } }));
+}
+
+export type DeleteBlock = 'has_addresses' | 'had_addresses';
+
+/**
+ * Why a customer can't be deleted, or null when they can. A customer can only be deleted when they have no
+ * addresses: none now (owned or managed), and none in the past (their history would lose its owner/manager).
+ */
+export async function deleteBlockReason(companyId: Id, customerId: Id): Promise<DeleteBlock | null> {
+  const [owned, history] = await Promise.all([
+    properties.list(companyId, { where: { customer_id: customerId } }),
+    parties.list(companyId),
+  ]);
+  const links = history.filter((p) => p.customer_id === customerId && (p.role === 'owner' || p.role === 'manager'));
+  if (owned.length > 0 || links.some((p) => p.ended_on === null)) return 'has_addresses';
+  if (links.length > 0) return 'had_addresses';
+  return null;
+}
+
+export const DELETE_MESSAGES: Record<DeleteBlock, string> = {
+  has_addresses: 'This customer still has addresses, so they can\u2019t be deleted.',
+  had_addresses: 'This customer was linked to an address before, and that history needs to keep them, so they can\u2019t be deleted.',
+};
+
+/** Deletes a customer (and their additional contacts) that has no addresses. */
+export async function deleteCustomer(companyId: Id, customerId: Id): Promise<void> {
+  if (!(await customers.get(companyId, customerId))) throw new Error('Customer not found');
+  const block = await deleteBlockReason(companyId, customerId);
+  if (block) throw new Error(DELETE_MESSAGES[block]);
+  // The database removes the contacts itself; doing it here keeps demo mode consistent.
+  for (const c of await contacts.list(companyId, { where: { customer_id: customerId } })) await contacts.remove(companyId, c.id);
+  try {
+    await customers.remove(companyId, customerId);
+  } catch (err) {
+    if (err instanceof Error && /foreign key|violates/i.test(err.message)) {
+      throw new Error('This customer is used by other records (such as jobs, estimates or invoices), so they can\u2019t be deleted.', { cause: err });
+    }
+    throw err;
+  }
+}
+
+const sameDigits = (a: string | null, b: string | null) => !!a && !!b && a.replace(/\D/g, '').slice(-10) === b.replace(/\D/g, '').slice(-10);
+
+/**
+ * Merges customer `mergeId` into `keepId`, then removes `mergeId`. Everything attached moves to the kept customer:
+ * additional contacts, addresses (as owner or manager, including their history). Blank details on the kept
+ * customer are filled from the other one, a different phone/email becomes an additional contact, and notes are
+ * combined. Records in other modules are re-pointed by their own handlers of the `customer.merged` event
+ * (the caller emits it before this removes the old customer).
+ */
+export async function mergeCustomers(
+  companyId: Id,
+  keepId: Id,
+  mergeId: Id,
+  beforeRemove: () => Promise<void> = async () => {},
+): Promise<Customer> {
+  if (keepId === mergeId) throw new Error('Choose two different customers');
+  const [keep, dup] = await Promise.all([customers.get(companyId, keepId), customers.get(companyId, mergeId)]);
+  if (!keep || !dup) throw new Error('Customer not found');
+
+  const hasPerson = Boolean(keep.first_name || keep.last_name);
+  const fill = !hasPerson && (dup.first_name || dup.last_name);
+  const email = keep.email ?? dup.email;
+  const phone = keep.phone ?? dup.phone;
+  const merged = await customers.update(companyId, keepId, {
+    first_name: fill ? dup.first_name : keep.first_name,
+    last_name: fill ? dup.last_name : keep.last_name,
+    name: fill ? dup.name : keep.name,
+    company_name: keep.company_name ?? dup.company_name,
+    email,
+    phone,
+    is_property_manager: keep.is_property_manager || dup.is_property_manager,
+    notes: [keep.notes, dup.notes ? `Merged from ${dup.name}:\n${dup.notes}` : null].filter(Boolean).join('\n\n') || null,
+    merged_external_refs: [...new Set([...keep.merged_external_refs, ...dup.merged_external_refs, ...(dup.external_ref ? [dup.external_ref] : [])])],
+  });
+
+  // The other customer's own phone/email, when different from what we now have, is kept as an additional contact.
+  const differentPhone = dup.phone && !sameDigits(dup.phone, phone);
+  const differentEmail = dup.email && dup.email.toLowerCase() !== (email ?? '').toLowerCase();
+  if (differentPhone || differentEmail) {
+    await contacts.insert(companyId, { customer_id: keepId, name: dup.name, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email });
+  }
+
+  for (const c of await contacts.list(companyId, { where: { customer_id: mergeId } })) await contacts.update(companyId, c.id, { customer_id: keepId });
+  for (const p of await properties.list(companyId, { where: { customer_id: mergeId } })) await properties.update(companyId, p.id, { customer_id: keepId });
+
+  const all = await parties.list(companyId);
+  for (const row of all.filter((p) => p.customer_id === mergeId)) {
+    const clash =
+      row.ended_on === null &&
+      all.some((o) => o.id !== row.id && o.property_id === row.property_id && o.role === row.role && o.ended_on === null && o.customer_id === keepId);
+    if (clash) await parties.remove(companyId, row.id); // the kept customer already holds this role here
+    else await parties.update(companyId, row.id, { customer_id: keepId });
+  }
+
+  await beforeRemove();
+  try {
+    await customers.remove(companyId, mergeId);
+  } catch (err) {
+    throw new Error('Everything was moved to the kept customer, but the old record could not be removed because other records still point at it. Run the merge again to retry.', { cause: err });
+  }
+  return merged;
+}
+
+/** Properties a customer owns, plus rentals they currently manage. */
+export async function listPropertiesFor(companyId: Id, customerId: Id): Promise<Property[]> {
+  const [owned, all, rows] = await Promise.all([listProperties(companyId, customerId), properties.list(companyId), parties.list(companyId)]);
+  const managedIds = new Set(rows.filter((p) => p.role === 'manager' && p.ended_on === null && p.customer_id === customerId).map((p) => p.property_id));
+  const managed = all.filter((p) => managedIds.has(p.id) && p.customer_id !== customerId);
+  return [...owned, ...managed].sort((a, b) => a.address_line1.localeCompare(b.address_line1));
+}
+
+/**
+ * Who is billed and who it is labeled as owed by for new work, from a property (its billing rule) or, with no
+ * property, a customer. Shared by estimates, jobs and (later) invoices so the rule lives in one place.
+ */
+export async function resolveBilling(companyId: Id, input: { customerId: Id | null; propertyId: Id | null }) {
+  if (input.propertyId) {
+    if (!(await properties.get(companyId, input.propertyId))) throw new Error('Property not found');
+    const billing = await getPropertyBilling(companyId, input.propertyId);
+    if (!billing) throw new Error('This property has no owner or property manager to bill');
+    return { customer_id: billing.billToId, owed_by_customer_id: billing.owedById, property_id: input.propertyId };
+  }
+  if (!input.customerId) throw new Error('Choose a customer or a property');
+  if (!(await customers.get(companyId, input.customerId))) throw new Error('Customer not found');
+  return { customer_id: input.customerId, owed_by_customer_id: input.customerId, property_id: null };
 }

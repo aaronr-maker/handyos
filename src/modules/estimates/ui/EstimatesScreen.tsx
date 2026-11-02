@@ -1,16 +1,17 @@
-import { ModulePlaceholder } from '@/core';
+import { Route, Routes } from 'react-router-dom';
+import EstimateDetail from './EstimateDetail';
+import EstimateEditor from './EstimateEditor';
+import { EstimatesList } from './EstimatesList';
+import PriceBookScreen from './PriceBookScreen';
 
 export default function EstimatesScreen() {
   return (
-    <ModulePlaceholder
-      title="Estimates"
-      icon="estimates"
-      summary="Price book and good-better-best quotes your customers can approve."
-      planned={[
-        'Price book of services and materials',
-        'Build and send estimates from a phone',
-        'Customer approval turns into a job automatically',
-      ]}
-    />
+    <Routes>
+      <Route index element={<EstimatesList />} />
+      <Route path="pricebook" element={<PriceBookScreen />} />
+      <Route path="new" element={<EstimateEditor />} />
+      <Route path=":id" element={<EstimateDetail />} />
+      <Route path=":id/edit" element={<EstimateEditor />} />
+    </Routes>
   );
 }

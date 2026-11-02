@@ -43,7 +43,7 @@ export function SystemScreen() {
       setResult({ status: 'invalid', issues: ['Input is not valid JSON'], auditId: '' });
       return;
     }
-    setResult(await runtime.actions.executeByName(name, input, { companyId: session.companyId, actor }));
+    setResult(await runtime.actions.executeByName(name, input, { companyId: session.companyId, actor, role: actor.kind === 'user' ? session.role : undefined }));
   };
 
   return (
@@ -97,8 +97,8 @@ export function SystemScreen() {
                 <span className="muted"> requested by {p.requested_by.kind}</span>
               </div>
               <div className="row">
-                <button onClick={async () => setResult(await runtime.actions.decide(p.id, true, session.user))}>Approve</button>
-                <button className="secondary" onClick={async () => setResult(await runtime.actions.decide(p.id, false, session.user))}>
+                <button onClick={async () => setResult(await runtime.actions.decide(p.id, true, session.user, session.role))}>Approve</button>
+                <button className="secondary" onClick={async () => setResult(await runtime.actions.decide(p.id, false, session.user, session.role))}>
                   Reject
                 </button>
               </div>

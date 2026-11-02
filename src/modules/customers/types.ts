@@ -24,6 +24,8 @@ export interface Customer extends BaseRecord {
   display_contact_id: Id | null;
   /** Where this customer was imported from, e.g. "hcp:12345" (Housecall Pro id). Null for customers created here. */
   external_ref: string | null;
+  /** Old-system ids of duplicates merged into this customer, so a re-import doesn't bring them back. */
+  merged_external_refs: string[];
 }
 
 export interface CustomerContact extends BaseRecord {

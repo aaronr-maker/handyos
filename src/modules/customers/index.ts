@@ -4,9 +4,11 @@ import {
   addContactAction,
   addPropertyAction,
   createCustomerAction,
+  deleteCustomerAction,
   changeOwnerAction,
   endTenantAction,
   importCustomersAction,
+  mergeCustomersAction,
   removeContactAction,
   setDisplayContactAction,
   setManagerAction,
@@ -40,10 +42,14 @@ export const customersModule: ModuleManifest = {
       setTenantAction,
       endTenantAction,
       importCustomersAction,
+      deleteCustomerAction,
+      mergeCustomersAction,
     ].forEach((a) => actions.register(a));
   },
 };
 
 export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from './types';
 export { customerLabel, displayContact } from './display';
-export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers } from './services/customerService';
+export { CustomerPropertyPicker } from './ui/CustomerPropertyPicker';
+export type { WhoValue } from './ui/CustomerPropertyPicker';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Icon, isSupabaseConfigured, signOut, useSession, type IconName } from '@/core';
+import { Icon, isSupabaseConfigured, signOut, useSession, type IconName, type UserRole } from '@/core';
 import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
@@ -12,22 +12,31 @@ interface NavItem {
 }
 
 const home: NavItem = { to: '/', label: 'Home', icon: 'home', end: true };
-const all: NavItem[] = [
-  home,
-  ...modules.map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
-  { to: '/team', label: 'Team', icon: 'customers' },
-  { to: '/system', label: 'System', icon: 'system' },
-];
-const tabs: NavItem[] = [
-  home,
-  ...modules.filter((m) => m.mobileTab).map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
-  { to: '/more', label: 'More', icon: 'more' },
-];
+/** Menu items for a role: sections hidden from the role are left out. */
+const itemsFor = (role: UserRole) => {
+  const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role));
+  return {
+    all: [
+      home,
+      ...visible.map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
+      { to: '/earnings', label: 'My earnings', icon: 'jobcosting' as IconName },
+      { to: '/team', label: 'Team', icon: 'customers' as IconName },
+      ...(role === 'owner' || role === 'admin' ? [{ to: '/settings', label: 'Settings', icon: 'system' as IconName }] : []),
+      { to: '/system', label: 'System', icon: 'system' as IconName },
+    ] as NavItem[],
+    tabs: [
+      home,
+      ...visible.filter((m) => m.mobileTab).map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
+      { to: '/more', label: 'More', icon: 'more' as IconName },
+    ] as NavItem[],
+  };
+};
 
 const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : undefined);
 
 export function AppShell() {
-  const { companyName } = useSession();
+  const { companyName, role } = useSession();
+  const { all, tabs } = itemsFor(role);
   return (
     <div className="shell">
       <aside className="sidebar">

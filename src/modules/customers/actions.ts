@@ -7,10 +7,12 @@ import {
   addProperty,
   changeOwner,
   createCustomer,
+  deleteCustomer,
   endTenant,
   getContact,
   getCustomer,
   getProperty,
+  mergeCustomers,
   removeContact,
   setDisplayContact,
   setManager,
@@ -236,12 +238,13 @@ export const changeOwnerAction = defineAction({
   name: 'customers.change_owner',
   module: 'customers',
   description:
-    'The property has a new owner (for example it was sold). The address keeps its history and all its records; the previous owner stays in the history. By default the property manager is removed too, because a sold property usually stops being a rental.',
+    'The property has a new owner (for example it was sold). The address keeps its history and all its records; the previous owner stays in the history. When replacing an existing owner the property manager is removed too by default, because a sold property usually stops being a rental; setting the first owner keeps the manager.',
   input: z.object({
     property_id: z.string().min(1),
     new_owner_id: z.string().min(1),
     effective_on: isoDate.default(todayIso),
-    end_management: z.boolean().default(true),
+    /** Defaults to true when an existing owner is being replaced (a sale), false when setting the first owner. */
+    end_management: z.boolean().optional(),
   }),
   risk: 'medium',
   requiresApproval: agentNeedsApproval,
@@ -249,7 +252,7 @@ export const changeOwnerAction = defineAction({
   async handler(input, ctx) {
     const before = await getProperty(ctx.companyId, input.property_id);
     if (!before) throw new Error('Property not found');
-    const property = await changeOwner(ctx.companyId, input.property_id, input.new_owner_id, input.effective_on, input.end_management);
+    const property = await changeOwner(ctx.companyId, input.property_id, input.new_owner_id, input.effective_on, input.end_management ?? before.customer_id !== null);
     await emitProperty(ctx, before);
     await ctx.events.emit(ctx.companyId, 'customer.updated', { customerId: input.new_owner_id, what: 'property' });
     return property;
@@ -349,6 +352,7 @@ export const importCustomersAction = defineAction({
     rows: z.array(importRow.refine(needsName, { message: 'Each row needs a name or company' })).min(1).max(500),
     skip_duplicates: z.boolean().default(true),
   }),
+  roles: ['owner', 'admin', 'office'],
   risk: 'medium',
   requiresApproval: agentNeedsApproval,
   example: {
@@ -359,5 +363,42 @@ export const importCustomersAction = defineAction({
     const result = await importCustomers(ctx.companyId, rows, skip_duplicates);
     if (result.created > 0) await ctx.events.emit(ctx.companyId, 'customer.created', { customerId: 'bulk-import' });
     return result;
+  },
+});
+
+export const deleteCustomerAction = defineAction({
+  name: 'customers.delete',
+  module: 'customers',
+  description: 'Permanently delete a customer and their additional contacts. Only allowed when the customer has no addresses (now or in the past).',
+  input: z.object({ customer_id: z.string().min(1) }),
+  roles: ['owner', 'admin', 'office'],
+  risk: 'high',
+  // People confirm in the app; an AI agent always needs a person to approve first.
+  requiresApproval: agentNeedsApproval,
+  example: { customer_id: 'customer-id' },
+  async handler({ customer_id }, ctx) {
+    await deleteCustomer(ctx.companyId, customer_id);
+    await ctx.events.emit(ctx.companyId, 'customer.deleted', { customerId: customer_id });
+    return { deleted: customer_id };
+  },
+});
+
+export const mergeCustomersAction = defineAction({
+  name: 'customers.merge',
+  module: 'customers',
+  description:
+    "Merge a duplicate customer (merge_id) into the one to keep (keep_id). The duplicate's contacts and addresses move to the kept customer, blank details are filled in, and the duplicate is removed. Cannot be undone.",
+  input: z.object({ keep_id: z.string().min(1), merge_id: z.string().min(1) }),
+  roles: ['owner', 'admin', 'office'],
+  risk: 'high',
+  requiresApproval: agentNeedsApproval,
+  example: { keep_id: 'customer-id-to-keep', merge_id: 'duplicate-customer-id' },
+  async handler({ keep_id, merge_id }, ctx) {
+    const customer = await mergeCustomers(ctx.companyId, keep_id, merge_id, async () => {
+      // other modules re-point their own records to the kept customer before the duplicate disappears
+      await ctx.events.emit(ctx.companyId, 'customer.merged', { fromId: merge_id, intoId: keep_id });
+    });
+    await ctx.events.emit(ctx.companyId, 'customer.updated', { customerId: keep_id, what: 'details' });
+    return customer;
   },
 });

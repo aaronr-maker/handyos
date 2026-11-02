@@ -6,13 +6,13 @@ export const rescheduleJobAction = defineAction({
   name: 'scheduling.reschedule_job',
   module: 'scheduling',
   description: 'Move a job to a new start time.',
-  input: z.object({ job_id: z.string().min(1), start: z.iso.datetime() }),
+  input: z.object({ job_id: z.string().min(1), start: z.iso.datetime(), end: z.iso.datetime().nullable().optional() }),
   risk: 'medium',
   // Customers get notified of schedule changes, so AI-initiated moves need a human OK.
   requiresApproval: (_input, ctx) => ctx.actor.kind === 'agent',
   example: { job_id: 'job-id', start: '2026-12-01T15:00:00Z' },
   async handler(input, ctx) {
-    const { job, previousStart } = setJobSchedule(ctx.companyId, input.job_id, input.start);
+    const { job, previousStart } = await setJobSchedule(ctx.companyId, input.job_id, input.start, input.end);
     await ctx.events.emit(ctx.companyId, 'job.rescheduled', { jobId: job.id, from: previousStart, to: input.start });
     return job;
   },

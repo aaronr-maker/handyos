@@ -7,6 +7,7 @@ export const messagingModule: ModuleManifest = {
   label: 'Messages',
   description: 'Customer messaging.',
   path: '/messages',
+  hiddenFromRoles: ['tech'],
   icon: 'messaging',
   Screen: lazy(() => import('./ui/MessagingScreen')),
   register({ actions }) {

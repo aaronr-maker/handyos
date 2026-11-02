@@ -139,6 +139,85 @@ billing-flagged address is kept as a note when the customer has other addresses.
 `customers.import` action, so it is validated and audit-logged like everything else. Real customer exports are never
 committed to this repository.
 
+### Deleting and merging customers
+
+- A customer can be **deleted only when they have no addresses**, now or in the past (the address history keeps its owners
+  and managers). Contacts go with them. The app says why when it can't.
+- **Merging duplicates** (Customers, then Duplicates, or from a customer's page): the duplicate's contacts and addresses
+  (with their history) move to the kept customer, blank details are filled in, a different phone/email becomes an additional
+  contact, notes are combined, and the old record is removed. The duplicate's old-system id is remembered so re-importing
+  the same export never brings it back. The merge announces a `customer.merged` event; any module that keeps its own
+  records about a customer (jobs, estimates, invoices, messages) must re-point them to the kept customer when it handles that event.
+- Both are actions, so an AI agent can propose them but a person must approve.
+
+### Price book and estimates
+
+- The **price book** lists the services, materials and fees you quote from, each with what you charge, what it costs you
+  (used later for job costing and pay-for-performance), a unit, and whether it's taxable. Items can be hidden without
+  disturbing old estimates.
+- An **estimate** gets a number per company (#1001, #1002, ...), line items (from the price book or custom), a tax rate
+  (basis points; applies only to taxable lines), an optional "good until" date and notes. Only drafts can be edited; once sent
+  the estimate is what the customer saw. Flow: draft, sent, approved or declined (a declined one can be sent again).
+- **Billing comes from the property** using the customers module's rule: rentals are billed to the property manager and
+  labeled as owed by the owner (the manager owes it when no owner is listed); otherwise the owner is billed.
+- **Approving an estimate creates a job** for the same property through the `estimate.approved` event.
+- Prices are integer cents everywhere; numbers come from `next_company_number()` in the database so two people creating
+  estimates at once never get the same number.
+
+### Jobs, scheduling and the time clock
+
+- A **job** is numbered per company (#1001...), billed through the same property rule as estimates (billed to the manager,
+  owed by the owner), and can come from an approved estimate or be created directly for a property or customer.
+- **Scheduling** puts a job on the **Schedule** week view (with a "Needs a date" list and a crew filter); moving a job keeps
+  its length. The scheduling module changes jobs only through the jobs module's public interface.
+- **Crew:** assign team members to a job. **Tech time clock:** clock in / out of a job from the job page. A person can be
+  clocked in to one job at a time (enforced by the database), only a real person can clock in or out (an AI agent cannot),
+  and completing a job clocks out anyone still on it. Clock events (`timeclock.in` / `timeclock.out`) feed job costing later.
+- A shared **customer + property picker** (exported by the customers module) is used wherever work is created, so the
+  billing rule is shown the same way everywhere.
+
+### Invoices and payments
+
+- An **invoice** is numbered per company, created for a property or customer (billing follows the same property rule: billed to
+  the manager, owed by the owner), or straight from a job (**Invoice this job** copies its estimate's lines, tax and billing).
+  Only drafts can be edited; once sent it is what the customer received. Statuses: draft, sent, overdue, paid, void.
+- **Payments** (cash, check, card, bank transfer) are recorded against a sent invoice and update its balance and status. A
+  payment can never exceed what is owed, a paid invoice can't be voided, and a refund reopens the balance. Payments are stored
+  as signed amounts, so the history is a ledger. **Stripe** card payments plug into the same `payments.record` action later.
+- **Overdue:** `invoicing.check_overdue` flags every sent invoice past its due date and announces `invoice.overdue` (a daily
+  automation will run it; there is also a button on the Invoices screen).
+- **Roles** are enforced where actions run, for people and AI agents alike: techs can't touch estimates, invoices, payments or
+  prices; office can invoice and take payments; only owners and admins can refund or change prices; only owners and admins
+  approve an AI agent's requests. Techs keep jobs and the time clock. The database backs this up: techs can't read
+  estimates, invoices, payments or the price book at all, and the menu hides those sections from them.
+
+### Job costing
+
+- Per job: **invoiced** (sent invoices, not drafts or void) and **collected**, versus **cost**: labor from the time clock (hours x each
+  person's hourly cost) plus costs you record by hand (materials, subcontractors, dump fees), giving **profit and margin**. If the
+  job came from an estimate, what the estimate *expected* it to cost (quantity x the price book's cost) is shown for comparison.
+- **Pay rates are private:** only owners and admins can see or set what someone costs per hour (the database enforces it; a
+  person can read only their own). Time from someone with no rate set counts as $0 and is flagged.
+- Costs and the whole Job costing section are hidden from techs. Pay-for-performance distributions build on these numbers
+  (rules to be defined with the owner).
+
+### Pay-for-performance (P4P)
+
+Set up under **Settings, Pay-for-performance** (owner and admins), in four plain steps:
+
+1. **What the pool is based on:** revenue, gross profit (revenue minus materials and other non-labor costs) or net profit (revenue minus all costs including labor).
+2. **What the company keeps first:** a protected percent comes off the top; the rest is the pool.
+3. **How the pool is shared:** any number of **levels**, each with a name you choose and a percent of the pool. A level is one of:
+   a **seller** level (paid to whoever sold the job), a **worker** level (shared by each person's share of the hours on the job: two techs at 5 hours
+   each get 50% each, one tech gets all of it), or **supervisor** levels (each paid to whoever the people on the level before it report to, for example
+   general foreman, then regional manager). Anything that can't be given to a person (no seller recorded, nobody set as a boss) stays with the company.
+4. **Your team:** which level each person is on and who they report to. A "Try it out" box shows what the setup pays on an example job.
+
+A job's payout is a **projection** until the job is completed and fully paid, then an owner or admin **locks it in** (once). Locking in saves a
+snapshot, so changing the settings later never rewrites what was already earned. People see their own earnings under **My earnings**; owners and admins
+see everyone's under Job costing, Payouts, and can mark them paid. A job with no profit pays nothing. The seller defaults to whoever created the
+estimate or job and can be changed. The calculation is plain, tested code (`p4pCalc.ts`) with no money rounding drift: every cent is accounted for.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -160,9 +239,9 @@ Vercel project's environment variables when the database is connected.
 
 ## Roadmap
 
-1. **Customers**: ~~login + team access~~ (done), ~~customer list/detail, contacts, properties~~ (done), then import from Housecall Pro and Jobber
-2. **Estimates + price book**
-3. **Jobs, scheduling, tech clock in/out**
-4. **Invoicing + Stripe payments**
-5. **Job costing + pay-for-performance (P4P) distributions**
+1. ~~**Customers**: login, team access, contacts, properties, import, merge~~ (done)
+2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
+3. ~~**Jobs, scheduling, tech clock in/out**~~ (done; next: tech-friendly mobile polish, photos, job checklists)
+4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
+5. **Job costing + pay-for-performance (P4P) distributions**: job costing and P4P done
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry

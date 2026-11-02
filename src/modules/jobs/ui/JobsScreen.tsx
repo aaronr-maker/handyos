@@ -1,16 +1,14 @@
-import { ModulePlaceholder } from '@/core';
+import { Route, Routes } from 'react-router-dom';
+import JobDetail from './JobDetail';
+import JobEditor from './JobEditor';
+import { JobsList } from './JobsList';
 
 export default function JobsScreen() {
   return (
-    <ModulePlaceholder
-      title="Jobs"
-      icon="jobs"
-      summary="Every job from approved estimate to finished work."
-      planned={[
-        'Job list and detail with photos and notes',
-        'Tech clock in / clock out on the job',
-        'Complete a job and trigger the invoice',
-      ]}
-    />
+    <Routes>
+      <Route index element={<JobsList />} />
+      <Route path="new" element={<JobEditor />} />
+      <Route path=":id" element={<JobDetail />} />
+    </Routes>
   );
 }

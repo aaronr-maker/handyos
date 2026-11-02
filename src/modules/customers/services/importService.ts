@@ -13,7 +13,10 @@ export interface ImportResult {
 const noParty = { name: null, first_name: null, last_name: null, company_name: null, phone: null, email: null };
 
 /** Keys an existing customer would have had if it had been imported (or entered by hand). */
-const existingKeys = (c: Customer) => duplicateKeys({ ...c, external_ref: c.external_ref });
+const existingKeys = (c: Customer) => [
+  ...duplicateKeys({ ...c, external_ref: c.external_ref }),
+  ...c.merged_external_refs.map((r) => `x:${r}`),
+];
 
 /**
  * Bulk-creates customers and their addresses from mapped rows.
@@ -61,6 +64,7 @@ export async function importCustomers(companyId: Id, rows: ImportRow[], skipDupl
       notes: r.notes,
       display_contact_id: null,
       external_ref: r.external_ref,
+      merged_external_refs: [],
     })),
   );
 
