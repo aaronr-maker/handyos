@@ -10,6 +10,7 @@ export interface Repo<T extends BaseRecord> {
   get(companyId: Id, id: Id): T | undefined;
   list(companyId: Id): T[];
   update(companyId: Id, id: Id, patch: Partial<Omit<T, keyof BaseRecord>>): T;
+  remove(companyId: Id, id: Id): void;
 }
 
 export function createMemoryRepo<T extends BaseRecord>(): Repo<T> {
@@ -32,6 +33,9 @@ export function createMemoryRepo<T extends BaseRecord>(): Repo<T> {
       const next = { ...row, ...patch, updated_at: new Date().toISOString() } as T;
       rows.set(id, next);
       return next;
+    },
+    remove(companyId, id) {
+      if (this.get(companyId, id)) rows.delete(id);
     },
   };
 }

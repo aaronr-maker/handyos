@@ -1,20 +1,47 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
-import { createCustomerAction } from './actions';
+import {
+  addContactAction,
+  addPropertyAction,
+  createCustomerAction,
+  changeOwnerAction,
+  endTenantAction,
+  removeContactAction,
+  setDisplayContactAction,
+  setManagerAction,
+  setTenantAction,
+  updateContactAction,
+  updateCustomerAction,
+  updatePropertyAction,
+} from './actions';
 
 /** Public interface of the customers module. Other modules import from here only. */
 export const customersModule: ModuleManifest = {
   id: 'customers',
   label: 'Customers',
-  description: 'Customers, properties and imports.',
+  description: 'Customers, contacts, properties and imports.',
   path: '/customers',
   icon: 'customers',
   mobileTab: true,
   Screen: lazy(() => import('./ui/CustomersScreen')),
   register({ actions }) {
-    actions.register(createCustomerAction);
+    [
+      createCustomerAction,
+      updateCustomerAction,
+      addContactAction,
+      updateContactAction,
+      removeContactAction,
+      setDisplayContactAction,
+      addPropertyAction,
+      updatePropertyAction,
+      changeOwnerAction,
+      setManagerAction,
+      setTenantAction,
+      endTenantAction,
+    ].forEach((a) => actions.register(a));
   },
 };
 
-export type { Customer, Property } from './types';
-export { getCustomer, listCustomers } from './services/customerService';
+export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from './types';
+export { customerLabel, displayContact } from './display';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers } from './services/customerService';

@@ -110,6 +110,22 @@ or the person signs up and asks to join with the company's **join code** and an 
 changes go through database functions (`supabase/migrations/20261103000000_team_access.sql`), so the rules above are
 enforced in the database, not just hidden in the UI. Supabase email confirmation should stay on, since invites are matched by email.
 
+### Customers, properties and billing
+
+- A **customer** has a customer name, optional display name and company name, and any number of **additional contacts**
+  (name, phone, email each). Any one of them, or the main contact, can be the **display contact** shown in lists.
+- A customer can be flagged as a **property manager**.
+- A **property** (address) stands on its own, with dated history of its **owner**, **manager** and **tenant**
+  (`property_parties`). The **work belongs to the owner**, who is a customer. A **property manager** represents the
+  owner only while the property is a rental. If it is sold or stops being a rental, management ends and the history is kept.
+  A managed rental can exist before its owner is known.
+- Jobs, estimates and invoices reference the **property**, so records follow the address when it changes hands.
+- **Billing rule** (`billingFor` in the customers public index): rentals are billed to the property manager but labeled as
+  owed by the owner; with no owner listed the manager owes it; without a manager the owner is billed and owes it.
+- **AI upkeep:** agents keep contacts, addresses and tenants current by calling the same `customers.*` actions as the UI.
+  Their changes to existing records wait for a person's approval, are audit-logged as made by an agent, and announce
+  `customer.updated` events.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -131,7 +147,7 @@ Vercel project's environment variables when the database is connected.
 
 ## Roadmap
 
-1. **Customers**: ~~login + team access~~ (done), then customer list/detail on Supabase and import from Housecall Pro and Jobber
+1. **Customers**: ~~login + team access~~ (done), ~~customer list/detail, contacts, properties~~ (done), then import from Housecall Pro and Jobber
 2. **Estimates + price book**
 3. **Jobs, scheduling, tech clock in/out**
 4. **Invoicing + Stripe payments**

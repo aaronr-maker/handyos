@@ -9,4 +9,6 @@ export * from './supabase';
 export * from './auth';
 export type { ModuleContext, ModuleManifest } from './module';
 export { createRuntime } from './runtime';
+export { RuntimeProvider } from './RuntimeProvider';
+export { useRuntime, useAction, resultError } from './runtimeContext';
 export type { Runtime } from './runtime';
