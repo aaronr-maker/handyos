@@ -15,5 +15,5 @@ export const paymentsModule: ModuleManifest = {
   },
 };
 
-export type { Payment } from './types';
-export { listPayments } from './services/paymentService';
+export type { Payment, PaymentMethod } from './types';
+export { listPayments, listPaymentsFor } from './services/paymentService';

@@ -1,12 +1,8 @@
-import { createMemoryRepo, type BaseRecord, type Id } from '@/core';
+import { createRepo, type BaseRecord, type Id } from '@/core';
 import type { Payment } from '../types';
 
-const payments = createMemoryRepo<Payment>();
+const payments = createRepo<Payment>('payments');
 
-export function recordPayment(companyId: Id, data: Omit<Payment, keyof BaseRecord>): Payment {
-  return payments.insert(companyId, data);
-}
-
-export function listPayments(companyId: Id): Payment[] {
-  return payments.list(companyId);
-}
+export const savePayment = (companyId: Id, data: Omit<Payment, keyof BaseRecord>) => payments.insert(companyId, data);
+export const listPayments = async (companyId: Id) => (await payments.list(companyId)).sort((a, b) => b.received_on.localeCompare(a.received_on) || b.created_at.localeCompare(a.created_at));
+export const listPaymentsFor = async (companyId: Id, invoiceId: Id) => payments.list(companyId, { where: { invoice_id: invoiceId } });

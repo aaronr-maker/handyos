@@ -352,6 +352,7 @@ export const importCustomersAction = defineAction({
     rows: z.array(importRow.refine(needsName, { message: 'Each row needs a name or company' })).min(1).max(500),
     skip_duplicates: z.boolean().default(true),
   }),
+  roles: ['owner', 'admin', 'office'],
   risk: 'medium',
   requiresApproval: agentNeedsApproval,
   example: {
@@ -370,6 +371,7 @@ export const deleteCustomerAction = defineAction({
   module: 'customers',
   description: 'Permanently delete a customer and their additional contacts. Only allowed when the customer has no addresses (now or in the past).',
   input: z.object({ customer_id: z.string().min(1) }),
+  roles: ['owner', 'admin', 'office'],
   risk: 'high',
   // People confirm in the app; an AI agent always needs a person to approve first.
   requiresApproval: agentNeedsApproval,
@@ -387,6 +389,7 @@ export const mergeCustomersAction = defineAction({
   description:
     "Merge a duplicate customer (merge_id) into the one to keep (keep_id). The duplicate's contacts and addresses move to the kept customer, blank details are filled in, and the duplicate is removed. Cannot be undone.",
   input: z.object({ keep_id: z.string().min(1), merge_id: z.string().min(1) }),
+  roles: ['owner', 'admin', 'office'],
   risk: 'high',
   requiresApproval: agentNeedsApproval,
   example: { keep_id: 'customer-id-to-keep', merge_id: 'duplicate-customer-id' },

@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { EventBus } from '../events';
-import type { Id, ModuleId } from '../types';
+import type { Id, ModuleId, UserRole } from '../types';
 
 export type ActorKind = 'user' | 'agent' | 'system';
 
@@ -15,6 +15,8 @@ export type Risk = 'low' | 'medium' | 'high';
 export interface ActionContext {
   companyId: Id;
   actor: Actor;
+  /** The signed-in person's role in the company (only set when the actor is a person). */
+  role?: UserRole;
   events: EventBus;
 }
 
@@ -26,6 +28,11 @@ export interface ActionDefinition<S extends z.ZodType = z.ZodType, O = unknown> 
   /** zod schema: the single source of truth for both UI forms and AI tool calls. */
   input: S;
   risk: Risk;
+  /**
+   * Roles allowed to run this action. When set, a person whose role is not listed is refused (AI agents are not
+   * limited by role but go through `requiresApproval`). Leave unset for actions everyone may run.
+   */
+  roles?: readonly UserRole[];
   /**
    * Risky actions must be approved by a human before the handler runs.
    * Can be a function to decide per call (e.g. only when an AI agent is the actor).

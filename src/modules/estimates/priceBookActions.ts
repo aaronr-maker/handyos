@@ -19,6 +19,7 @@ export const addPriceItemAction = defineAction({
   module: 'estimates',
   description: 'Add a service, material or fee to the price book.',
   input: z.object(fields),
+  roles: ['owner', 'admin', 'office'],
   risk: 'low',
   requiresApproval: false,
   example,
@@ -30,6 +31,7 @@ export const updatePriceItemAction = defineAction({
   module: 'estimates',
   description: 'Change a price book item (name, price, cost, unit, taxable). Existing estimates keep the price they were quoted at.',
   input: z.object({ item_id: z.string().min(1), ...fields }),
+  roles: ['owner', 'admin'],
   risk: 'medium',
   // Prices drive everything customers are quoted, so AI-proposed price changes wait for a person.
   requiresApproval: (_input, ctx) => ctx.actor.kind === 'agent',
@@ -45,6 +47,7 @@ export const setPriceItemActiveAction = defineAction({
   module: 'estimates',
   description: 'Hide a price book item (active false) or bring it back (active true). Hidden items stay on old estimates.',
   input: z.object({ item_id: z.string().min(1), active: z.boolean() }),
+  roles: ['owner', 'admin', 'office'],
   risk: 'low',
   requiresApproval: false,
   example: { item_id: 'item-id', active: false },

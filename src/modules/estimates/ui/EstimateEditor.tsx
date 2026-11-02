@@ -1,23 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { centsToInput, formatMoney, parseMoney, resultError, useAction, useAsync, useSession } from '@/core';
+import { resultError, useAction, useAsync, useSession } from '@/core';
 import { CustomerPropertyPicker, type WhoValue } from '@/modules/customers';
 import { createEstimateAction, updateEstimateAction } from '../actions';
 import { getEstimate } from '../services/estimateService';
 import { listPriceItems } from '../services/priceBookService';
-import { computeTotals } from '../totals';
-
-interface Line {
-  description: string;
-  quantity: string;
-  unit: string;
-  price: string;
-  cost: number;
-  taxable: boolean;
-  price_book_item_id: string | null;
-}
-
-const blankLine = (): Line => ({ description: '', quantity: '1', unit: 'each', price: '', cost: 0, taxable: true, price_book_item_id: null });
+import { LineItemsEditor, TotalsSummary } from './LineItemsEditor';
+import { blankLine, editorTotals, parseEditorLines, toEditorLines, type EditorLine } from './lines';
 
 /** Create a new estimate, or edit a draft. */
 export default function EstimateEditor() {
@@ -72,32 +61,21 @@ function Form({ data, onSave }: FormProps) {
   // For an existing estimate the billed customer and property are known; the property decides billing again on save.
   const [who, setWho] = useState<WhoValue>({ customerId: ex?.customer_id ?? '', propertyId: ex?.property_id ?? '' });
   const [title, setTitle] = useState(ex?.title ?? '');
-  const [lines, setLines] = useState<Line[]>(
-    ex ? ex.line_items.map((l) => ({ description: l.description, quantity: String(l.quantity), unit: l.unit, price: centsToInput(l.unit_price_cents), cost: l.unit_cost_cents, taxable: l.taxable, price_book_item_id: l.price_book_item_id })) : [blankLine()],
-  );
+  const [lines, setLines] = useState<EditorLine[]>(ex ? toEditorLines(ex.line_items) : [blankLine()]);
   const [taxPct, setTaxPct] = useState(ex ? String(ex.tax_rate_bps / 100) : '0');
   const [validUntil, setValidUntil] = useState(ex?.valid_until ?? '');
   const [notes, setNotes] = useState(ex?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parsed = lines.map((l) => ({ quantity: Number(l.quantity), cents: parseMoney(l.price), taxable: l.taxable }));
+  const totals = editorTotals(lines, taxPct);
   const rate = Number(taxPct);
-  const totals = computeTotals(
-    parsed.map((p) => ({ quantity: Number.isFinite(p.quantity) ? p.quantity : 0, unit_price_cents: p.cents ?? 0, taxable: p.taxable })),
-    Number.isFinite(rate) ? Math.round(rate * 100) : 0,
-  );
-
-  const setLine = (i: number, patch: Partial<Line>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
   const save = async () => {
     setError(null);
-    const items = [];
-    for (const [i, l] of lines.entries()) {
-      const cents = parseMoney(l.price);
-      if (cents === null) return setError(`Line ${i + 1}: enter a price like 95 or 95.50`);
-      items.push({ description: l.description, quantity: Number(l.quantity), unit: l.unit || 'each', unit_price_cents: cents, unit_cost_cents: l.cost, taxable: l.taxable, price_book_item_id: l.price_book_item_id });
-    }
+    const parsed = parseEditorLines(lines);
+    if ('error' in parsed) return setError(parsed.error);
+    const items = parsed.items;
     if (!Number.isFinite(rate) || rate < 0 || rate > 100) return setError('Tax rate must be between 0 and 100');
     setBusy(true);
     const message = await onSave({
@@ -132,59 +110,7 @@ function Form({ data, onSave }: FormProps) {
           Title
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Fix fence gate" />
         </label>
-        <h2>Line items</h2>
-        {lines.map((l, i) => (
-          <div key={i} className="line">
-            <input placeholder="Description" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} />
-            <div className="row">
-              <label className="grow">
-                Qty
-                <input inputMode="decimal" value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
-              </label>
-              <label className="grow">
-                Unit
-                <input value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
-              </label>
-              <label className="grow">
-                Price ($)
-                <input inputMode="decimal" value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} />
-              </label>
-            </div>
-            <div className="row">
-              <label className="check">
-                <input type="checkbox" checked={l.taxable} onChange={(e) => setLine(i, { taxable: e.target.checked })} />
-                Taxable
-              </label>
-              <span className="muted">{formatMoney(Math.round((Number(l.quantity) || 0) * (parseMoney(l.price) ?? 0)))}</span>
-              {lines.length > 1 && (
-                <button type="button" className="link" onClick={() => setLines(lines.filter((_, j) => j !== i))}>
-                  Remove
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        <div className="row">
-          <select
-            value=""
-            onChange={(e) => {
-              const item = data.priceItems.find((p) => p.id === e.target.value);
-              if (!item) return;
-              const fresh: Line = { description: item.name, quantity: '1', unit: item.unit, price: centsToInput(item.unit_price_cents), cost: item.unit_cost_cents, taxable: item.taxable, price_book_item_id: item.id };
-              setLines(lines.length === 1 && !lines[0].description && !lines[0].price ? [fresh] : [...lines, fresh]);
-            }}
-          >
-            <option value="">Add from the price book…</option>
-            {data.priceItems.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {formatMoney(p.unit_price_cents)} / {p.unit}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="secondary" onClick={() => setLines([...lines, blankLine()])}>
-            Add a custom line
-          </button>
-        </div>
+        <LineItemsEditor lines={lines} onChange={setLines} priceItems={data.priceItems} />
       </div>
 
       <div className="card">
@@ -200,18 +126,7 @@ function Form({ data, onSave }: FormProps) {
           Notes for the customer <span className="muted">(optional)</span>
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
-        <dl className="totals">
-          <dt>Subtotal</dt>
-          <dd>{formatMoney(totals.subtotal_cents)}</dd>
-          <dt>Tax</dt>
-          <dd>{formatMoney(totals.tax_cents)}</dd>
-          <dt>
-            <strong>Total</strong>
-          </dt>
-          <dd>
-            <strong>{formatMoney(totals.total_cents)}</strong>
-          </dd>
-        </dl>
+        <TotalsSummary subtotal={totals.subtotal_cents} tax={totals.tax_cents} total={totals.total_cents} />
         {error && <p className="err">{error}</p>}
         <button disabled={busy} onClick={() => void save()}>
           {busy ? 'Saving…' : 'Save draft'}

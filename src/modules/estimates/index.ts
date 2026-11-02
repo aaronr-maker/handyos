@@ -25,4 +25,7 @@ export const estimatesModule: ModuleManifest = {
 export type { Estimate, EstimateLineItem, EstimateStatus, PriceBookItem, PriceKind } from './types';
 export { listPriceItems } from './services/priceBookService';
 export { getEstimate, listEstimates } from './services/estimateService';
-export { computeTotals } from './totals';
+export { computeTotals, lineTotal } from './totals';
+export { LineItemsEditor, TotalsSummary } from './ui/LineItemsEditor';
+export { blankLine, editorTotals, parseEditorLines, toEditorLines } from './ui/lines';
+export type { EditorLine } from './ui/lines';

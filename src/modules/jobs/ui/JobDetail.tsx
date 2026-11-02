@@ -19,7 +19,7 @@ function useNow(active: boolean) {
 
 export default function JobDetail() {
   const { id = '' } = useParams();
-  const { companyId, user } = useSession();
+  const { companyId, user, role } = useSession();
   const { actions } = useRuntime();
   const { members, nameOf } = useTeam();
   const update = useAction(updateJobAction);
@@ -203,7 +203,7 @@ export default function JobDetail() {
                 const s = fromDateTimeLocal(start || toDateTimeLocal(job.scheduled_start));
                 if (!s) return;
                 // scheduling is another module's job: call its action by name
-                const res = await actions.executeByName('scheduling.reschedule_job', { job_id: job.id, start: s, end: end ? fromDateTimeLocal(end) : undefined }, { companyId, actor: user });
+                const res = await actions.executeByName('scheduling.reschedule_job', { job_id: job.id, start: s, end: end ? fromDateTimeLocal(end) : undefined }, { companyId, actor: user, role });
                 const message = resultError(res);
                 setProblem(message);
                 if (!message) {
