@@ -307,3 +307,11 @@ export async function mergeCustomers(
   }
   return merged;
 }
+
+/** Properties a customer owns, plus rentals they currently manage. */
+export async function listPropertiesFor(companyId: Id, customerId: Id): Promise<Property[]> {
+  const [owned, all, rows] = await Promise.all([listProperties(companyId, customerId), properties.list(companyId), parties.list(companyId)]);
+  const managedIds = new Set(rows.filter((p) => p.role === 'manager' && p.ended_on === null && p.customer_id === customerId).map((p) => p.property_id));
+  const managed = all.filter((p) => managedIds.has(p.id) && p.customer_id !== customerId);
+  return [...owned, ...managed].sort((a, b) => a.address_line1.localeCompare(b.address_line1));
+}

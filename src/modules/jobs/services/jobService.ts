@@ -5,12 +5,13 @@ const jobs = createMemoryRepo<Job>();
 
 export function createJob(
   companyId: Id,
-  data: { customer_id: Id; title: string; estimate_id?: Id | null },
+  data: { customer_id: Id; title: string; estimate_id?: Id | null; property_id?: Id | null },
 ): Job {
   return jobs.insert(companyId, {
     customer_id: data.customer_id,
     title: data.title,
     estimate_id: data.estimate_id ?? null,
+    property_id: data.property_id ?? null,
     status: 'unscheduled',
     scheduled_start: null,
   });

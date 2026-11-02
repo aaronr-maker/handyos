@@ -18,8 +18,9 @@ export const jobsModule: ModuleManifest = {
     events.on('estimate.approved', async (e) => {
       const job = createJob(e.company_id, {
         customer_id: e.payload.customerId,
-        title: 'Job from approved estimate',
+        title: e.payload.title,
         estimate_id: e.payload.estimateId,
+        property_id: e.payload.propertyId,
       });
       await events.emit(e.company_id, 'job.created', { jobId: job.id, customerId: job.customer_id });
     });

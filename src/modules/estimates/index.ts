@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
-import { approveEstimateAction, createEstimateAction, sendEstimateAction } from './actions';
+import { approveEstimateAction, createEstimateAction, declineEstimateAction, sendEstimateAction, updateEstimateAction } from './actions';
 import { addPriceItemAction, setPriceItemActiveAction, updatePriceItemAction } from './priceBookActions';
 
 export const estimatesModule: ModuleManifest = {
@@ -13,6 +13,8 @@ export const estimatesModule: ModuleManifest = {
   register({ actions }) {
     actions.register(createEstimateAction);
     actions.register(sendEstimateAction);
+    actions.register(updateEstimateAction);
+    actions.register(declineEstimateAction);
     actions.register(approveEstimateAction);
     actions.register(addPriceItemAction);
     actions.register(updatePriceItemAction);
@@ -23,3 +25,4 @@ export const estimatesModule: ModuleManifest = {
 export type { Estimate, EstimateLineItem, EstimateStatus, PriceBookItem, PriceKind } from './types';
 export { listPriceItems } from './services/priceBookService';
 export { getEstimate, listEstimates } from './services/estimateService';
+export { computeTotals } from './totals';

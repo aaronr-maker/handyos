@@ -238,12 +238,13 @@ export const changeOwnerAction = defineAction({
   name: 'customers.change_owner',
   module: 'customers',
   description:
-    'The property has a new owner (for example it was sold). The address keeps its history and all its records; the previous owner stays in the history. By default the property manager is removed too, because a sold property usually stops being a rental.',
+    'The property has a new owner (for example it was sold). The address keeps its history and all its records; the previous owner stays in the history. When replacing an existing owner the property manager is removed too by default, because a sold property usually stops being a rental; setting the first owner keeps the manager.',
   input: z.object({
     property_id: z.string().min(1),
     new_owner_id: z.string().min(1),
     effective_on: isoDate.default(todayIso),
-    end_management: z.boolean().default(true),
+    /** Defaults to true when an existing owner is being replaced (a sale), false when setting the first owner. */
+    end_management: z.boolean().optional(),
   }),
   risk: 'medium',
   requiresApproval: agentNeedsApproval,
@@ -251,7 +252,7 @@ export const changeOwnerAction = defineAction({
   async handler(input, ctx) {
     const before = await getProperty(ctx.companyId, input.property_id);
     if (!before) throw new Error('Property not found');
-    const property = await changeOwner(ctx.companyId, input.property_id, input.new_owner_id, input.effective_on, input.end_management);
+    const property = await changeOwner(ctx.companyId, input.property_id, input.new_owner_id, input.effective_on, input.end_management ?? before.customer_id !== null);
     await emitProperty(ctx, before);
     await ctx.events.emit(ctx.companyId, 'customer.updated', { customerId: input.new_owner_id, what: 'property' });
     return property;

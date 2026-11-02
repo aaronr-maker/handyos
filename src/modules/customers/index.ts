@@ -50,4 +50,4 @@ export const customersModule: ModuleManifest = {
 
 export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from './types';
 export { customerLabel, displayContact } from './display';
-export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers } from './services/customerService';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers, listPropertiesFor } from './services/customerService';

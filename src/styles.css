@@ -136,3 +136,8 @@ details summary { cursor: pointer; font-weight: 600; }
 .dup-row input { margin-top: 3px; }
 .item { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .faded { opacity: 0.6; }
+.line { border-top: 1px solid var(--border); padding: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.line:first-of-type { border-top: 0; }
+.totals { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 12px 0; }
+.totals dt, .totals dd { margin: 0; }
+.totals dd { text-align: right; }

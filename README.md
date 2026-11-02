@@ -150,6 +150,20 @@ committed to this repository.
   records about a customer (jobs, estimates, invoices, messages) must re-point them to the kept customer when it handles that event.
 - Both are actions, so an AI agent can propose them but a person must approve.
 
+### Price book and estimates
+
+- The **price book** lists the services, materials and fees you quote from, each with what you charge, what it costs you
+  (used later for job costing and pay-for-performance), a unit, and whether it's taxable. Items can be hidden without
+  disturbing old estimates.
+- An **estimate** gets a number per company (#1001, #1002, ...), line items (from the price book or custom), a tax rate
+  (basis points; applies only to taxable lines), an optional "good until" date and notes. Only drafts can be edited; once sent
+  the estimate is what the customer saw. Flow: draft, sent, approved or declined (a declined one can be sent again).
+- **Billing comes from the property** using the customers module's rule: rentals are billed to the property manager and
+  labeled as owed by the owner (the manager owes it when no owner is listed); otherwise the owner is billed.
+- **Approving an estimate creates a job** for the same property through the `estimate.approved` event.
+- Prices are integer cents everywhere; numbers come from `next_company_number()` in the database so two people creating
+  estimates at once never get the same number.
+
 ### Database (Supabase)
 
 `supabase/migrations/` holds the schema; run the files in order. `20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
@@ -171,8 +185,8 @@ Vercel project's environment variables when the database is connected.
 
 ## Roadmap
 
-1. **Customers**: ~~login + team access~~ (done), ~~customer list/detail, contacts, properties~~ (done), then import from Housecall Pro and Jobber
-2. **Estimates + price book**
+1. ~~**Customers**: login, team access, contacts, properties, import, merge~~ (done)
+2. **Estimates + price book**: price book and estimates done; next, a customer-facing approval link and PDF/print
 3. **Jobs, scheduling, tech clock in/out**
 4. **Invoicing + Stripe payments**
 5. **Job costing + pay-for-performance (P4P) distributions**

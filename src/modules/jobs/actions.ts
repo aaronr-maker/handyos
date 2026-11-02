@@ -10,10 +10,11 @@ export const createJobAction = defineAction({
     customer_id: z.string().min(1),
     title: z.string().min(1).max(200),
     estimate_id: z.string().nullable().default(null),
+    property_id: z.string().nullable().default(null),
   }),
   risk: 'low',
   requiresApproval: false,
-  example: { customer_id: 'customer-id', title: 'Fix fence gate', estimate_id: null },
+  example: { customer_id: 'customer-id', title: 'Fix fence gate', estimate_id: null, property_id: null },
   async handler(input, ctx) {
     const job = createJob(ctx.companyId, input);
     await ctx.events.emit(ctx.companyId, 'job.created', { jobId: job.id, customerId: job.customer_id });

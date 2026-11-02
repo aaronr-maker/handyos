@@ -59,7 +59,7 @@ export function PropertyCard({ property, parties, customers, onChanged }: Props)
   const open = (p: NonNullable<typeof panel>) => {
     setPick('');
     setDate(today());
-    setEndManagement(true);
+    setEndManagement(Boolean(owner)); // a sale ends management; setting the first owner does not
     setPanel(panel === p ? null : p);
   };
   const billing = billingFor(property, parties);
