@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Icon, useSession, type IconName } from '@/core';
+import { Icon, isSupabaseConfigured, signOut, useSession, type IconName } from '@/core';
 import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
@@ -15,6 +15,7 @@ const home: NavItem = { to: '/', label: 'Home', icon: 'home', end: true };
 const all: NavItem[] = [
   home,
   ...modules.map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
+  { to: '/team', label: 'Team', icon: 'customers' },
   { to: '/system', label: 'System', icon: 'system' },
 ];
 const tabs: NavItem[] = [
@@ -45,6 +46,11 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+        {isSupabaseConfigured && (
+          <button className="link signout" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        )}
       </aside>
 
       <header className="topbar">
