@@ -1,16 +1,12 @@
-import { ModulePlaceholder } from '@/core';
+import { Route, Routes } from 'react-router-dom';
+import { CustomerDetail } from './CustomerDetail';
+import { CustomerList } from './CustomerList';
 
 export default function CustomersScreen() {
   return (
-    <ModulePlaceholder
-      title="Customers"
-      icon="customers"
-      summary="Everyone you work for, and the properties you work at."
-      planned={[
-        'Customer list with search and properties',
-        'One-time import from Housecall Pro and Jobber',
-        'Contact history and notes',
-      ]}
-    />
+    <Routes>
+      <Route index element={<CustomerList />} />
+      <Route path=":id" element={<CustomerDetail />} />
+    </Routes>
   );
 }

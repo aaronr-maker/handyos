@@ -80,3 +80,76 @@ describe('action registry', () => {
     expect(actions.pendingApprovals('co2')).toHaveLength(0);
   });
 });
+
+describe('customer data changes by AI agents', () => {
+  it('queues an agent edit for approval but lets a person edit directly', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule } = await import('../src/modules/customers');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    const co = { companyId: 'co1' };
+    const created = await rt.actions.executeByName('customers.create', { name: 'Pat' }, { ...co, actor: user });
+    expect(created.status).toBe('ok');
+    const id = (created as { output: { id: string } }).output.id;
+    const body = { customer_id: id, name: 'Pat', phone: '555-9999' };
+    const byAgent = await rt.actions.executeByName('customers.update', body, { ...co, actor: agent });
+    expect(byAgent.status).toBe('pending_approval');
+    const byUser = await rt.actions.executeByName('customers.update', body, { ...co, actor: user });
+    expect(byUser.status).toBe('ok');
+    // Approving the agent's request applies it and the audit log shows the agent as the requester.
+    const approved = await rt.actions.decide((byAgent as { approvalId: string }).approvalId, true, user);
+    expect(approved.status).toBe('ok');
+    expect(rt.audit.entries().some((e) => e.action === 'customers.update' && e.actor_kind === 'agent' && e.outcome === 'ok')).toBe(true);
+  });
+
+  it('keeps one company\'s customers out of another company\'s view', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule, listCustomers } = await import('../src/modules/customers');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    await rt.actions.executeByName('customers.create', { name: 'Only A' }, { companyId: 'coA', actor: user });
+    expect((await listCustomers('coB')).length).toBe(0);
+    expect((await listCustomers('coA')).some((c) => c.name === 'Only A')).toBe(true);
+  });
+});
+
+describe('property billing rule', () => {
+  it('bills rentals to the manager, owed by the owner; manager owes when no owner; owner when unmanaged', async () => {
+    const { billingFor } = await import('../src/modules/customers');
+    const mgr = { role: 'manager', customer_id: 'M', ended_on: null } as const;
+    expect(billingFor({ customer_id: 'O' }, [mgr])).toEqual({ billToId: 'M', owedById: 'O' });
+    expect(billingFor({ customer_id: null }, [mgr])).toEqual({ billToId: 'M', owedById: 'M' });
+    expect(billingFor({ customer_id: 'O' }, [])).toEqual({ billToId: 'O', owedById: 'O' });
+    // a manager whose management ended (property sold / no longer a rental) is ignored
+    expect(billingFor({ customer_id: 'O2' }, [{ ...mgr, ended_on: '2026-12-01' }])).toEqual({ billToId: 'O2', owedById: 'O2' });
+    expect(billingFor({ customer_id: null }, [])).toBeNull();
+  });
+
+  it('walks a property through manager add, sale to a new owner, and billing change', async () => {
+    const { createRuntime } = await import('../src/core');
+    const { customersModule, getPropertyBilling } = await import('../src/modules/customers');
+    const rt = createRuntime();
+    customersModule.register({ actions: rt.actions, events: rt.events });
+    const caller = { companyId: 'coBill', actor: user };
+    const run = async (name: string, input: unknown) => {
+      const r = await rt.actions.executeByName(name, input, caller);
+      expect(r.status, JSON.stringify(r)).toBe('ok');
+      return (r as { output: { id: string } }).output;
+    };
+    const mgr = await run('customers.create', { name: 'PM Co', is_property_manager: true });
+    const owner1 = await run('customers.create', { name: 'Olivia' });
+    const owner2 = await run('customers.create', { name: 'Buyer' });
+    // managed rental, owner not listed yet: manager owes
+    const prop = await run('customers.add_property', { manager_id: mgr.id, address_line1: '1 Main' });
+    expect(await getPropertyBilling('coBill', prop.id)).toEqual({ billToId: mgr.id, owedById: mgr.id });
+    // owner identified: still billed to the manager, labeled owed by the owner
+    await run('customers.change_owner', { property_id: prop.id, new_owner_id: owner1.id, end_management: false });
+    expect(await getPropertyBilling('coBill', prop.id)).toEqual({ billToId: mgr.id, owedById: owner1.id });
+    // sold: new owner, management ends, billed directly to the new owner
+    await run('customers.change_owner', { property_id: prop.id, new_owner_id: owner2.id });
+    expect(await getPropertyBilling('coBill', prop.id)).toEqual({ billToId: owner2.id, owedById: owner2.id });
+    // a property with neither owner nor manager is refused
+    const bad = await rt.actions.executeByName('customers.add_property', { address_line1: 'Nowhere' }, caller);
+    expect(bad.status).toBe('invalid');
+  });
+});

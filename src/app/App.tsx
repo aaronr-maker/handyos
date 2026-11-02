@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from '@/core';
+import { AuthProvider, RuntimeProvider } from '@/core';
+import { runtime } from './runtime';
 import { AuthGate } from './auth/AuthGate';
 import { AppShell } from './layout/AppShell';
 import { modules } from './modules';
@@ -12,12 +13,13 @@ export function App() {
   return (
     <AuthProvider>
       <AuthGate>
+      <RuntimeProvider runtime={runtime}>
       <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<HomeScreen />} />
             {modules.map((m) => (
-              <Route key={m.id} path={m.path} element={<m.Screen />} />
+              <Route key={m.id} path={`${m.path}/*`} element={<m.Screen />} />
             ))}
             <Route path="/more" element={<MoreScreen />} />
             <Route path="/team" element={<TeamScreen />} />
@@ -26,6 +28,7 @@ export function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </RuntimeProvider>
       </AuthGate>
     </AuthProvider>
   );

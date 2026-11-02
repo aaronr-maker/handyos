@@ -7,6 +7,8 @@ import type { Cents, Id } from '../types';
  */
 export interface EventCatalog {
   'customer.created': { customerId: Id };
+  /** Contact details, additional contacts, or a property's owner/tenant changed. */
+  'customer.updated': { customerId: Id; what: 'details' | 'contact' | 'property' };
   'estimate.created': { estimateId: Id; customerId: Id; totalCents: Cents };
   'estimate.sent': { estimateId: Id; customerId: Id };
   'estimate.approved': { estimateId: Id; customerId: Id };
