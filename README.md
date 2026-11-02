@@ -1,1 +1,124 @@
-# handyos
+# HandyOS
+
+Field-service management for handyman companies: quotes, jobs, scheduling, invoicing and job costing.
+Built first for **That Handyman Van LLC** (replacing Housecall Pro, Jobber and Workiz), designed so it can be
+offered to other companies later.
+
+The product name lives in **one file**: [`src/config/app.ts`](src/config/app.ts). Rename it there and the UI, HTML
+title, PWA manifest and Capacitor config all follow.
+
+## Run it
+
+Requires Node 20+ (CI and Vercel use 22).
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+```
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload |
+| `npm run build` | Typecheck + production build into `dist/` |
+| `npm run lint` | ESLint **and** the module-boundary check |
+| `npm test` | Unit tests (action registry, boundary rules) |
+| `npm run preview` | Serve the production build locally |
+
+The app runs in **demo mode** without a database. To connect Supabase, copy `.env.example` to `.env.local` and fill in
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (the public anon key only; never the `service_role` key, never commit secrets).
+
+## Architecture: a modular monolith
+
+One deployable app, split into modules with hard walls between them, so a bug fix or upgrade in one area never
+forces a rewrite of another.
+
+```
+src/
+  config/app.ts        App name and identity (single source of truth)
+  core/                Shared foundation (public surface: src/core/index.ts)
+    events/            Typed event bus + the catalog of every domain event
+    actions/           Action registry: validated, audit-logged, approval-gated business actions
+    data/              Tenant-scoped repository helper (in-memory for now, Supabase next)
+    tenancy/           Current company/user session
+    supabase/          Supabase client (null when env vars are missing)
+    ui/                Shared UI pieces (icons, placeholder screen)
+  modules/
+    customers/  estimates/  jobs/  scheduling/  invoicing/  payments/  jobcosting/  messaging/
+      index.ts         PUBLIC interface: the module manifest + the few types/functions others may use
+      types.ts         The module's own types
+      actions.ts       The module's business actions (zod-validated)
+      services/        Business logic and data access
+      ui/              Screens
+  app/                 App shell: routing, bottom tabs (mobile), sidebar (desktop), System screen
+supabase/migrations/   Postgres schema + row-level security
+```
+
+### Module rules
+
+1. **A module never imports another module's internals.** It may import another module only through that module's
+   public `index.ts` (`import { getJob } from '@/modules/jobs'`), or talk to it through the **event bus**.
+2. Modules import shared code from `@/core` only (its public index, not deep paths) and never from `src/app`.
+3. `src/core` never imports from modules or the app shell.
+4. The app shell reaches a module only through its public index (it imports each module's manifest).
+5. Within a module, use relative imports.
+
+Enforced two ways, both run by `npm run lint` (and CI):
+
+- ESLint `no-restricted-imports` rules, generated per module in `scripts/eslint-boundaries.js`.
+- `scripts/check-boundaries.mjs`, which also resolves relative paths (`../jobs/...`) and dynamic `import()`. It has unit tests in `tests/boundaries.test.ts`.
+
+### Event bus
+
+Modules announce facts and react to each other without knowing about each other. Events are typed in
+[`src/core/events/catalog.ts`](src/core/events/catalog.ts) (e.g. `invoice.overdue`, `job.completed`,
+`payment.received`). Example already wired: approving an estimate emits `estimate.approved`, the jobs module creates
+a job; recording a payment emits `payment.received`, the invoicing module updates the balance. A failing handler
+never breaks the sender.
+
+### Action registry (one door for UI and AI agents)
+
+Every business action (create estimate, send invoice, reschedule job, ...) is defined once with `defineAction`:
+
+- a **zod schema** for input (the same schema validates a form and an AI tool call),
+- a **risk level** and a **`requiresApproval`** flag (a boolean, or a function such as "only when an AI agent is the actor"),
+- a handler that receives the company (tenant) and actor from context, never from user input.
+
+Calling an action (`registry.execute(...)` from UI, `registry.executeByName(...)` from agents) always validates,
+checks approval, runs, emits events and writes an **audit entry** (who, what, outcome). Approval-required actions
+return `pending_approval` and run only after a human `user` calls `decide(...)`; an agent cannot approve its own request.
+Try it live on the **System** screen in the app.
+
+### Multi-tenant from day one
+
+Every record carries `company_id` (`BaseRecord` in code, a column in every table). In code, repositories require a
+`companyId` for every read and write. In the database, row-level security restricts every row to the signed-in
+user's company, and composite foreign keys make it impossible for a row to reference another company's data.
+The initial migration also creates a private `company-files` storage bucket scoped by company folder.
+
+### Database (Supabase)
+
+`supabase/migrations/20261102000000_initial_schema.sql` creates companies (tenants), users, customers, properties,
+estimates, jobs, invoices and an append-only audit log, all with RLS. Apply it with the Supabase CLI
+(`supabase link --project-ref <ref> && supabase db push`) or paste it into the Supabase SQL editor. The modules
+currently use in-memory repositories; swapping them to Supabase is a change inside each module's `services/` only.
+
+### Installable app and app stores
+
+- **PWA**: installable to a phone's home screen, offline-capable shell (`vite-plugin-pwa`).
+- **Capacitor**: `capacitor.config.ts` is in place; native projects are not generated yet. When ready:
+  `npm run build && npx cap add ios && npx cap add android && npx cap sync`.
+
+### Deploying (Vercel)
+
+Import the repo in Vercel; `vercel.json` sets the build (`npm run build`, output `dist/`), SPA routing and cache
+headers. Every pull request gets a preview link. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the
+Vercel project's environment variables when the database is connected.
+
+## Roadmap
+
+1. **Customers**: list, properties, import from Housecall Pro and Jobber (wire to Supabase + auth)
+2. **Estimates + price book**
+3. **Jobs, scheduling, tech clock in/out**
+4. **Invoicing + Stripe payments**
+5. **Job costing + pay-for-performance (P4P) distributions**
+6. **Messaging**; then AI agents for error triage and customer support on top of the action registry
