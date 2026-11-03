@@ -52,7 +52,9 @@ export default function CompanyRate() {
   const [rows, setRows] = useState<Row[]>([]);
   const [source, setSource] = useState<CostSource>('manual');
   const [hoursText, setHoursText] = useState('');
+  // `notice` is about getting costs in (shown by the import/pull buttons); `saveNotice` is about saving (shown by the Save button)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saveNotice, setSaveNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [margin, setMargin] = useState('30');
   const [useRate, setUseRate] = useState(false);
@@ -101,7 +103,11 @@ export default function CompanyRate() {
     try {
       const r = await pullQuickbooksMonth(month, 'Accrual');
       fromPnl(r.lines, 'quickbooks_api');
-      setNotice({ ok: true, text: `Pulled ${r.lines.length} accounts for ${monthName(month)} from QuickBooks. Check how each one counts, then save.` });
+      setNotice(
+        r.lines.length === 0
+          ? { ok: false, text: `QuickBooks has no costs recorded for ${monthName(month)}. A test company only has sample data for certain months, so try another month.` }
+          : { ok: true, text: `Pulled ${r.lines.length} accounts for ${monthName(month)} from QuickBooks. Check how each one counts below, then save.` },
+      );
     } catch (err) {
       setNotice({ ok: false, text: err instanceof Error ? err.message : 'Could not reach QuickBooks.' });
     } finally {
@@ -127,17 +133,17 @@ export default function CompanyRate() {
   const qb = params.get('qb');
 
   const submit = async () => {
-    setNotice(null);
-    if (parsed.some((p) => p.cents === null)) return setNotice({ ok: false, text: 'Every amount needs to be a number, like 1200 or 1200.50.' });
-    if (hoursOverride !== null && !Number.isFinite(hoursOverride)) return setNotice({ ok: false, text: 'Hours must be a number.' });
+    setSaveNotice(null);
+    if (parsed.some((p) => p.cents === null)) return setSaveNotice({ ok: false, text: 'Every amount needs to be a number, like 1200 or 1200.50.' });
+    if (hoursOverride !== null && !Number.isFinite(hoursOverride)) return setSaveNotice({ ok: false, text: 'Hours must be a number.' });
     setBusy(true);
     const res = await save({ month, source, hours_override_minutes: hoursOverride, lines: parsed.map((p) => ({ account_name: p.account.trim(), amount_cents: p.cents as number, category: p.category })) });
     const settingsRes = await saveSettings({ target_margin_bps: Math.min(9500, marginBps), use_in_job_costing: useRate });
     setBusy(false);
     const err = resultError(res) ?? resultError(settingsRes);
-    if (err) setNotice({ ok: false, text: err });
+    if (err) setSaveNotice({ ok: false, text: err });
     else {
-      setNotice({ ok: true, text: `Saved ${monthName(month)}.${useRate ? ' Job costing now values labor at this hourly cost.' : ''}` });
+      setSaveNotice({ ok: true, text: `Saved ${monthName(month)}.${useRate ? ' Job costing now values labor at this hourly cost.' : ''}` });
       data.reload();
     }
   };
@@ -185,7 +191,7 @@ export default function CompanyRate() {
                 </p>
                 <div className="row">
                   <button className="secondary" disabled={busy} onClick={() => void pull()}>
-                    Pull {monthName(month)} from QuickBooks
+                    {busy ? 'Pulling from QuickBooks…' : `Pull ${monthName(month)} from QuickBooks`}
                   </button>
                   <button
                     className="link"
@@ -206,6 +212,8 @@ export default function CompanyRate() {
             )}
           </div>
         )}
+
+        {notice && <p className={notice.ok ? 'notice' : 'err'}>{notice.text}</p>}
 
         {rows.length > 0 && (
           <div className="cost-rows">
@@ -308,7 +316,7 @@ export default function CompanyRate() {
           <input type="checkbox" checked={useRate} onChange={(e) => setUseRate(e.target.checked)} />
           Use this hourly cost for labor in job costing (instead of each person's own pay rate)
         </label>
-        {notice && <p className={notice.ok ? 'notice' : 'err'}>{notice.text}</p>}
+        {saveNotice && <p className={saveNotice.ok ? 'notice' : 'err'}>{saveNotice.text}</p>}
         <button disabled={busy} onClick={() => void submit()}>
           {busy ? 'Saving…' : `Save ${monthName(month)}`}
         </button>
