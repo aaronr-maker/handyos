@@ -128,6 +128,32 @@ describe('QuickBooks report', () => {
   });
 });
 
+describe('when connecting fails, the app is told why (without any secrets)', () => {
+  const approve = async (d: ReturnType<typeof setup>) => new URL((await startConnect(d.deps, 'good-token')).url).searchParams.get('state')!;
+
+  it('reports the code Intuit gives when it refuses the keys or the sign-in code', async () => {
+    for (const code of ['invalid_client', 'invalid_grant']) {
+      const t = setup();
+      const real = t.deps.fetch;
+      t.deps.fetch = (async (url: string, init?: RequestInit) =>
+        url.includes('/oauth2/v1/tokens/bearer') ? new Response(JSON.stringify({ error: code }), { status: 400 }) : real(url, init)) as unknown as typeof fetch;
+      const r = await finishConnect(t.deps, { code: 'c', state: await approve(t), realmId: '1' });
+      expect(r.redirect).toBe(`https://app.example.com/job-costing/rate?qb=error&reason=token&detail=${code}`);
+      expect(t.db.link).toBeNull();
+    }
+  });
+
+  it('reports a save problem when the connection cannot be stored, and a missing code', async () => {
+    const t = setup();
+    t.deps.store.saveConnection = async () => {
+      throw new Error('relation "integration_links" does not exist');
+    };
+    const state = await approve(t);
+    expect((await finishConnect(t.deps, { code: 'c', state, realmId: '1' })).redirect).toBe('https://app.example.com/job-costing/rate?qb=error&reason=save');
+    expect((await finishConnect(t.deps, { state, realmId: '1' })).redirect).toContain('reason=missing');
+  });
+});
+
 describe('connecting QuickBooks', () => {
   it('lets only an owner or admin start, and sends them to Intuit with a signed state', async () => {
     const { deps } = setup();
@@ -155,7 +181,7 @@ describe('connecting QuickBooks', () => {
     const { url } = await startConnect(deps, 'good-token');
     const state = new URL(url).searchParams.get('state')!;
 
-    expect(await finishConnect(deps, { code: 'c', state: 'forged.state', realmId: '123' })).toEqual({ redirect: 'https://app.example.com/job-costing/rate?qb=error' });
+    expect(await finishConnect(deps, { code: 'c', state: 'forged.state', realmId: '123' })).toEqual({ redirect: 'https://app.example.com/job-costing/rate?qb=error&reason=state' });
     expect(db.link).toBeNull();
     expect(await finishConnect(deps, { error: 'access_denied' })).toEqual({ redirect: 'https://app.example.com/job-costing/rate?qb=cancelled' });
 
@@ -166,7 +192,7 @@ describe('connecting QuickBooks', () => {
 
     const expired = setup();
     const old = signState(env.INTEGRATIONS_SECRET!, { c: 'co-1', u: 'user-1', exp: expired.deps.now() - 1 });
-    expect((await finishConnect(expired.deps, { code: 'c', state: old, realmId: '1' })).redirect).toContain('qb=error');
+    expect((await finishConnect(expired.deps, { code: 'c', state: old, realmId: '1' })).redirect).toContain('qb=error&reason=state');
   });
 
   it('pulls a month of costs, using the stored token and the right dates', async () => {

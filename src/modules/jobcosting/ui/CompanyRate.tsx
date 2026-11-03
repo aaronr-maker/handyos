@@ -15,6 +15,24 @@ interface Row {
   section: PnlLine['section'] | 'manual';
 }
 
+/** Plain-language help for why connecting QuickBooks failed (the codes come from the server, and carry no secrets). */
+function connectProblem(reason: string | null, detail: string | null): string {
+  switch (reason) {
+    case 'state':
+      return 'The sign-in took too long or was interrupted. Click Connect QuickBooks and try again.';
+    case 'missing':
+      return 'QuickBooks did not send back what we needed. Click Connect QuickBooks and try again.';
+    case 'token':
+      if (detail === 'invalid_client') return 'Intuit did not accept the app keys. Check INTUIT_CLIENT_ID and INTUIT_CLIENT_SECRET in Vercel: they must be the Development keys from the same Intuit app while INTUIT_ENV is sandbox.';
+      if (detail === 'invalid_grant') return "Intuit did not accept the sign-in code. Make sure the Redirect URI in your Intuit app is exactly the same as INTUIT_REDIRECT_URI in Vercel, then click Connect QuickBooks again.";
+      return `Intuit refused the connection (${detail ?? 'unknown reason'}). Check the Intuit keys and Redirect URI, then try again.`;
+    case 'save':
+      return 'QuickBooks approved the connection, but saving it failed. Check that the integrations SQL file (20261116000000_integrations.sql) was run and that SUPABASE_SERVICE_ROLE_KEY in Vercel is the Supabase secret key.';
+    default:
+      return 'QuickBooks could not be connected. Try again, or ask your admin to check the setup.';
+  }
+}
+
 const lastMonth = () => {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
@@ -34,7 +52,9 @@ export default function CompanyRate() {
   const [rows, setRows] = useState<Row[]>([]);
   const [source, setSource] = useState<CostSource>('manual');
   const [hoursText, setHoursText] = useState('');
+  // `notice` is about getting costs in (shown by the import/pull buttons); `saveNotice` is about saving (shown by the Save button)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saveNotice, setSaveNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [margin, setMargin] = useState('30');
   const [useRate, setUseRate] = useState(false);
@@ -83,7 +103,11 @@ export default function CompanyRate() {
     try {
       const r = await pullQuickbooksMonth(month, 'Accrual');
       fromPnl(r.lines, 'quickbooks_api');
-      setNotice({ ok: true, text: `Pulled ${r.lines.length} accounts for ${monthName(month)} from QuickBooks. Check how each one counts, then save.` });
+      setNotice(
+        r.lines.length === 0
+          ? { ok: false, text: `QuickBooks has no costs recorded for ${monthName(month)}. A test company only has sample data for certain months, so try another month.` }
+          : { ok: true, text: `Pulled ${r.lines.length} accounts for ${monthName(month)} from QuickBooks. Check how each one counts below, then save.` },
+      );
     } catch (err) {
       setNotice({ ok: false, text: err instanceof Error ? err.message : 'Could not reach QuickBooks.' });
     } finally {
@@ -109,17 +133,17 @@ export default function CompanyRate() {
   const qb = params.get('qb');
 
   const submit = async () => {
-    setNotice(null);
-    if (parsed.some((p) => p.cents === null)) return setNotice({ ok: false, text: 'Every amount needs to be a number, like 1200 or 1200.50.' });
-    if (hoursOverride !== null && !Number.isFinite(hoursOverride)) return setNotice({ ok: false, text: 'Hours must be a number.' });
+    setSaveNotice(null);
+    if (parsed.some((p) => p.cents === null)) return setSaveNotice({ ok: false, text: 'Every amount needs to be a number, like 1200 or 1200.50.' });
+    if (hoursOverride !== null && !Number.isFinite(hoursOverride)) return setSaveNotice({ ok: false, text: 'Hours must be a number.' });
     setBusy(true);
     const res = await save({ month, source, hours_override_minutes: hoursOverride, lines: parsed.map((p) => ({ account_name: p.account.trim(), amount_cents: p.cents as number, category: p.category })) });
     const settingsRes = await saveSettings({ target_margin_bps: Math.min(9500, marginBps), use_in_job_costing: useRate });
     setBusy(false);
     const err = resultError(res) ?? resultError(settingsRes);
-    if (err) setNotice({ ok: false, text: err });
+    if (err) setSaveNotice({ ok: false, text: err });
     else {
-      setNotice({ ok: true, text: `Saved ${monthName(month)}.${useRate ? ' Job costing now values labor at this hourly cost.' : ''}` });
+      setSaveNotice({ ok: true, text: `Saved ${monthName(month)}.${useRate ? ' Job costing now values labor at this hourly cost.' : ''}` });
       data.reload();
     }
   };
@@ -138,7 +162,7 @@ export default function CompanyRate() {
       </header>
       {qb === 'connected' && <p className="notice">QuickBooks is connected. Pick a month and pull its costs.</p>}
       {qb === 'cancelled' && <p className="muted">The QuickBooks connection was cancelled.</p>}
-      {qb === 'error' && <p className="err">QuickBooks could not be connected. Try again, or ask your admin to check the setup.</p>}
+      {qb === 'error' && <p className="err">{connectProblem(params.get('reason'), params.get('detail'))}</p>}
 
       <div className="card">
         <label>
@@ -167,7 +191,7 @@ export default function CompanyRate() {
                 </p>
                 <div className="row">
                   <button className="secondary" disabled={busy} onClick={() => void pull()}>
-                    Pull {monthName(month)} from QuickBooks
+                    {busy ? 'Pulling from QuickBooks…' : `Pull ${monthName(month)} from QuickBooks`}
                   </button>
                   <button
                     className="link"
@@ -188,6 +212,8 @@ export default function CompanyRate() {
             )}
           </div>
         )}
+
+        {notice && <p className={notice.ok ? 'notice' : 'err'}>{notice.text}</p>}
 
         {rows.length > 0 && (
           <div className="cost-rows">
@@ -290,7 +316,7 @@ export default function CompanyRate() {
           <input type="checkbox" checked={useRate} onChange={(e) => setUseRate(e.target.checked)} />
           Use this hourly cost for labor in job costing (instead of each person's own pay rate)
         </label>
-        {notice && <p className={notice.ok ? 'notice' : 'err'}>{notice.text}</p>}
+        {saveNotice && <p className={saveNotice.ok ? 'notice' : 'err'}>{saveNotice.text}</p>}
         <button disabled={busy} onClick={() => void submit()}>
           {busy ? 'Saving…' : `Save ${monthName(month)}`}
         </button>
