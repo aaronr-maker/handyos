@@ -248,6 +248,10 @@ Vercel project's environment variables when the database is connected.
 
 ### Company hourly rate and the QuickBooks connection
 
+The Profit and Loss also brings in the **income accounts** for each month (stored in `income_lines`, shown at the top of the P&L, never counted as costs).
+Other modules read them with `monthlyIncome(companyId)` from `@/modules/jobcosting` (income and other income per month) for revenue per man-hour,
+margins, and comparing what came in with what it cost.
+
 **Job costing, then Company hourly rate** (owner and admins):
 
 1. **Bring in costs.** Choose QuickBooks' **Profit and Loss by Month** report (cash basis; the Excel file or a CSV both work, read in the browser), which
@@ -256,7 +260,7 @@ Vercel project's environment variables when the database is connected.
    account, so the next import sorts itself. Two accounts with the same name in different places are kept apart.
 2. **Choose the months to average** (usually the last 3 full months; part months are marked and left out by default).
 3. A **QuickBooks-style Profit and Loss** shows the combined months (sections, indented groups, "Total for" lines, Gross Profit, Net Income, each account's
-   category on its own row), followed by what counts toward the hourly cost and a **check against QuickBooks' own printed totals** (a green tick per section).
+   tick box on each account, group and section), followed by what counts toward the hourly cost and a **check against QuickBooks' own printed totals** (a green tick per section).
 4. **Man-hours**, either from the **time clock** (or hours typed per month, for months before the clock was in use), or from the **crew's schedule**:
    people x days a week x hours a day x **working weeks** (a year has 52 weeks, the crew works about 50), spread over the months.
 5. The **cost per man-hour** is the months' combined counted costs divided by their combined hours (so a busy month counts for more than a quiet one), with

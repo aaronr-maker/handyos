@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decrypt, encrypt, signState, verifyState } from '../api/_lib/crypto';
 import { disconnect, finishConnect, startConnect, syncMonth, type Deps, type Env, type Store } from '../api/_lib/qb';
-import { monthRange, reportedTotals, reportToLines } from '../api/_lib/report';
+import { monthRange, reportedTotals, reportToIncome, reportToLines } from '../api/_lib/report';
 
 const env: Env = {
   INTUIT_CLIENT_ID: 'client-id',
@@ -120,6 +120,11 @@ describe('QuickBooks report', () => {
       ['Interest Expense', 31000, 'other_expense', ''],
     ]);
     expect(reportToLines({})).toEqual([]);
+  });
+
+  it('reads the income accounts, kept apart from the costs', () => {
+    expect(reportToIncome(REPORT).map((i) => [i.account, i.amount_cents, i.kind, i.group])).toEqual([['Services', 5200000, 'income', '']]);
+    expect(reportToIncome({})).toEqual([]);
   });
 
   it('keeps two accounts with the same name in different places apart', () => {

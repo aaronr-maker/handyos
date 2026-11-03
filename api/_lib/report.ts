@@ -60,6 +60,40 @@ export function reportToLines(report: unknown): ReportLine[] {
   return [...found.values()];
 }
 
+export interface IncomeReportLine {
+  account: string;
+  amount_cents: number;
+  group: string;
+  kind: 'income' | 'other_income';
+}
+
+/** The income accounts (Income and Other Income sections), flattened like the cost accounts, with the group each sits under. */
+export function reportToIncome(report: unknown): IncomeReportLine[] {
+  const rows = (report as { Rows?: { Row?: Row[] } })?.Rows?.Row ?? [];
+  const found = new Map<string, IncomeReportLine>();
+  const walk = (list: Row[], kind: IncomeReportLine['kind'], path: string[]) => {
+    for (const row of list) {
+      if (row.type === 'Data' && row.ColData) {
+        const name = row.ColData[0]?.value?.trim();
+        const amount = cents(row.ColData[1]?.value);
+        if (!name || amount === null || amount === 0) continue;
+        const k = `${kind}|${path.join(' > ')}|${name}`.toLowerCase();
+        const have = found.get(k);
+        if (have) have.amount_cents += amount;
+        else found.set(k, { account: name, amount_cents: amount, group: path.join(' > '), kind });
+      } else if (row.Rows?.Row) {
+        const name = row.Header?.ColData?.[0]?.value?.trim();
+        walk(row.Rows.Row, kind, name ? [...path, name] : path);
+      }
+    }
+  };
+  for (const top of rows) {
+    const kind = top.group === 'Income' ? 'income' : top.group === 'OtherIncome' ? 'other_income' : null;
+    if (kind && top.Rows?.Row) walk(top.Rows.Row, kind, []);
+  }
+  return [...found.values()];
+}
+
 /** First and last day of a "2026-10" month, as the report wants them. */
 export function monthRange(month: string): { start: string; end: string } {
   const [y, m] = month.split('-').map(Number);

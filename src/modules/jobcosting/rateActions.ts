@@ -14,6 +14,11 @@ export const saveOverheadMonthAction = defineAction({
     source: z.enum(['manual', 'quickbooks_csv', 'quickbooks_api']).default('manual'),
     /** Man-hours in minutes to use instead of the time clock total (null = use the time clock). */
     hours_override_minutes: z.number().int().min(0).max(10_000_000).nullable().default(null),
+    /** The income accounts for the month (optional: leave out to keep any income already saved). */
+    income: z
+      .array(z.object({ account_name: z.string().trim().min(1).max(200), group_path: z.string().trim().max(400).default(''), kind: z.enum(['income', 'other_income']).default('income'), amount_cents: z.number().int() }))
+      .max(500)
+      .optional(),
     lines: z.array(z.object({ account_name: z.string().trim().min(1).max(200), group_path: z.string().trim().max(400).default(''), section: z.enum(['cogs', 'expense', 'other_expense', 'manual']).default('expense'), amount_cents: z.number().int(), category })).max(500),
   }),
   risk: 'medium',
@@ -28,8 +33,8 @@ export const saveOverheadMonthAction = defineAction({
       { account_name: 'Insurance', group_path: '', amount_cents: 150_000, category: 'overhead' as const },
     ],
   },
-  async handler({ month, source, hours_override_minutes, lines }, ctx) {
-    const { rate } = await saveMonth(ctx.companyId, month, source, hours_override_minutes, lines);
+  async handler({ month, source, hours_override_minutes, lines, income }, ctx) {
+    const { rate } = await saveMonth(ctx.companyId, month, source, hours_override_minutes, lines, income);
     return { month, cost_per_hour_cents: rate.cost_per_hour_cents, price_per_hour_cents: rate.price_per_hour_cents };
   },
 });

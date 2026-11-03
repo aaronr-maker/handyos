@@ -18,13 +18,20 @@ export interface TreeRow {
 
 export type TreeNode =
   | { kind: 'account'; name: string; cents: Cents; category: CostCategory; index?: number; removable?: boolean }
-  | { kind: 'group'; name: string; total: Cents; children: TreeNode[] };
+  | { kind: 'group'; name: string; total: Cents; children: TreeNode[]; /** the rows under this group, for ticking the whole group at once */ indexes: number[] };
 
 export interface SectionTree {
   section: TreeSection;
   label: string;
   total: Cents;
   nodes: TreeNode[];
+  /** the rows in this section, for ticking the whole section at once */
+  indexes: number[];
+}
+
+/** The row positions of every account under some nodes. */
+export function indexesOf(nodes: TreeNode[]): number[] {
+  return nodes.flatMap((n) => (n.kind === 'account' ? (n.index === undefined ? [] : [n.index]) : n.indexes));
 }
 
 export const SECTION_LABELS: Record<TreeSection, string> = {
@@ -47,7 +54,7 @@ export function buildTree(rows: TreeRow[]): SectionTree[] {
       for (const name of r.group ? r.group.split(' > ') : []) {
         let group = level.find((n): n is Extract<TreeNode, { kind: 'group' }> => n.kind === 'group' && n.name === name);
         if (!group) {
-          group = { kind: 'group', name, total: 0, children: [] };
+          group = { kind: 'group', name, total: 0, children: [], indexes: [] };
           level.push(group);
         }
         level = group.children;
@@ -72,7 +79,14 @@ export function buildTree(rows: TreeRow[]): SectionTree[] {
         node.total = total(node.children);
         return n + node.total;
       }, 0);
-    trees.push({ section, label: SECTION_LABELS[section], total: total(root), nodes: root });
+    const fill = (list: TreeNode[]) => {
+      for (const n of list) if (n.kind === 'group') {
+        fill(n.children);
+        n.indexes = indexesOf(n.children);
+      }
+    };
+    fill(root);
+    trees.push({ section, label: SECTION_LABELS[section], total: total(root), nodes: root, indexes: indexesOf(root) });
   }
   return trees;
 }

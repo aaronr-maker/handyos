@@ -3,6 +3,15 @@ import type { CostCategory } from './rateTypes';
 
 export type PnlSection = 'cogs' | 'expense' | 'other_expense';
 
+/** An income account read from the report. */
+export interface PnlIncomeLine {
+  account: string;
+  amount_cents: Cents;
+  group: string;
+  /** Operating income, or the report's Other Income section. */
+  kind: 'income' | 'other_income';
+}
+
 export interface PnlLine {
   account: string;
   amount_cents: Cents;
@@ -37,6 +46,8 @@ const REPORTED_ROWS: [RegExp, keyof PnlReported][] = [
 
 export interface PnlResult {
   lines: PnlLine[];
+  /** The income accounts (kept separate from the costs; used for revenue per man-hour and other comparisons). */
+  income: PnlIncomeLine[];
   reported: PnlReported;
   /** "2026-10": the month the lines are for (from the report's month columns, or its title). */
   month_guess: string | null;
@@ -73,9 +84,11 @@ export function parseAmount(text: string | undefined): Cents | null {
   return negative ? -cents : cents;
 }
 
-const SECTION_HEADERS: [RegExp, PnlSection | 'skip'][] = [
-  [/^income$/i, 'skip'],
-  [/^other income$/i, 'skip'],
+type ParseSection = PnlSection | 'income' | 'other_income';
+
+const SECTION_HEADERS: [RegExp, ParseSection][] = [
+  [/^income$/i, 'income'],
+  [/^other income$/i, 'other_income'],
   [/^cost of goods sold$/i, 'cogs'],
   [/^cost of sales$/i, 'cogs'],
   [/^expenses$/i, 'expense'],
@@ -153,8 +166,9 @@ export function parsePnl(csvText: string, month?: string, column?: number): PnlR
   }
 
   const lines = new Map<string, PnlLine>();
+  const incomeLines = new Map<string, PnlIncomeLine>();
   const reported = emptyReported();
-  let section: PnlSection | 'skip' | null = null;
+  let section: ParseSection | null = null;
   const groups: string[] = [];
 
   rows.forEach((row, rowIndex) => {
@@ -175,7 +189,7 @@ export function parsePnl(csvText: string, month?: string, column?: number): PnlR
       if (sectionHeader) {
         section = sectionHeader[1];
         groups.length = 0;
-      } else if (section !== null && section !== 'skip' && groupNames.has(label.toLowerCase())) {
+      } else if (section !== null && groupNames.has(label.toLowerCase())) {
         groups.push(label); // a parent account that only groups its sub-accounts
       }
       return; // a blank row for an account with nothing in any month
@@ -192,7 +206,7 @@ export function parsePnl(csvText: string, month?: string, column?: number): PnlR
       if (at >= 0) groups.length = at; // the end of that group
       return;
     }
-    if (section === null || section === 'skip' || SUBTOTAL.test(label)) return;
+    if (section === null || SUBTOTAL.test(label)) return;
 
     // the amount in the chosen column (a one-month report has just one number)
     let amount: Cents | null;
@@ -208,16 +222,22 @@ export function parsePnl(csvText: string, month?: string, column?: number): PnlR
     if (amount !== null && amount !== 0) {
       const path = groups.join(' > ');
       const key = `${section}|${path}|${label}`.toLowerCase();
-      const existing = lines.get(key);
-      if (existing) existing.amount_cents += amount;
-      else lines.set(key, { account: label, amount_cents: amount, section, group: path });
+      if (section === 'income' || section === 'other_income') {
+        const have = incomeLines.get(key);
+        if (have) have.amount_cents += amount;
+        else incomeLines.set(key, { account: label, amount_cents: amount, group: path, kind: section });
+      } else {
+        const existing = lines.get(key);
+        if (existing) existing.amount_cents += amount;
+        else lines.set(key, { account: label, amount_cents: amount, section, group: path });
+      }
     }
     // a parent account can have its own balance as well as sub-accounts: its children sit under it
     if (opensGroup) groups.push(label);
   });
 
   if (lines.size === 0) warnings.push('No cost accounts were found. Is this the Profit and Loss report saved as CSV?');
-  return { lines: [...lines.values()], reported, month_guess: monthGuess, available_months: available, partial_months: partialMonths, columns: labelled?.columns ?? [], column: labelled ? col : null, warnings };
+  return { lines: [...lines.values()], income: [...incomeLines.values()], reported, month_guess: monthGuess, available_months: available, partial_months: partialMonths, columns: labelled?.columns ?? [], column: labelled ? col : null, warnings };
 }
 
 /** Non-operating items that are not running costs of the business. */

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRuntime } from '../src/core';
 import { buildTree, totalsOf } from '../src/modules/jobcosting/pnlTree';
-import { computeWindowRate, crewMinutes, crewMinutesPerYear, loadCostingData } from '../src/modules/jobcosting';
+import { computeWindowRate, crewMinutes, crewMinutesPerYear, loadCostingData, monthlyIncome } from '../src/modules/jobcosting';
 import { computeJobCost, computeRate, defaultCategory, jobcostingModule, minutesByMonth, monthKey, parseAmount, parsePnl } from '../src/modules/jobcosting';
 
 // Shaped like a QuickBooks Online "Profit and Loss" CSV export (made-up numbers).
@@ -197,6 +197,14 @@ describe('a month-by-month Profit and Loss', () => {
     expect(oct.lines.filter((l) => l.section === 'expense').reduce((n, l) => n + l.amount_cents, 0)).toBe(oct.reported.expenses);
   });
 
+  it('reads the income accounts too, and they add up to the Total Income QuickBooks printed (and never count as costs)', () => {
+    const r = parsePnl(BY_MONTH, '2026-09');
+    expect(r.income.map((i) => [i.account, i.amount_cents, i.kind])).toEqual([['Services', 1_600_000, 'income']]);
+    expect(r.income.reduce((n, i) => n + i.amount_cents, 0)).toBe(r.reported.income);
+    expect(r.lines.some((l) => l.account === 'Services')).toBe(false);
+    expect(parsePnl(BY_MONTH, '2026-10').income[0].amount_cents).toBe(700_000);
+  });
+
   it('lays accounts out like QuickBooks: sections, nested groups, a total for each, and what counts versus not', () => {
     const r = parsePnl(BY_MONTH, '2026-09');
     const rows = r.lines.map((l) => ({ account: l.account, group: l.group, section: l.section, cents: l.amount_cents, category: defaultCategory(l.account, l.section, l.group) }));
@@ -249,6 +257,17 @@ describe('company hourly rate', () => {
     expect([r.wages_share_bps, r.payroll_tax_share_bps, r.overhead_share_bps]).toEqual([6928, 762, 2309]);
     const parts = r.per_hour!;
     expect(parts.wages_cents + parts.payroll_tax_cents + parts.overhead_cents).toBe(6495); // adds up exactly
+  });
+
+  it('moving an account between wages, payroll tax and other changes only the split, never the cost or price per hour', () => {
+    const asWages = computeRate({ lines: [{ amount_cents: 500_000, category: 'wages' }, { amount_cents: 100_000, category: 'overhead' }], minutes: 200 * 60, target_margin_bps: 3000 });
+    const asOther = computeRate({ lines: [{ amount_cents: 500_000, category: 'overhead' }, { amount_cents: 100_000, category: 'overhead' }], minutes: 200 * 60, target_margin_bps: 3000 });
+    expect(asOther.cost_per_hour_cents).toBe(asWages.cost_per_hour_cents);
+    expect(asOther.price_per_hour_cents).toBe(asWages.price_per_hour_cents);
+    expect([asWages.wages_share_bps, asOther.wages_share_bps]).toEqual([8333, 0]); // only the split moves
+    // leaving an account out is what changes the cost
+    const left = computeRate({ lines: [{ amount_cents: 500_000, category: 'excluded' }, { amount_cents: 100_000, category: 'overhead' }], minutes: 200 * 60, target_margin_bps: 3000 });
+    expect(left.cost_per_hour_cents).toBe(500);
   });
 
   it('has no rate without hours or costs', () => {
@@ -309,6 +328,27 @@ describe('saving a month and using it in job costing', () => {
     expect((again as { output: { cost_per_hour_cents: number } }).output.cost_per_hour_cents).toBe(4500);
     expect((await rt.actions.executeByName('jobcosting.save_overhead_month', { ...month, month: 'October' }, as('owner'))).status).toBe('invalid');
     void vi;
+  });
+
+  it('keeps the income accounts for each month, for other parts of the app; re-saving costs alone leaves income as it was', async () => {
+    const rt = createRuntime();
+    jobcostingModule.register({ actions: rt.actions, events: rt.events });
+    const co = 'coIncome';
+    const ctx = { companyId: co, actor: { kind: 'user' as const, id: 'u-owner' }, role: 'owner' as const };
+    const base = { month: '2026-10', source: 'quickbooks_csv', hours_override_minutes: 100 * 60, lines: [{ account_name: 'Insurance', group_path: '', amount_cents: 100_000, category: 'overhead' }] };
+    const income = [
+      { account_name: 'Services', group_path: '', kind: 'income', amount_cents: 700_000 },
+      { account_name: 'Discounts given', group_path: '', kind: 'income', amount_cents: -20_000 },
+      { account_name: 'Interest earned', group_path: '', kind: 'other_income', amount_cents: 500 },
+    ];
+    expect((await rt.actions.executeByName('jobcosting.save_overhead_month', { ...base, income }, ctx)).status).toBe('ok');
+    expect(await monthlyIncome(co)).toMatchObject([{ month: '2026-10', income_cents: 680_000, other_income_cents: 500 }]);
+    // saved again without income: what was stored stays
+    await rt.actions.executeByName('jobcosting.save_overhead_month', base, ctx);
+    expect((await monthlyIncome(co))[0].income_cents).toBe(680_000);
+    // saved with new income: replaced
+    await rt.actions.executeByName('jobcosting.save_overhead_month', { ...base, income: income.slice(0, 1) }, ctx);
+    expect(await monthlyIncome(co)).toMatchObject([{ income_cents: 700_000, other_income_cents: 0 }]);
   });
 });
 
