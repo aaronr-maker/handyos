@@ -13,6 +13,8 @@ interface Row {
   amount: string;
   category: CostCategory;
   section: PnlLine['section'] | 'manual';
+  /** Where QuickBooks files the account, like "Job Expenses > Job Materials". Null for accounts typed in or loaded from a saved month. */
+  group: string | null;
 }
 
 /** Plain-language help for why connecting QuickBooks failed (the codes come from the server, and carry no secrets). */
@@ -72,7 +74,7 @@ export default function CompanyRate() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setMargin(String(d.settings.target_margin_bps / 100));
     setUseRate(d.settings.use_in_job_costing);
-    setRows(d.saved ? d.saved.lines.map((l) => ({ account: l.account_name, amount: centsToInput(l.amount_cents), category: l.category, section: 'manual' as const })) : []);
+    setRows(d.saved ? d.saved.lines.map((l) => ({ account: l.account_name, amount: centsToInput(l.amount_cents), category: l.category, section: 'manual' as const, group: null })) : []);
     setSource(d.saved?.month.source ?? 'manual');
     setHoursText(d.saved && !d.saved.month.hours_from_clock && d.saved.month.hours_minutes !== null ? String(d.saved.month.hours_minutes / 60) : '');
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -81,7 +83,7 @@ export default function CompanyRate() {
 
   const fromPnl = (lines: PnlLine[], src: CostSource) => {
     const map = d?.map ?? {};
-    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[l.account.toLowerCase()] ?? defaultCategory(l.account, l.section, l.group), section: l.section })));
+    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[l.account.toLowerCase()] ?? defaultCategory(l.account, l.section, l.group), section: l.section, group: l.group })));
     setSource(src);
   };
 
@@ -219,7 +221,10 @@ export default function CompanyRate() {
           <div className="cost-rows">
             {rows.map((r, i) => (
               <div key={i} className="cost-row">
-                <input aria-label="Account" className="grow" value={r.account} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, account: e.target.value } : x)))} />
+                <div className="grow account-cell">
+                  <input aria-label="Account" value={r.account} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, account: e.target.value } : x)))} />
+                  {r.group !== null && <span className="muted small-note">{r.group ? `in ${r.group}` : 'top-level account'}</span>}
+                </div>
                 <input aria-label="Amount" inputMode="decimal" value={r.amount} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
                 <select aria-label="How it counts" value={r.category} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, category: e.target.value as CostCategory } : x)))}>
                   {CATEGORIES.map((c) => (
@@ -251,7 +256,7 @@ export default function CompanyRate() {
             className="secondary"
             onClick={() => {
               if (!manual.account.trim() || parseMoney(manual.amount) === null) return setNotice({ ok: false, text: 'Give the cost a name and an amount.' });
-              setRows([...rows, { account: manual.account.trim(), amount: manual.amount, category: manual.category, section: 'manual' }]);
+              setRows([...rows, { account: manual.account.trim(), amount: manual.amount, category: manual.category, section: 'manual', group: null }]);
               setManual({ account: '', amount: '', category: 'overhead' });
             }}
           >

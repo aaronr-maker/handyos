@@ -175,3 +175,5 @@ details summary { cursor: pointer; font-weight: 600; }
 .cost-row select { max-width: 160px; }
 .cost-add { align-items: center; }
 .cost-add input[inputmode] { max-width: 110px; }
+.account-cell { display: flex; flex-direction: column; min-width: 140px; }
+.account-cell input { width: 100%; }
