@@ -81,7 +81,7 @@ export default function CompanyRate() {
 
   const fromPnl = (lines: PnlLine[], src: CostSource) => {
     const map = d?.map ?? {};
-    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[l.account.toLowerCase()] ?? defaultCategory(l.account, l.section), section: l.section })));
+    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[l.account.toLowerCase()] ?? defaultCategory(l.account, l.section, l.group), section: l.section })));
     setSource(src);
   };
 

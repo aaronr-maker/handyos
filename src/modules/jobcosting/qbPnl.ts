@@ -7,6 +7,8 @@ export interface PnlLine {
   account: string;
   amount_cents: Cents;
   section: PnlSection;
+  /** The groups the account sits under, like "Job Expenses > Job Materials" (empty when it is at the top level). */
+  group: string;
 }
 
 export interface PnlResult {
@@ -59,6 +61,7 @@ export function parsePnl(csvText: string): PnlResult {
   const lines = new Map<string, PnlLine>();
   let section: PnlSection | 'skip' | null = null;
   let monthGuess: string | null = null;
+  const groups: string[] = [];
 
   for (const row of rows) {
     const label = (row[0] ?? '').trim();
@@ -73,7 +76,16 @@ export function parsePnl(csvText: string): PnlResult {
     }
     if (numeric.length === 0) {
       const header = SECTION_HEADERS.find(([re]) => re.test(label));
-      if (header) section = header[1];
+      if (header) {
+        section = header[1];
+        groups.length = 0;
+      } else if (section !== null && section !== 'skip' && label) {
+        groups.push(label); // a parent account that only groups its sub-accounts
+      }
+      continue;
+    }
+    if (/^total\s+(for\s+)?/i.test(label) && groups.length) {
+      groups.pop(); // the end of a group
       continue;
     }
     if (section === null || section === 'skip' || SUBTOTAL.test(label)) continue;
@@ -85,19 +97,27 @@ export function parsePnl(csvText: string): PnlResult {
     const amount = numeric[0];
     const existing = lines.get(label.toLowerCase());
     if (existing) existing.amount_cents += amount;
-    else lines.set(label.toLowerCase(), { account: label, amount_cents: amount, section });
+    else lines.set(label.toLowerCase(), { account: label, amount_cents: amount, section, group: groups.join(' > ') });
   }
   if (lines.size === 0) warnings.push('No cost accounts were found. Is this the Profit and Loss report saved as CSV?');
   return { lines: [...lines.values()], month_guess: monthGuess, warnings };
 }
 
-/** A sensible first guess at how an account counts; the owner can change it and it is remembered. */
-export function defaultCategory(account: string, section: PnlSection): CostCategory {
+/**
+ * A sensible first guess at how an account counts; the owner can change it and it is remembered.
+ * `group` is where the account sits (for example "Job Expenses > Job Materials"), which says more than its own name.
+ */
+export function defaultCategory(account: string, section: PnlSection, group = ''): CostCategory {
   const a = account.toLowerCase();
-  if (section === 'cogs') return 'excluded'; // job materials are charged to each job, so counting them here would double count
+  const g = group.toLowerCase();
+  // job materials and subcontractors are charged to each job, so counting them here would double count
+  if (section === 'cogs') return 'excluded';
+  if (/\b(job|jobs|project|projects)\b.*\b(material|materials|supplies|expense|expenses|cost|costs|subcontract|subcontractors)\b|\b(materials?|subcontract\w*|cost of (goods|sales))\b/.test(g)) return 'excluded';
+  if (/\b(job|project)\s+(material|materials|supplies|costs?)\b|subcontract/.test(a)) return 'excluded';
   if (/(payroll|employer).*(tax)|\b(fica|futa|suta|medicare|social security|unemployment|workers.? comp)/.test(a)) return 'payroll_tax';
   if (/payroll\s*(fee|service|processing)|gusto/.test(a)) return 'overhead';
   if (/\b(wage|wages|salary|salaries|payroll|bonus|bonuses|commission|commissions)\b/.test(a)) return 'wages';
+  if (/payroll|salar|wage/.test(g)) return /\btax(es)?\b/.test(a) ? 'payroll_tax' : /\b(fee|fees|service|processing)\b/.test(a) ? 'overhead' : 'wages';
   if (/(income tax|owner|draw|distribution|dividend)/.test(a)) return 'excluded';
   if (section === 'other_expense') return 'excluded'; // interest, depreciation and other non-operating items
   return 'overhead';

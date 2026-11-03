@@ -112,12 +112,12 @@ describe('crypto helpers', () => {
 describe('QuickBooks report', () => {
   it('flattens cost accounts, skips income and totals, and keeps the section', () => {
     const lines = reportToLines(REPORT);
-    expect(lines.map((l) => [l.account, l.amount_cents, l.section])).toEqual([
-      ['Job Materials', 950000, 'cogs'],
-      ['Insurance', 240000, 'expense'],
-      ['Wages', 1800000, 'expense'],
-      ['Payroll Taxes', 198000, 'expense'],
-      ['Interest Expense', 31000, 'other_expense'],
+    expect(lines.map((l) => [l.account, l.amount_cents, l.section, l.group])).toEqual([
+      ['Job Materials', 950000, 'cogs', ''],
+      ['Insurance', 240000, 'expense', ''],
+      ['Wages', 1800000, 'expense', 'Payroll Expenses'],
+      ['Payroll Taxes', 198000, 'expense', 'Payroll Expenses'],
+      ['Interest Expense', 31000, 'other_expense', ''],
     ]);
     expect(reportToLines({})).toEqual([]);
   });
