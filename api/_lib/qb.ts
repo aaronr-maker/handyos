@@ -43,6 +43,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Intuit refused a token request. `code` is Intuit's short reason (like invalid_client), never a secret. */
+export class TokenError extends ApiError {
+  constructor(public code: string) {
+    super(502, 'QuickBooks did not accept the request. Try connecting again.');
+  }
+}
+
 interface Tokens {
   access_token: string;
   refresh_token: string;
@@ -86,7 +93,12 @@ async function tokenRequest(deps: Deps, env: ReturnType<typeof need>, form: Reco
     headers: { Authorization: basic(env), 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(form).toString(),
   });
-  if (!res.ok) throw new ApiError(502, 'QuickBooks did not accept the request. Try connecting again.');
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+    const code = typeof body.error === 'string' && /^[a-z_]{1,40}$/.test(body.error) ? body.error : `http_${res.status}`;
+    console.error('QuickBooks token request refused:', code);
+    throw new TokenError(code);
+  }
   const j = (await res.json()) as { access_token: string; refresh_token: string; expires_in?: number; x_refresh_token_expires_in?: number };
   return {
     tokens: { access_token: j.access_token, refresh_token: j.refresh_token, refresh_expires_at: deps.now() + (j.x_refresh_token_expires_in ?? 100 * 86400) * 1000 },
@@ -115,10 +127,14 @@ export async function startConnect(deps: Deps, token: string | null): Promise<{ 
 /** Step 2: Intuit sends the person back with a one-time code. Returns where to send the browser next. */
 export async function finishConnect(deps: Deps, query: { code?: string; state?: string; realmId?: string; error?: string }): Promise<{ redirect: string }> {
   const env = need(deps.env);
-  const back = (result: string) => ({ redirect: `${env.APP_URL}/job-costing/rate?qb=${result}` });
+  // `reason` and `detail` are short, harmless codes the app turns into plain-language help
+  const back = (result: string, reason?: string, detail?: string) => ({
+    redirect: `${env.APP_URL}/job-costing/rate?qb=${result}${reason ? `&reason=${reason}` : ''}${detail ? `&detail=${encodeURIComponent(detail)}` : ''}`,
+  });
   if (query.error) return back('cancelled');
   const state = query.state ? verifyState(env.INTEGRATIONS_SECRET, query.state, deps.now()) : null;
-  if (!state || !query.code || !query.realmId) return back('error');
+  if (!state) return back('error', 'state');
+  if (!query.code || !query.realmId) return back('error', 'missing');
   try {
     const { tokens, accessExpiresAt } = await tokenRequest(deps, env, { grant_type: 'authorization_code', code: query.code, redirect_uri: env.INTUIT_REDIRECT_URI });
     let label: string | null = null;
@@ -139,8 +155,10 @@ export async function finishConnect(deps: Deps, query: { code?: string; state?: 
       accessExpiresAt,
     });
     return back('connected');
-  } catch {
-    return back('error');
+  } catch (err) {
+    if (err instanceof TokenError) return back('error', 'token', err.code);
+    console.error('QuickBooks connection could not be saved:', err instanceof Error ? err.message : err);
+    return back('error', 'save');
   }
 }
 

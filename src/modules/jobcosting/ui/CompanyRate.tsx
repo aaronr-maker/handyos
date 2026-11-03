@@ -15,6 +15,24 @@ interface Row {
   section: PnlLine['section'] | 'manual';
 }
 
+/** Plain-language help for why connecting QuickBooks failed (the codes come from the server, and carry no secrets). */
+function connectProblem(reason: string | null, detail: string | null): string {
+  switch (reason) {
+    case 'state':
+      return 'The sign-in took too long or was interrupted. Click Connect QuickBooks and try again.';
+    case 'missing':
+      return 'QuickBooks did not send back what we needed. Click Connect QuickBooks and try again.';
+    case 'token':
+      if (detail === 'invalid_client') return 'Intuit did not accept the app keys. Check INTUIT_CLIENT_ID and INTUIT_CLIENT_SECRET in Vercel: they must be the Development keys from the same Intuit app while INTUIT_ENV is sandbox.';
+      if (detail === 'invalid_grant') return "Intuit did not accept the sign-in code. Make sure the Redirect URI in your Intuit app is exactly the same as INTUIT_REDIRECT_URI in Vercel, then click Connect QuickBooks again.";
+      return `Intuit refused the connection (${detail ?? 'unknown reason'}). Check the Intuit keys and Redirect URI, then try again.`;
+    case 'save':
+      return 'QuickBooks approved the connection, but saving it failed. Check that the integrations SQL file (20261116000000_integrations.sql) was run and that SUPABASE_SERVICE_ROLE_KEY in Vercel is the Supabase secret key.';
+    default:
+      return 'QuickBooks could not be connected. Try again, or ask your admin to check the setup.';
+  }
+}
+
 const lastMonth = () => {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
@@ -138,7 +156,7 @@ export default function CompanyRate() {
       </header>
       {qb === 'connected' && <p className="notice">QuickBooks is connected. Pick a month and pull its costs.</p>}
       {qb === 'cancelled' && <p className="muted">The QuickBooks connection was cancelled.</p>}
-      {qb === 'error' && <p className="err">QuickBooks could not be connected. Try again, or ask your admin to check the setup.</p>}
+      {qb === 'error' && <p className="err">{connectProblem(params.get('reason'), params.get('detail'))}</p>}
 
       <div className="card">
         <label>
