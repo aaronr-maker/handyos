@@ -1,4 +1,5 @@
 import type { Cents, Id } from '@/core';
+import { monthKey } from './rateCalc';
 
 export interface TimeSlice {
   user_id: Id;
@@ -17,6 +18,11 @@ export interface CostInputs {
   costs: { kind: 'labor' | 'material' | 'other'; amount_cents: Cents }[];
   /** What the estimate expected the job to cost (sum of quantity x unit cost), if there was one. */
   expected_cost_cents: Cents | null;
+  /**
+   * When set, labor is valued at the company hourly cost for the month the time was worked (falling back to the
+   * most recent month with a rate) instead of each person's own pay rate.
+   */
+  burdened?: { rates: Record<string, Cents>; fallback: Cents | null };
   /** "now" for entries that are still clocked in. */
   now?: number;
 }
@@ -35,6 +41,9 @@ export interface JobCostResult {
   expected_cost_cents: Cents | null;
   /** People on the clock with no pay rate set (their time is counted at $0 until a rate is entered). */
   unrated_user_ids: Id[];
+  /** Months of work with no company hourly cost saved (counted at $0 until it is). Only when the company rate is used. */
+  missing_rate_months: string[];
+  labor_method: 'person' | 'company_rate';
 }
 
 const minutesOf = (e: TimeSlice, now: number) => Math.max(0, Math.round(((e.clock_out ? Date.parse(e.clock_out) : now) - Date.parse(e.clock_in)) / 60000));
@@ -45,12 +54,20 @@ export function computeJobCost(i: CostInputs): JobCostResult {
   let laborMinutes = 0;
   let laborCents = 0;
   const unrated = new Set<Id>();
+  const missing = new Set<string>();
   for (const e of i.entries) {
     const m = minutesOf(e, now);
     laborMinutes += m;
-    const rate = i.rates[e.user_id];
-    if (rate === undefined) unrated.add(e.user_id);
-    laborCents += Math.round((m / 60) * (rate ?? 0));
+    if (i.burdened) {
+      const month = monthKey(e.clock_in);
+      const rate = i.burdened.rates[month] ?? i.burdened.fallback ?? undefined;
+      if (rate === undefined) missing.add(month);
+      laborCents += Math.round((m / 60) * (rate ?? 0));
+    } else {
+      const rate = i.rates[e.user_id];
+      if (rate === undefined) unrated.add(e.user_id);
+      laborCents += Math.round((m / 60) * (rate ?? 0));
+    }
   }
   const sum = (kind: 'labor' | 'material' | 'other') => i.costs.filter((c) => c.kind === kind).reduce((n, c) => n + c.amount_cents, 0);
   const labor = laborCents + sum('labor');
@@ -70,5 +87,7 @@ export function computeJobCost(i: CostInputs): JobCostResult {
     margin_pct: i.invoiced_cents > 0 ? Math.round((profit / i.invoiced_cents) * 1000) / 10 : null,
     expected_cost_cents: i.expected_cost_cents,
     unrated_user_ids: [...unrated],
+    missing_rate_months: [...missing].sort(),
+    labor_method: i.burdened ? 'company_rate' : 'person',
   };
 }

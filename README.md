@@ -245,3 +245,47 @@ Vercel project's environment variables when the database is connected.
 4. **Invoicing + payments**: invoices and manual payments are done; next, Stripe card payments and a customer-facing pay link
 5. **Job costing + pay-for-performance (P4P) distributions**: job costing and P4P done
 6. **Messaging**; then AI agents for error triage and customer support on top of the action registry
+
+### Company hourly rate and the QuickBooks connection
+
+**Job costing, then Company hourly rate** (owner and admins):
+
+1. Pick a month. Bring in that month's company costs: **connect QuickBooks** and pull it, or export QuickBooks' **Profit and Loss** report for the
+   month as a CSV and choose the file. Each account is sorted into *wages*, *payroll tax*, *other running costs* or *not counted* (job materials and
+   non-operating items start as not counted so they aren't double counted). Your choices are remembered, so next month sorts itself.
+2. The month's man-hours come from the time clock, or can be typed in by hand for months before the time clock was in use.
+3. The screen shows the **cost per man-hour** (counted costs divided by man-hours), the **hourly price** at your target margin, and **where each hour's
+   cost goes** (the wages, payroll tax and other-costs shares, so the owner knows what share of every job payment keeps payroll funded).
+4. Optionally, job costing then values labor at that hourly cost (for the month the work was done) instead of each person's own pay rate.
+
+**How the QuickBooks connection works.** Each company links its *own* QuickBooks (a standard "Connect to QuickBooks" sign-in; read-only, nothing is
+written to QuickBooks). It needs a small server piece, which runs as Vercel functions in `api/` (deployed automatically with the site). Tokens are
+encrypted before they are stored and can't be read from the app (only the server's service key can); the browser only ever sees the connection's
+status and the cost accounts pulled for review. Connect, pull and disconnect are limited to owners and admins.
+
+**One-time setup (the owner does this once; each customer company then just clicks Connect):**
+
+1. Create a free developer account at developer.intuit.com, then **Dashboard, Create an app**, choose *QuickBooks Online and Payments*, and select
+   the **Accounting** scope. Under **Keys and credentials** you will find a Client ID and Client Secret (start with the *Development* keys).
+2. In the same place add this **Redirect URI**: `https://YOUR-SITE.vercel.app/api/qb/callback` (use your real address).
+3. In Vercel (Project, Settings, Environment Variables) add the server-only variables listed in `.env.example`:
+   `INTUIT_CLIENT_ID`, `INTUIT_CLIENT_SECRET`, `INTUIT_REDIRECT_URI`, `INTUIT_ENV` (`sandbox`), `APP_URL`, `INTEGRATIONS_SECRET` (any long random
+   string) and `SUPABASE_SERVICE_ROLE_KEY` (Supabase, Project Settings, API Keys, the *secret* / service_role key). Mark the secrets as Sensitive.
+   Never give any of these a `VITE_` prefix, which would expose them in the browser.
+4. Redeploy. The Company hourly rate screen then shows **Connect QuickBooks**.
+
+Development keys only connect to Intuit's **sandbox** test companies. To connect real QuickBooks files (yours and other companies'), Intuit requires the
+app to pass its production review (privacy policy, terms of service and a short security questionnaire), after which you switch to the *Production*
+keys and set `INTUIT_ENV=production`. Check Intuit's current requirements on developer.intuit.com when you get there.
+
+### Planned: cash distribution and the wider integrations plan (decisions so far)
+
+- **Burdened cost rate** = last month's total company costs (from QuickBooks, by the accounts the owner marks as overhead) divided by the man-hours
+  clocked that same month. Job costing applies it to each job's hours; a target margin on top gives the **hourly price** (shop rate).
+- **Wages and payroll tax** come from QuickBooks (Gusto feeds payroll into it), not typed into the app. Their share of total cost tells the owner what
+  percent of each hourly cost needs to flow into the wages account as jobs are paid. Per-person wages are optional; Gusto's own API may be partner-only and
+  needs checking before we depend on it.
+- **Cash distribution module** (later): when a job is paid it suggests where the money goes (payroll, taxes, P4P, company reserve, overhead). It only
+  suggests; the owner moves money manually.
+- **Integrations foundation** first: a small server piece (Supabase Edge Functions) to hold secrets, handle QuickBooks sign-in and scheduled syncs. Stripe,
+  messaging and the AI agents need the same piece.

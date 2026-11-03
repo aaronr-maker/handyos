@@ -3,6 +3,7 @@ import { listTimeEntries, type Job } from '@/modules/jobs';
 import { getEstimate } from '@/modules/estimates';
 import { listInvoices } from '@/modules/invoicing';
 import { computeJobCost, type JobCostResult } from '../calc';
+import { getRateSettings, savedRates } from './rateService';
 import type { JobCost, PayRate } from '../types';
 
 const costs = createRepo<JobCost>('job_costs');
@@ -23,9 +24,19 @@ export async function setPayRate(companyId: Id, userId: Id, hourlyCostCents: num
 
 /** Everything needed to cost a set of jobs, read once. */
 export async function loadCostingData(companyId: Id) {
-  const [allCosts, payRates, entries, invoices] = await Promise.all([listCosts(companyId), listPayRates(companyId), listTimeEntries(companyId), listInvoices(companyId)]);
+  const [allCosts, payRates, entries, invoices, settings, rates] = await Promise.all([
+    listCosts(companyId),
+    listPayRates(companyId),
+    listTimeEntries(companyId),
+    listInvoices(companyId),
+    getRateSettings(companyId),
+    savedRates(companyId),
+  ]);
   const rateByUser = Object.fromEntries(payRates.map((r) => [r.user_id, r.hourly_cost_cents]));
-  return { allCosts, rateByUser, entries, invoices };
+  const latest = Object.keys(rates).sort().pop();
+  // the company hourly cost (all company costs / man-hours) is used for labor when the owner has turned it on
+  const burdened = settings.use_in_job_costing ? { rates, fallback: latest ? rates[latest] : null } : undefined;
+  return { allCosts, rateByUser, entries, invoices, burdened };
 }
 
 type Loaded = Awaited<ReturnType<typeof loadCostingData>>;
@@ -44,6 +55,7 @@ export function costJob(job: Pick<Job, 'id'>, data: Loaded, expected: number | n
     collected_cents: mine.reduce((n, i) => n + i.amount_paid_cents, 0),
     entries: data.entries.filter((e) => e.job_id === job.id),
     rates: data.rateByUser,
+    burdened: data.burdened,
     costs: data.allCosts.filter((c) => c.job_id === job.id),
     expected_cost_cents: expected,
   });

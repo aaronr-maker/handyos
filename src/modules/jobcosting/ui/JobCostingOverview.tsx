@@ -33,6 +33,9 @@ export function JobCostingOverview() {
         </div>
       </header>
       <div className="row">
+        <Link to="rate" className="button secondary">
+          Company hourly rate
+        </Link>
         <Link to="payouts" className="button secondary">
           Payouts
         </Link>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRuntime } from '../src/core';
 import { customersModule, listCustomers } from '../src/modules/customers';
-import { parseCsv } from '../src/modules/customers/import/csv';
+import { parseCsv } from '../src/core';
 import { autoMap, detectSource, mapRow } from '../src/modules/customers/import/mapping';
 
 // Made-up data in the shape of a Housecall Pro export (many Address_N column groups).

@@ -166,3 +166,12 @@ details summary { cursor: pointer; font-weight: 600; }
 .bar span { display: block; height: 100%; }
 .person { border-top: 1px solid var(--border); padding: 10px 0; }
 .person:first-of-type { border-top: 0; }
+
+/* Company hourly rate */
+.qb { margin: 12px 0; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.cost-rows { margin: 12px 0; }
+.cost-row { display: flex; gap: 6px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+.cost-row input[inputmode] { max-width: 120px; min-width: 0; }
+.cost-row select { max-width: 160px; }
+.cost-add { align-items: center; }
+.cost-add input[inputmode] { max-width: 110px; }
