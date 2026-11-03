@@ -1,5 +1,5 @@
 import { apiCall, createRepo, isSupabaseConfigured, type Id } from '@/core';
-import type { PnlLine, PnlReported } from '../qbPnl';
+import type { PnlIncomeLine, PnlLine, PnlReported } from '../qbPnl';
 
 export interface IntegrationLink {
   id: Id;
@@ -30,4 +30,4 @@ export const disconnectQuickbooks = () => apiCall<{ ok: true }>('/api/qb/disconn
 
 /** One month's cost accounts from QuickBooks, for review before saving. */
 export const pullQuickbooksMonth = (month: string, method: 'Accrual' | 'Cash') =>
-  apiCall<{ month: string; lines: PnlLine[]; reported: PnlReported }>('/api/qb/sync', { month, method });
+  apiCall<{ month: string; lines: PnlLine[]; income: PnlIncomeLine[]; reported: PnlReported }>('/api/qb/sync', { month, method });

@@ -1,11 +1,12 @@
 import { createRepo, type Id } from '@/core';
 import { listTimeEntries } from '@/modules/jobs';
 import { computeRate, computeWindowRate, minutesByMonth, type Crew, type RateResult } from '../rateCalc';
-import { accountKey, type AccountMap, type CostCategory, type CostSource, type OverheadLine, type OverheadMonth, type RateSettings } from '../rateTypes';
+import { accountKey, type IncomeLine, type AccountMap, type CostCategory, type CostSource, type OverheadLine, type OverheadMonth, type RateSettings } from '../rateTypes';
 
 const monthsRepo = createRepo<OverheadMonth>('overhead_months');
 const linesRepo = createRepo<OverheadLine>('overhead_lines');
 const mapRepo = createRepo<AccountMap>('cost_account_map');
+const incomeRepo = createRepo<IncomeLine>('income_lines');
 const settingsRepo = createRepo<RateSettings>('company_rate_settings');
 
 /** "2026-10" -> "2026-10-01" (how a month is stored). */
@@ -90,6 +91,13 @@ export async function getAccountMap(companyId: Id): Promise<Record<string, CostC
   return Object.fromEntries((await mapRepo.list(companyId)).map((m) => [m.account_name.toLowerCase(), m.category]));
 }
 
+export interface MonthIncome {
+  account_name: string;
+  group_path: string;
+  kind: 'income' | 'other_income';
+  amount_cents: number;
+}
+
 export interface MonthLine {
   account_name: string;
   group_path: string;
@@ -98,10 +106,11 @@ export interface MonthLine {
   category: CostCategory;
 }
 
-export async function getMonth(companyId: Id, key: string): Promise<{ month: OverheadMonth; lines: OverheadLine[] } | null> {
+export async function getMonth(companyId: Id, key: string): Promise<{ month: OverheadMonth; lines: OverheadLine[]; income: IncomeLine[] } | null> {
   const month = (await monthsRepo.list(companyId, { where: { month: monthDate(key) } }))[0];
   if (!month) return null;
-  return { month, lines: await linesRepo.list(companyId, { where: { month_id: month.id } }) };
+  const [lines, income] = await Promise.all([linesRepo.list(companyId, { where: { month_id: month.id } }), incomeRepo.list(companyId, { where: { month_id: month.id } })]);
+  return { month, lines, income };
 }
 
 /** Man-hours clocked on the time clock in a month, in minutes. */
@@ -134,6 +143,7 @@ export async function saveMonth(
   source: CostSource,
   hoursOverrideMinutes: number | null,
   lines: MonthLine[],
+  income?: MonthIncome[],
 ): Promise<{ month: OverheadMonth; rate: RateResult }> {
   const minutes = await minutesFor(companyId, key, hoursOverrideMinutes);
   const rate = await summarize(companyId, lines, minutes);
@@ -141,6 +151,9 @@ export async function saveMonth(
   const fields = { source, hours_minutes: hoursOverrideMinutes, hours_from_clock: hoursOverrideMinutes === null, cost_per_hour_cents: rate.cost_per_hour_cents, imported_at: new Date().toISOString() };
   const month = existing ? await monthsRepo.update(companyId, existing.month.id, fields) : await monthsRepo.insert(companyId, { month: monthDate(key), ...fields });
   if (existing) for (const l of existing.lines) await linesRepo.remove(companyId, l.id);
+  // income is replaced only when it was given (a month saved by hand leaves any income already stored alone)
+  if (income && existing) for (const l of existing.income) await incomeRepo.remove(companyId, l.id);
+  if (income?.length) await incomeRepo.insertMany(companyId, income.map((l) => ({ month_id: month.id, account_name: l.account_name, group_path: l.group_path, kind: l.kind, amount_cents: l.amount_cents })));
   if (lines.length) await linesRepo.insertMany(companyId, lines.map((l) => ({ month_id: month.id, account_name: l.account_name, group_path: l.group_path, section: l.section, amount_cents: l.amount_cents, category: l.category })));
 
   const known = await mapRepo.list(companyId);
@@ -161,3 +174,28 @@ export async function savedRates(companyId: Id): Promise<Record<string, number>>
 }
 
 export const listMonths = async (companyId: Id) => (await monthsRepo.list(companyId)).sort((a, b) => b.month.localeCompare(a.month));
+
+export interface MonthlyIncome {
+  /** "2026-10" */
+  month: string;
+  /** Operating income (sales, services, minus discounts) in cents. */
+  income_cents: number;
+  other_income_cents: number;
+  lines: { account: string; group: string; kind: 'income' | 'other_income'; amount_cents: number }[];
+}
+
+/**
+ * Income per month, from the Profit and Loss that was imported or pulled. This is the figure other parts of the app use
+ * for revenue per man-hour, margins and comparing what was brought in with what it cost. Newest month first.
+ */
+export async function monthlyIncome(companyId: Id): Promise<MonthlyIncome[]> {
+  const [months, lines] = await Promise.all([monthsRepo.list(companyId), incomeRepo.list(companyId)]);
+  return months
+    .map((m) => {
+      const mine = lines.filter((l) => l.month_id === m.id);
+      const sum = (kind: IncomeLine['kind']) => mine.filter((l) => l.kind === kind).reduce((n, l) => n + l.amount_cents, 0);
+      return { month: m.month.slice(0, 7), income_cents: sum('income'), other_income_cents: sum('other_income'), lines: mine.map((l) => ({ account: l.account_name, group: l.group_path, kind: l.kind, amount_cents: l.amount_cents })) };
+    })
+    .filter((m) => m.lines.length > 0)
+    .sort((a, b) => b.month.localeCompare(a.month));
+}

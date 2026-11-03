@@ -1,18 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { formatMoney, useSession } from '@/core';
 import { SECTION_LABELS, buildTree, indexesOf, type TreeNode, type TreeRow } from '../pnlTree';
-import type { PnlReported } from '../qbPnl';
-import { CATEGORY_LABELS } from '../rateTypes';
+import type { PnlIncomeLine, PnlReported } from '../qbPnl';
 
 interface Props {
   rows: TreeRow[];
   reported: PnlReported | null;
+  /** The income accounts (shown for reference; they are not part of the hourly cost, so they have no tick boxes). */
+  income?: PnlIncomeLine[];
   monthLabel: string;
   method: 'cash' | 'accrual';
   /** Tick or untick some accounts (one account, a whole group, or a whole section). */
   onInclude(indexes: number[], include: boolean): void;
-  /** Change what kind of cost an included account is (wages, payroll tax, other running costs). */
-  onKind(index: number): void;
   onRemove(index: number): void;
 }
 
@@ -42,7 +41,7 @@ function Row({ label, amount, className = '', depth = 0, check }: { label: strin
  * amounts lined up on the right, "Total for" lines, and Income, Gross Profit and Net Income when QuickBooks provided them.
  * Tick what to include in the hourly cost: each account, a whole group, or a whole section at once.
  */
-export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind, onRemove }: Props) {
+export function PnlTable({ rows, reported, income: incomeAccounts = [], monthLabel, method, onInclude, onRemove }: Props) {
   const { companyName } = useSession();
   const tree = buildTree(rows);
   const section = (s: TreeRow['section']) => tree.find((t) => t.section === s)?.total ?? 0;
@@ -54,7 +53,11 @@ export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind
   const tick = (indexes: number[], label: string) => <Check state={stateOf(indexes)} label={label} onChange={(next) => onInclude(indexes, next)} />;
 
   // QuickBooks' own figures when it gave them, otherwise worked out from the ones we have
-  const income = reported?.income ?? null;
+  const incomeOf = (kind: PnlIncomeLine['kind']) => incomeAccounts.filter((i) => i.kind === kind);
+  const operatingIncome = incomeOf('income');
+  const otherIncome = incomeOf('other_income');
+  const sumOf = (list: PnlIncomeLine[]) => list.reduce((n, i) => n + i.amount_cents, 0);
+  const income = reported?.income ?? (operatingIncome.length ? sumOf(operatingIncome) : null);
   const cogs = reported?.cogs ?? section('cogs');
   const grossProfit = reported?.gross_profit ?? (income !== null ? income - cogs : null);
   const expenses = reported?.expenses ?? section('expense');
@@ -69,11 +72,6 @@ export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind
           <div className="qb-name" style={{ paddingLeft: depth * 20 }}>
             {n.index !== undefined && tick([n.index], `Include ${n.name}`)}
             <span className="qb-label">{n.name}</span>
-            {n.index !== undefined && n.category !== 'excluded' && (
-              <button type="button" className="qb-kind" title="What kind of cost is this? Click to change." onClick={() => onKind(n.index as number)}>
-                {CATEGORY_LABELS[n.category].toLowerCase()}
-              </button>
-            )}
             {n.removable && n.index !== undefined && (
               <button type="button" className="link qb-x" aria-label={`Remove ${n.name}`} onClick={() => onRemove(n.index as number)}>
                 ✕
@@ -90,6 +88,21 @@ export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind
         </div>
       ),
     );
+
+  /** Income accounts, grouped by their heading, with no tick boxes. */
+  const incomeNodes = (list: PnlIncomeLine[]) => {
+    const groups = [...new Set(list.map((i) => i.group))];
+    return groups.map((g) => (
+      <div key={g}>
+        {g && <Row label={g} className="group" depth={1} />}
+        {list
+          .filter((i) => i.group === g)
+          .map((i, n) => (
+            <Row key={n} label={i.account} amount={i.amount_cents} className="account" depth={g ? 2 : 1} />
+          ))}
+      </div>
+    ));
+  };
 
   const part = (s: TreeRow['section'], total: number) => {
     const t = tree.find((x) => x.section === s);
@@ -121,6 +134,7 @@ export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind
       {income !== null && (
         <div className="qb-section">
           <Row label="Income" className="section-head" />
+          {incomeNodes(operatingIncome)}
           <Row label="Total Income" amount={income} className="section-total" />
         </div>
       )}
@@ -129,6 +143,13 @@ export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind
       {part('expense', expenses)}
       {operating !== null && tree.some((t) => t.section === 'expense') && <Row label="Net Operating Income" amount={operating} className="key-total" />}
       {part('other_expense', otherExpenses)}
+      {otherIncome.length > 0 && (
+        <div className="qb-section">
+          <Row label="Other Income" className="section-head" />
+          {incomeNodes(otherIncome)}
+          <Row label="Total Other Income" amount={sumOf(otherIncome)} className="section-total" />
+        </div>
+      )}
       {netIncome !== null && <Row label="Net Income" amount={netIncome} className="key-total grand" />}
       {part('manual', section('manual'))}
     </div>

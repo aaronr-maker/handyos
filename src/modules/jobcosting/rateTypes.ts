@@ -38,6 +38,15 @@ export interface OverheadLine extends BaseRecord {
 /** The key a remembered category is stored under: the account's name together with where it sits. */
 export const accountKey = (account: string, group: string) => (group ? `${group} > ${account}` : account).toLowerCase();
 
+/** One income account for a month, from the Profit and Loss (sales, services, discounts given...). */
+export interface IncomeLine extends BaseRecord {
+  month_id: Id;
+  account_name: string;
+  group_path: string;
+  kind: 'income' | 'other_income';
+  amount_cents: Cents;
+}
+
 export interface AccountMap extends BaseRecord {
   account_name: string;
   category: CostCategory;

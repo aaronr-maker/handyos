@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fileToCsvText, formatDuration, formatMoney, isSupabaseConfigured, parseCsv, parseMoney, resultError, useAction, useAsync, useSession } from '@/core';
 import type { TreeRow } from '../pnlTree';
-import { defaultCategory, parsePnl, type PnlLine, type PnlReported } from '../qbPnl';
+import { defaultCategory, parsePnl, type PnlIncomeLine, type PnlLine, type PnlReported } from '../qbPnl';
 import { computeWindowRate, crewMinutes, type Crew } from '../rateCalc';
 import { saveOverheadMonthAction, saveRateSettingsAction } from '../rateActions';
 import { accountKey, type CostCategory, type CostSource } from '../rateTypes';
@@ -24,6 +24,8 @@ interface Row {
 interface MonthState {
   rows: Row[];
   reported: PnlReported | null;
+  /** The income accounts (null = none brought in, so any income already saved is left alone). */
+  income: PnlIncomeLine[] | null;
   /** Hours typed in for the month ("" = use the time clock). */
   hoursText: string;
   source: CostSource;
@@ -31,6 +33,7 @@ interface MonthState {
 }
 
 const MAX_MONTHS = 6;
+const KIND_TITLES = { wages: 'Wages', payroll_tax: 'Payroll tax', overhead: 'Other running costs' } as const;
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const lastFullMonths = (n: number) => {
   const out: string[] = [];
@@ -106,6 +109,7 @@ export default function CompanyRate() {
       loadedMonths[key] = {
         rows: m.lines.map((l) => ({ account: l.account_name, group: l.group_path, section: l.section, cents: l.amount_cents, category: l.section === 'manual' ? l.category : undefined })),
         reported: null,
+        income: m.income.length ? m.income.map((i) => ({ account: i.account_name, group: i.group_path, kind: i.kind, amount_cents: i.amount_cents })) : null,
         hoursText: !m.month.hours_from_clock && m.month.hours_minutes !== null ? String(m.month.hours_minutes / 60) : '',
         source: m.month.source,
         partial: false,
@@ -120,9 +124,10 @@ export default function CompanyRate() {
 
   // ---- bringing costs in ----
   const addMonths = (incoming: Record<string, MonthState>) => setMonths((cur) => ({ ...cur, ...incoming }));
-  const fromLines = (lines: PnlLine[], reported: PnlReported, source: CostSource, partial: boolean, keep?: MonthState): MonthState => ({
+  const fromLines = (lines: PnlLine[], reported: PnlReported, income: PnlIncomeLine[], source: CostSource, partial: boolean, keep?: MonthState): MonthState => ({
     rows: [...lines.map((l) => ({ account: l.account, group: l.group, section: l.section, cents: l.amount_cents })), ...(keep?.rows.filter((r) => r.section === 'manual') ?? [])],
     reported,
+    income: income.length ? income : (keep?.income ?? null),
     hoursText: keep?.hoursText ?? '',
     source,
     partial,
@@ -147,7 +152,7 @@ export default function CompanyRate() {
       const incoming: Record<string, MonthState> = {};
       for (const key of first.available_months) {
         const r = parsePnl(text, key);
-        incoming[key] = fromLines(r.lines, r.reported, 'quickbooks_csv', first.partial_months.includes(key), months[key]);
+        incoming[key] = fromLines(r.lines, r.reported, r.income, 'quickbooks_csv', first.partial_months.includes(key), months[key]);
       }
       addMonths(incoming);
       setFileColumns([]);
@@ -158,13 +163,13 @@ export default function CompanyRate() {
       // several columns that are not months: ask which one, and which month it is for
       setFileColumns(first.columns);
       setFileColumn(first.column);
-      addMonths({ [columnMonth]: fromLines(first.lines, first.reported, 'quickbooks_csv', false, months[columnMonth]) });
+      addMonths({ [columnMonth]: fromLines(first.lines, first.reported, first.income, 'quickbooks_csv', false, months[columnMonth]) });
       setSelected((cur) => (cur.includes(columnMonth) ? cur : [...cur, columnMonth].sort()));
       setNotice({ ok: true, text: `This report has ${first.columns.length} columns that are not months. Choose below which column is for the month you pick.` });
     } else {
       const key = first.month_guess ?? lastFullMonths(1)[0];
       setFileColumns([]);
-      addMonths({ [key]: fromLines(first.lines, first.reported, 'quickbooks_csv', false, months[key]) });
+      addMonths({ [key]: fromLines(first.lines, first.reported, first.income, 'quickbooks_csv', false, months[key]) });
       setSelected((cur) => (cur.includes(key) ? cur : [...cur, key].sort().slice(-MAX_MONTHS)));
       setNotice({ ok: true, text: `Read ${first.lines.length} accounts for ${monthName(key)}. Import more months, or pick the months to use below.${first.warnings.length ? ' ' + first.warnings.join(' ') : ''}` });
     }
@@ -174,7 +179,7 @@ export default function CompanyRate() {
     if (!fileText.current) return;
     const r = parsePnl(fileText.current, undefined, index);
     setFileColumn(index);
-    addMonths({ [month]: fromLines(r.lines, r.reported, 'quickbooks_csv', false, months[month]) });
+    addMonths({ [month]: fromLines(r.lines, r.reported, r.income, 'quickbooks_csv', false, months[month]) });
   };
 
   const pull = async () => {
@@ -186,7 +191,7 @@ export default function CompanyRate() {
       for (const key of selected) {
         const r = await pullQuickbooksMonth(key, method === 'cash' ? 'Cash' : 'Accrual');
         accounts += r.lines.length;
-        incoming[key] = fromLines(r.lines, r.reported, 'quickbooks_api', false, months[key]);
+        incoming[key] = fromLines(r.lines, r.reported, r.income, 'quickbooks_api', false, months[key]);
       }
       addMonths(incoming);
       setNotice(
@@ -233,7 +238,26 @@ export default function CompanyRate() {
     return { key, counted };
   });
   const treeRows = [...combined.values()].map((r, index) => ({ ...r, index }));
+  /** Change what kind of cost an included account is (wages, payroll tax or other running costs). */
+  const setKind = (e: (typeof treeRows)[number], category: CostCategory) => {
+    if (e.removeFrom) {
+      const { month, at } = e.removeFrom;
+      setMonths((cur) => ({ ...cur, [month]: { ...cur[month], rows: cur[month].rows.map((r, j) => (j === at ? { ...r, category } : r)) } }));
+    } else setCategories((cur) => ({ ...cur, [accountKey(e.account, e.group)]: category }));
+  };
   const entries = [...combined.values()];
+
+  // income accounts for the chosen months, added together (shown in the P&L; not part of the costs)
+  const incomeMap = new Map<string, PnlIncomeLine>();
+  for (const key of selected)
+    for (const i of months[key]?.income ?? []) {
+      const k = `${i.kind}|${i.group}|${i.account}`.toLowerCase();
+      const have = incomeMap.get(k);
+      if (have) incomeMap.set(k, { ...have, amount_cents: have.amount_cents + i.amount_cents });
+      else incomeMap.set(k, { ...i });
+    }
+  const incomeRows = [...incomeMap.values()];
+  const incomeTotal = incomeRows.filter((i) => i.kind === 'income').reduce((n, i) => n + i.amount_cents, 0);
 
   const crew: Crew | null = hoursMode === 'capacity' && people.trim() !== '' && days.trim() !== '' ? { people: Number(people), days_per_week: Number(days), hours_per_day: Number(hoursPerDay) || 0, working_weeks: Number(weeks) || 0 } : null;
   const crewValid = crew !== null && [crew.people, crew.days_per_week, crew.hours_per_day, crew.working_weeks].every((n) => Number.isFinite(n) && n >= 0);
@@ -271,6 +295,7 @@ export default function CompanyRate() {
         month: key,
         source: st.source,
         hours_override_minutes: t === '' ? null : Math.round(Number(t) * 60),
+        income: st.income?.map((i) => ({ account_name: i.account, group_path: i.group, kind: i.kind, amount_cents: i.amount_cents })),
         lines: st.rows.map((r) => ({ account_name: r.account, group_path: r.group, section: r.section, amount_cents: r.cents, category: categoryOf(r) })),
       });
       const err = resultError(res);
@@ -423,6 +448,7 @@ export default function CompanyRate() {
           <PnlTable
             rows={treeRows}
             reported={sumReported()}
+            income={incomeRows}
             monthLabel={rangeLabel}
             method={method}
             onInclude={(indexes, include) => {
@@ -447,16 +473,6 @@ export default function CompanyRate() {
                   return out;
                 });
               }
-            }}
-            onKind={(i) => {
-              // wages -> payroll tax -> other running costs -> wages
-              const e = entries[i];
-              const order: CostCategory[] = ['wages', 'payroll_tax', 'overhead'];
-              const category = order[(order.indexOf(e.category) + 1) % order.length];
-              if (e.removeFrom) {
-                const { month, at } = e.removeFrom;
-                setMonths((cur) => ({ ...cur, [month]: { ...cur[month], rows: cur[month].rows.map((r, j) => (j === at ? { ...r, category } : r)) } }));
-              } else setCategories((cur) => ({ ...cur, [accountKey(e.account, e.group)]: category }));
             }}
             onRemove={(i) => {
               const e = entries[i];
@@ -483,7 +499,7 @@ export default function CompanyRate() {
                 if (!manual.account.trim() || cents === null || !month) return setNotice({ ok: false, text: 'Give the cost a name and an amount.' });
                 setMonths((cur) => ({
                   ...cur,
-                  [month]: { ...(cur[month] ?? { rows: [], reported: null, hoursText: '', source: 'manual' as CostSource, partial: false }), rows: [...(cur[month]?.rows ?? []), { account: manual.account.trim(), group: '', section: 'manual', cents, category: manual.category }] },
+                  [month]: { ...(cur[month] ?? { rows: [], reported: null, income: null, hoursText: '', source: 'manual' as CostSource, partial: false }), rows: [...(cur[month]?.rows ?? []), { account: manual.account.trim(), group: '', section: 'manual', cents, category: manual.category }] },
                 }));
                 setManual({ ...manual, account: '', amount: '' });
               }}
@@ -522,7 +538,7 @@ export default function CompanyRate() {
                     inputMode="decimal"
                     value={months[k]?.hoursText ?? ''}
                     placeholder={`${((d?.clocked[k] ?? 0) / 60).toFixed(1)} on the clock`}
-                    onChange={(e) => setMonths((cur) => ({ ...cur, [k]: { ...(cur[k] ?? { rows: [], reported: null, source: 'manual' as CostSource, partial: false }), hoursText: e.target.value } }))}
+                    onChange={(e) => setMonths((cur) => ({ ...cur, [k]: { ...(cur[k] ?? { rows: [], reported: null, income: null, source: 'manual' as CostSource, partial: false }), hoursText: e.target.value } }))}
                   />
                 </label>
               ))}
@@ -577,6 +593,20 @@ export default function CompanyRate() {
           <dd>
             <strong>{rate.cost_per_hour_cents === null ? 'needs costs and hours' : formatMoney(rate.cost_per_hour_cents)}</strong>
           </dd>
+          {incomeTotal > 0 && rate.hours > 0 && (
+            <>
+              <dt>Income brought in (from your Profit and Loss)</dt>
+              <dd>{formatMoney(incomeTotal)}</dd>
+              <dt>Income per man-hour</dt>
+              <dd>{formatMoney(Math.round(incomeTotal / rate.hours))}</dd>
+              {rate.cost_per_hour_cents !== null && (
+                <>
+                  <dt>Left over per man-hour (income minus cost)</dt>
+                  <dd>{formatMoney(Math.round(incomeTotal / rate.hours) - rate.cost_per_hour_cents)}</dd>
+                </>
+              )}
+            </>
+          )}
           <dt>
             <strong>Hourly price at {margin || 0}% margin</strong>
           </dt>
@@ -622,6 +652,33 @@ export default function CompanyRate() {
               <dd>{formatMoney(rate.per_hour.overhead_cents)}</dd>
             </dl>
             <p className="muted small-note">So for every hour a job is worked, about {((rate.wages_share_bps + rate.payroll_tax_share_bps) / 100).toFixed(1)}% of its cost needs to go to wages and payroll tax to keep payroll funded.</p>
+            <details className="kinds">
+              <summary>See which accounts count as wages and payroll tax</summary>
+              <p className="muted small-note">These were sorted for you from how QuickBooks groups them. This only changes the split above, never the cost per hour. Move an account if one is in the wrong place.</p>
+              {(['wages', 'payroll_tax', 'overhead'] as const).map((kind) => {
+                const list = treeRows.filter((r) => r.category === kind);
+                return (
+                  <div key={kind} className="kind-group">
+                    <strong>{KIND_TITLES[kind]}</strong>
+                    {list.length === 0 && <span className="muted"> none</span>}
+                    {list.map((r) => (
+                      <div key={r.index} className="kind-row">
+                        <span className="grow">
+                          {r.account}
+                          {r.group && <span className="muted small-note"> in {r.group}</span>}
+                        </span>
+                        <span>{formatMoney(r.cents)}</span>
+                        <select aria-label={`What kind of cost is ${r.account}`} value={r.category} onChange={(e) => setKind(r, e.target.value as CostCategory)}>
+                          <option value="wages">Wages</option>
+                          <option value="payroll_tax">Payroll tax</option>
+                          <option value="overhead">Other running costs</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </details>
           </>
         )}
         <label className="check">

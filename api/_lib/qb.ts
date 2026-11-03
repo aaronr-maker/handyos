@@ -1,5 +1,5 @@
 import { decrypt, encrypt, signState, verifyState } from './crypto.js';
-import { monthRange, reportedTotals, reportToLines, type Reported, type ReportLine } from './report.js';
+import { monthRange, reportedTotals, reportToIncome, reportToLines, type IncomeReportLine, type Reported, type ReportLine } from './report.js';
 
 /**
  * The QuickBooks connection logic, written against small interfaces (Store, fetch, env) so it can be tested without
@@ -165,6 +165,8 @@ export async function finishConnect(deps: Deps, query: { code?: string; state?: 
 export interface SyncResult {
   month: string;
   lines: ReportLine[];
+  /** The income accounts (sales, services, ...), for revenue comparisons. */
+  income: IncomeReportLine[];
   /** QuickBooks' own totals for the report, to check the lines against. */
   reported: Reported;
 }
@@ -204,7 +206,7 @@ export async function syncMonth(deps: Deps, token: string | null, month: string,
   }
   const json = await res.json();
   await deps.store.markSync(companyId, null);
-  return { month, lines: reportToLines(json), reported: reportedTotals(json) };
+  return { month, lines: reportToLines(json), income: reportToIncome(json), reported: reportedTotals(json) };
 }
 
 export async function disconnect(deps: Deps, token: string | null): Promise<{ ok: true }> {
