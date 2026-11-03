@@ -419,14 +419,40 @@ export default function CompanyRate() {
       {selected.some((k) => months[k]) && (
         <div className="card">
           <h2>3. Your costs, {rangeLabel}</h2>
-          <p className="muted">Set how each account counts. A choice applies to that account in every month, and is remembered.</p>
+          <p className="muted">Tick what counts toward the hourly cost. A choice applies to that account in every month, and is remembered.</p>
           <PnlTable
             rows={treeRows}
             reported={sumReported()}
             monthLabel={rangeLabel}
             method={method}
-            onCategory={(i, category) => {
+            onInclude={(indexes, include) => {
+              // ticked = counted: an account that was left out comes back as the kind of cost it normally is
+              const next = (e: (typeof entries)[number]): CostCategory => {
+                if (!include) return 'excluded';
+                const guess = defaultCategory(e.account, e.section === 'manual' ? 'expense' : e.section, e.group);
+                return guess === 'excluded' ? 'overhead' : guess;
+              };
+              const forAccounts: Record<string, CostCategory> = {};
+              const forManual: { month: string; at: number; category: CostCategory }[] = [];
+              for (const i of indexes) {
+                const e = entries[i];
+                if (e.removeFrom) forManual.push({ ...e.removeFrom, category: next(e) });
+                else forAccounts[accountKey(e.account, e.group)] = next(e);
+              }
+              setCategories((cur) => ({ ...cur, ...forAccounts }));
+              if (forManual.length) {
+                setMonths((cur) => {
+                  const out = { ...cur };
+                  for (const m of forManual) out[m.month] = { ...out[m.month], rows: out[m.month].rows.map((r, j) => (j === m.at ? { ...r, category: m.category } : r)) };
+                  return out;
+                });
+              }
+            }}
+            onKind={(i) => {
+              // wages -> payroll tax -> other running costs -> wages
               const e = entries[i];
+              const order: CostCategory[] = ['wages', 'payroll_tax', 'overhead'];
+              const category = order[(order.indexOf(e.category) + 1) % order.length];
               if (e.removeFrom) {
                 const { month, at } = e.removeFrom;
                 setMonths((cur) => ({ ...cur, [month]: { ...cur[month], rows: cur[month].rows.map((r, j) => (j === at ? { ...r, category } : r)) } }));

@@ -1,25 +1,36 @@
+import { useEffect, useRef } from 'react';
 import { formatMoney, useSession } from '@/core';
-import { SECTION_LABELS, buildTree, type TreeNode, type TreeRow } from '../pnlTree';
+import { SECTION_LABELS, buildTree, indexesOf, type TreeNode, type TreeRow } from '../pnlTree';
 import type { PnlReported } from '../qbPnl';
-import { CATEGORY_LABELS, type CostCategory } from '../rateTypes';
-
-const CATEGORIES = Object.keys(CATEGORY_LABELS) as CostCategory[];
+import { CATEGORY_LABELS } from '../rateTypes';
 
 interface Props {
   rows: TreeRow[];
   reported: PnlReported | null;
   monthLabel: string;
   method: 'cash' | 'accrual';
-  onCategory(index: number, category: CostCategory): void;
+  /** Tick or untick some accounts (one account, a whole group, or a whole section). */
+  onInclude(indexes: number[], include: boolean): void;
+  /** Change what kind of cost an included account is (wages, payroll tax, other running costs). */
+  onKind(index: number): void;
   onRemove(index: number): void;
 }
 
-function Row({ label, amount, className = '', depth = 0, children }: { label: string; amount?: number | null; className?: string; depth?: number; children?: React.ReactNode }) {
+/** A checkbox that can show "some of these are ticked". */
+function Check({ state, onChange, label }: { state: 'all' | 'some' | 'none'; onChange(next: boolean): void; label: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = state === 'some';
+  }, [state]);
+  return <input ref={ref} type="checkbox" className="qb-check" aria-label={label} checked={state === 'all'} onChange={() => onChange(state !== 'all')} />;
+}
+
+function Row({ label, amount, className = '', depth = 0, check }: { label: string; amount?: number | null; className?: string; depth?: number; check?: React.ReactNode }) {
   return (
     <div className={`qb-row ${className}`}>
       <div className="qb-name" style={{ paddingLeft: depth * 20 }}>
-        {label}
-        {children}
+        {check}
+        <span className="qb-label">{label}</span>
       </div>
       <div className="qb-amount">{amount === null || amount === undefined ? '' : formatMoney(amount)}</div>
     </div>
@@ -29,12 +40,18 @@ function Row({ label, amount, className = '', depth = 0, children }: { label: st
 /**
  * The month's costs laid out like QuickBooks' Profit and Loss: company and report heading, indented accounts with the
  * amounts lined up on the right, "Total for" lines, and Income, Gross Profit and Net Income when QuickBooks provided them.
- * Each account row also says how it counts toward the hourly cost.
+ * Tick what to include in the hourly cost: each account, a whole group, or a whole section at once.
  */
-export function PnlTable({ rows, reported, monthLabel, method, onCategory, onRemove }: Props) {
+export function PnlTable({ rows, reported, monthLabel, method, onInclude, onKind, onRemove }: Props) {
   const { companyName } = useSession();
   const tree = buildTree(rows);
   const section = (s: TreeRow['section']) => tree.find((t) => t.section === s)?.total ?? 0;
+  const included = new Map(rows.map((r) => [r.index, r.category !== 'excluded']));
+  const stateOf = (indexes: number[]): 'all' | 'some' | 'none' => {
+    const on = indexes.filter((i) => included.get(i)).length;
+    return on === 0 ? 'none' : on === indexes.length ? 'all' : 'some';
+  };
+  const tick = (indexes: number[], label: string) => <Check state={stateOf(indexes)} label={label} onChange={(next) => onInclude(indexes, next)} />;
 
   // QuickBooks' own figures when it gave them, otherwise worked out from the ones we have
   const income = reported?.income ?? null;
@@ -48,36 +65,26 @@ export function PnlTable({ rows, reported, monthLabel, method, onCategory, onRem
   const nodes = (list: TreeNode[], depth: number): React.ReactNode =>
     list.map((n, i) =>
       n.kind === 'account' ? (
-        <div key={i} className="qb-row account">
+        <div key={i} className={`qb-row account ${n.category === 'excluded' ? 'is-off' : ''}`}>
           <div className="qb-name" style={{ paddingLeft: depth * 20 }}>
-            <span>{n.name}</span>
-            {n.index !== undefined && (
-              <span className="qb-controls">
-                <select
-                  aria-label={`How ${n.name} counts`}
-                  className={n.category === 'excluded' ? 'off' : 'on'}
-                  value={n.category}
-                  onChange={(e) => onCategory(n.index as number, e.target.value as CostCategory)}
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </select>
-                {n.removable && (
-                  <button type="button" className="link" aria-label={`Remove ${n.name}`} onClick={() => onRemove(n.index as number)}>
-                    ✕
-                  </button>
-                )}
-              </span>
+            {n.index !== undefined && tick([n.index], `Include ${n.name}`)}
+            <span className="qb-label">{n.name}</span>
+            {n.index !== undefined && n.category !== 'excluded' && (
+              <button type="button" className="qb-kind" title="What kind of cost is this? Click to change." onClick={() => onKind(n.index as number)}>
+                {CATEGORY_LABELS[n.category].toLowerCase()}
+              </button>
+            )}
+            {n.removable && n.index !== undefined && (
+              <button type="button" className="link qb-x" aria-label={`Remove ${n.name}`} onClick={() => onRemove(n.index as number)}>
+                ✕
+              </button>
             )}
           </div>
           <div className="qb-amount">{formatMoney(n.cents)}</div>
         </div>
       ) : (
         <div key={i}>
-          <Row label={n.name} className="group" depth={depth} />
+          <Row label={n.name} className="group" depth={depth} check={tick(n.indexes, `Include everything under ${n.name}`)} />
           {nodes(n.children, depth + 1)}
           <Row label={`Total for ${n.name}`} amount={n.total} className="subtotal" depth={depth} />
         </div>
@@ -89,7 +96,7 @@ export function PnlTable({ rows, reported, monthLabel, method, onCategory, onRem
     if (!t) return null;
     return (
       <div className="qb-section">
-        <Row label={SECTION_LABELS[s]} className="section-head" />
+        <Row label={SECTION_LABELS[s]} className="section-head" check={tick(indexesOf(t.nodes), `Include everything under ${SECTION_LABELS[s]}`)} />
         {nodes(t.nodes, 1)}
         <Row label={`Total ${SECTION_LABELS[s]}`} amount={total} className="section-total" />
       </div>
@@ -105,8 +112,9 @@ export function PnlTable({ rows, reported, monthLabel, method, onCategory, onRem
           {monthLabel} · {method === 'cash' ? 'Cash basis' : 'Accrual basis'}
         </div>
       </div>
+      <p className="muted small-note qb-hint">Tick what counts toward your hourly cost. Ticking a heading ticks everything under it.</p>
       <div className="qb-head">
-        <span />
+        <span>INCLUDE IN THE HOURLY COST</span>
         <span>TOTAL</span>
       </div>
 
