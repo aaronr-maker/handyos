@@ -9,6 +9,8 @@ export interface ReportLine {
   account: string;
   amount_cents: number;
   section: PnlSection;
+  /** The groups the account sits under, like "Job Expenses > Job Materials". */
+  group: string;
 }
 
 interface ColData {
@@ -34,7 +36,7 @@ export function reportToLines(report: unknown): ReportLine[] {
   const rows = (report as { Rows?: { Row?: Row[] } })?.Rows?.Row ?? [];
   const found = new Map<string, ReportLine>();
 
-  const walk = (list: Row[], section: PnlSection) => {
+  const walk = (list: Row[], section: PnlSection, path: string[] = []) => {
     for (const row of list) {
       if (row.type === 'Data' && row.ColData) {
         const name = row.ColData[0]?.value?.trim();
@@ -43,9 +45,10 @@ export function reportToLines(report: unknown): ReportLine[] {
         const k = name.toLowerCase();
         const existing = found.get(k);
         if (existing) existing.amount_cents += amount;
-        else found.set(k, { account: name, amount_cents: amount, section });
+        else found.set(k, { account: name, amount_cents: amount, section, group: path.join(' > ') });
       } else if (row.Rows?.Row) {
-        walk(row.Rows.Row, section);
+        const name = row.Header?.ColData?.[0]?.value?.trim();
+        walk(row.Rows.Row, section, name ? [...path, name] : path);
       }
     }
   };

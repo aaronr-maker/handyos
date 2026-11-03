@@ -41,7 +41,7 @@ describe('QuickBooks Profit & Loss reader', () => {
     expect(r.month_guess).toBe('2026-10');
     expect(r.warnings).toEqual([]);
     expect(r.lines.map((l) => l.account)).toEqual(['Job Materials', 'Advertising', 'Insurance', 'Wages', 'Payroll Taxes', 'Gusto Payroll Fees', 'Vehicle Fuel', 'Owner Draw', 'Refund (credit)', 'Interest Expense']);
-    expect(r.lines.find((l) => l.account === 'Wages')).toEqual({ account: 'Wages', amount_cents: 1_800_000, section: 'expense' });
+    expect(r.lines.find((l) => l.account === 'Wages')).toEqual({ account: 'Wages', amount_cents: 1_800_000, section: 'expense', group: 'Payroll Expenses' });
     expect(r.lines.find((l) => l.account === 'Refund (credit)')!.amount_cents).toBe(-25000); // parentheses mean negative
     expect(r.lines.find((l) => l.account === 'Job Materials')!.section).toBe('cogs');
   });
@@ -55,11 +55,35 @@ describe('QuickBooks Profit & Loss reader', () => {
 
   it('adds repeated account names together', () => {
     const r = parsePnl('Expenses\n  Supplies,"100.00"\n  Supplies,50.00\nTotal Expenses,150.00');
-    expect(r.lines).toEqual([{ account: 'Supplies', amount_cents: 15000, section: 'expense' }]);
+    expect(r.lines).toEqual([{ account: 'Supplies', amount_cents: 15000, section: 'expense', group: '' }]);
   });
 
   it('parses amounts', () => {
     expect([parseAmount('$1,234.56'), parseAmount('(100.00)'), parseAmount('-5'), parseAmount('12'), parseAmount(''), parseAmount('abc')]).toEqual([123456, -10000, -500, 1200, null, null]);
+  });
+
+  it('reads the group each account sits under, and uses it to sort job materials and payroll sub-accounts', () => {
+    const r = parsePnl(`Expenses
+  Job Expenses
+    Job Materials
+      Decks and Patios,145.95
+      Plants and Soil,105.95
+    Total for Job Materials,251.90
+  Total for Job Expenses,251.90
+  Payroll Expenses
+    Salaries,"1,000.00"
+    Taxes,120.00
+    Service Fees,20.00
+  Total for Payroll Expenses,"1,140.00"
+  Rent,"2,000.00"
+Total Expenses,"3,391.90"`);
+    const by = Object.fromEntries(r.lines.map((l) => [l.account, l]));
+    expect(by['Decks and Patios'].group).toBe('Job Expenses > Job Materials');
+    expect(by['Salaries'].group).toBe('Payroll Expenses');
+    expect(by['Rent'].group).toBe(''); // the groups were closed
+    const cat = (n: string) => defaultCategory(n, by[n].section, by[n].group);
+    expect([cat('Decks and Patios'), cat('Plants and Soil')]).toEqual(['excluded', 'excluded']);
+    expect([cat('Salaries'), cat('Taxes'), cat('Service Fees'), cat('Rent')]).toEqual(['wages', 'payroll_tax', 'overhead', 'overhead']);
   });
 
   it('makes a sensible first guess at categories', () => {
