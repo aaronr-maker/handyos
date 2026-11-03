@@ -32,7 +32,7 @@ export const P4PSettings = lazy(() => import('./ui/P4PSettings'));
 export type { CostKind, JobCost, PayRate } from './types';
 export * from './p4pTypes';
 export * from './rateTypes';
-export { computeRate, minutesByMonth, monthKey } from './rateCalc';
+export { computeRate, computeWindowRate, crewMinutes, crewMinutesPerYear, minutesByMonth, monthKey } from './rateCalc';
 export type { RateResult } from './rateCalc';
 export { defaultCategory, parseAmount, parsePnl } from './qbPnl';
 export type { PnlLine, PnlResult } from './qbPnl';

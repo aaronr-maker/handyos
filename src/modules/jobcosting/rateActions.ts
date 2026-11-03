@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
-import { saveMonth, saveRateSettings } from './services/rateService';
+import { recomputeRate, saveMonth, saveRateSettings } from './services/rateService';
 
 const category = z.enum(['wages', 'payroll_tax', 'overhead', 'excluded']);
 
@@ -34,17 +34,42 @@ export const saveOverheadMonthAction = defineAction({
   },
 });
 
+const monthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Use a month like 2026-10');
+
 export const saveRateSettingsAction = defineAction({
   name: 'jobcosting.save_rate_settings',
   module: 'jobcosting',
-  description: 'Set the target margin for the hourly price, whether job costing values labor at the company hourly cost, and whether to pull cash or accrual figures from QuickBooks.',
-  input: z.object({ target_margin_bps: z.number().int().min(0).max(9500), use_in_job_costing: z.boolean(), accounting_method: z.enum(['cash', 'accrual']).default('cash') }),
+  description:
+    "Set up the company hourly rate: which months are averaged (usually three, saved with save_overhead_month first), where the hours come from (the time clock / hours typed per month, or the crew's schedule: people x days a week x hours a day x working weeks), the target margin, whether job costing uses the rate, and cash or accrual for QuickBooks pulls. Works out and saves the resulting cost per man-hour.",
+  input: z.object({
+    target_margin_bps: z.number().int().min(0).max(9500),
+    use_in_job_costing: z.boolean(),
+    accounting_method: z.enum(['cash', 'accrual']).default('cash'),
+    rate_months: z.array(monthKey).max(12).default([]),
+    hours_mode: z.enum(['clock', 'capacity']).default('clock'),
+    crew_people: z.number().int().min(0).max(1000).nullable().default(null),
+    crew_days_per_week: z.number().min(0).max(7).nullable().default(null),
+    crew_hours_per_day: z.number().min(0).max(24).default(8),
+    /** A year has 52 weeks, but the crew does not work all of them. */
+    working_weeks: z.number().int().min(1).max(52).default(50),
+  }),
   risk: 'medium',
   roles: ['owner', 'admin'],
   requiresApproval: (_input, ctx) => ctx.actor.kind === 'agent',
-  example: { target_margin_bps: 3000, use_in_job_costing: true, accounting_method: 'cash' as const },
+  example: {
+    target_margin_bps: 3000,
+    use_in_job_costing: true,
+    accounting_method: 'cash' as const,
+    rate_months: ['2026-08', '2026-09', '2026-10'],
+    hours_mode: 'capacity' as const,
+    crew_people: 3,
+    crew_days_per_week: 5,
+    crew_hours_per_day: 8,
+    working_weeks: 50,
+  },
   async handler(input, ctx) {
     await saveRateSettings(ctx.companyId, input);
-    return input;
+    const r = await recomputeRate(ctx.companyId);
+    return { cost_per_hour_cents: r.cost_per_hour_cents, price_per_hour_cents: r.price_per_hour_cents, hours: r.hours, months: r.months };
   },
 });

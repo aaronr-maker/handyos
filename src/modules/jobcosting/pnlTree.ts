@@ -10,10 +10,14 @@ export interface TreeRow {
   section: TreeSection;
   cents: Cents;
   category: CostCategory;
+  /** Where the row sits in the editable list (so the screen can change or remove it). */
+  index?: number;
+  /** Costs typed in by hand can be removed; costs read from QuickBooks are changed with their category instead. */
+  removable?: boolean;
 }
 
 export type TreeNode =
-  | { kind: 'account'; name: string; cents: Cents; category: CostCategory }
+  | { kind: 'account'; name: string; cents: Cents; category: CostCategory; index?: number; removable?: boolean }
   | { kind: 'group'; name: string; total: Cents; children: TreeNode[] };
 
 export interface SectionTree {
@@ -48,7 +52,7 @@ export function buildTree(rows: TreeRow[]): SectionTree[] {
         }
         level = group.children;
       }
-      level.push({ kind: 'account', name: r.account, cents: r.cents, category: r.category });
+      level.push({ kind: 'account', name: r.account, cents: r.cents, category: r.category, index: r.index, removable: r.removable });
     }
     // A parent account can have its own balance as well as sub-accounts. QuickBooks shows that balance inside the group,
     // so it counts toward "Total for <parent>".

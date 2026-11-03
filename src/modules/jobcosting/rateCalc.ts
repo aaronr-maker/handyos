@@ -83,3 +83,33 @@ export function computeRate(i: RateInputs): RateResult {
     per_hour: perHour,
   };
 }
+
+export interface Crew {
+  people: number;
+  days_per_week: number;
+  hours_per_day: number;
+  /** Weeks worked in a year (a year has 52 weeks, but the crew does not work all of them). */
+  working_weeks: number;
+}
+
+/** Man-hours a crew would work in a year, in minutes: people x days a week x hours a day x working weeks. */
+export const crewMinutesPerYear = (c: Crew): number => Math.round(c.people * c.days_per_week * c.hours_per_day * c.working_weeks * 60);
+
+/** Man-hours the crew would work across `months` months, in minutes (a year's hours spread evenly over 12 months). */
+export const crewMinutes = (c: Crew, months: number): number => Math.round((crewMinutesPerYear(c) * months) / 12);
+
+export interface WindowMonth {
+  lines: { amount_cents: Cents; category: CostCategory }[];
+  /** Man-hours from the time clock or typed in, in minutes. */
+  minutes: number;
+}
+
+/**
+ * The rate over several months: all their counted costs together divided by all their man-hours together (so a busy month
+ * counts for more than a quiet one). With a crew schedule the hours come from the schedule instead of the months' own hours.
+ */
+export function computeWindowRate(months: WindowMonth[], targetMarginBps: number, crew: Crew | null): RateResult & { minutes: number } {
+  const minutes = crew ? crewMinutes(crew, months.length) : months.reduce((n, m) => n + m.minutes, 0);
+  const result = computeRate({ lines: months.flatMap((m) => m.lines), minutes, target_margin_bps: targetMarginBps });
+  return { ...result, minutes };
+}

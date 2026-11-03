@@ -50,4 +50,15 @@ export interface RateSettings extends BaseRecord {
   use_in_job_costing: boolean;
   /** Which accounting method to ask QuickBooks for. */
   accounting_method: 'cash' | 'accrual';
+  /** The months averaged for the rate ("2026-08", ...), usually three. */
+  rate_months: string[];
+  /** Where the hours come from: the time clock (or hours typed per month), or the crew's schedule. */
+  hours_mode: 'clock' | 'capacity';
+  crew_people: number | null;
+  crew_days_per_week: number | null;
+  crew_hours_per_day: number;
+  /** Weeks worked in a year (default 50 of 52). */
+  working_weeks: number;
+  /** The resulting company hourly cost, saved so job costing can use it. */
+  cost_per_hour_cents: Cents | null;
 }
