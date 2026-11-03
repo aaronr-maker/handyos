@@ -250,13 +250,19 @@ Vercel project's environment variables when the database is connected.
 
 **Job costing, then Company hourly rate** (owner and admins):
 
-1. Pick a month. Bring in that month's company costs: **connect QuickBooks** and pull it, or export QuickBooks' **Profit and Loss** report for the
-   month as a CSV and choose the file. Each account is sorted into *wages*, *payroll tax*, *other running costs* or *not counted* (job materials and
-   non-operating items start as not counted so they aren't double counted). Your choices are remembered, so next month sorts itself.
-2. The month's man-hours come from the time clock, or can be typed in by hand for months before the time clock was in use.
-3. The screen shows the **cost per man-hour** (counted costs divided by man-hours), the **hourly price** at your target margin, and **where each hour's
-   cost goes** (the wages, payroll tax and other-costs shares, so the owner knows what share of every job payment keeps payroll funded).
-4. Optionally, job costing then values labor at that hourly cost (for the month the work was done) instead of each person's own pay rate.
+1. **Bring in costs.** Choose QuickBooks' **Profit and Loss by Month** report (cash basis; the Excel file or a CSV both work, read in the browser), which
+   has a column per month, or connect QuickBooks and pull the months. Each account is sorted into *wages*, *payroll tax*, *other running costs* or
+   *not counted* (cost of goods sold, job materials and non-operating items start as not counted so nothing is double counted). Choices are remembered per
+   account, so the next import sorts itself. Two accounts with the same name in different places are kept apart.
+2. **Choose the months to average** (usually the last 3 full months; part months are marked and left out by default).
+3. A **QuickBooks-style Profit and Loss** shows the combined months (sections, indented groups, "Total for" lines, Gross Profit, Net Income, each account's
+   category on its own row), followed by what counts toward the hourly cost and a **check against QuickBooks' own printed totals** (a green tick per section).
+4. **Man-hours**, either from the **time clock** (or hours typed per month, for months before the clock was in use), or from the **crew's schedule**:
+   people x days a week x hours a day x **working weeks** (a year has 52 weeks, the crew works about 50), spread over the months.
+5. The **cost per man-hour** is the months' combined counted costs divided by their combined hours (so a busy month counts for more than a quiet one), with
+   the **hourly price** at your target margin and **where each hour's cost goes** (wages, payroll tax, other costs: the share of every job payment that keeps
+   payroll funded).
+6. Optionally, job costing then values labor at that hourly cost instead of each person's own pay rate.
 
 **How the QuickBooks connection works.** Each company links its *own* QuickBooks (a standard "Connect to QuickBooks" sign-in; read-only, nothing is
 written to QuickBooks). It needs a small server piece, which runs as Vercel functions in `api/` (deployed automatically with the site). Tokens are

@@ -42,6 +42,12 @@ export interface PnlResult {
   month_guess: string | null;
   /** For a month-by-month report: every month it has a column for. */
   available_months: string[];
+  /** The months whose only column is a part month (like "Nov 1-3"), so they are not a full month's costs. */
+  partial_months: string[];
+  /** For a report with several columns that are not plain months ("Jan - Dec 2025", "Total"): the headings, so the person can pick one. */
+  columns: { label: string; index: number }[];
+  /** The index of the column that was read (null for a one-column report). */
+  column: number | null;
   warnings: string[];
 }
 
@@ -88,6 +94,17 @@ interface MonthColumn {
   partial: boolean;
 }
 
+/** The heading row of a report with several columns that are not plain months, if there is one before the first section. */
+function labelledColumns(rows: string[][]): { headerRow: number; columns: { label: string; index: number }[] } | null {
+  for (let r = 0; r < Math.min(rows.length, 20); r++) {
+    const label = (rows[r][0] ?? '').trim();
+    if (SECTION_HEADERS.some(([re]) => re.test(label))) return null; // reached the accounts without finding headings
+    const cols = rows[r].map((cell, index) => ({ label: cell.trim(), index })).filter((c) => c.index > 0 && c.label !== '' && parseAmount(c.label) === null);
+    if (cols.length >= 2) return { headerRow: r, columns: cols };
+  }
+  return null;
+}
+
 function monthColumns(rows: string[][]): { headerRow: number; columns: MonthColumn[] } | null {
   for (let r = 0; r < Math.min(rows.length, 15); r++) {
     const cols: MonthColumn[] = [];
@@ -106,11 +123,13 @@ function monthColumns(rows: string[][]): { headerRow: number; columns: MonthColu
  * like "2026-10", to choose the column). Income, totals and blank rows are skipped. Each account keeps the groups it sits
  * under, so two accounts with the same name in different places stay separate.
  */
-export function parsePnl(csvText: string, month?: string): PnlResult {
+export function parsePnl(csvText: string, month?: string, column?: number): PnlResult {
   const rows = parseCsv(csvText);
   const warnings: string[] = [];
   const header = monthColumns(rows);
+  const labelled = header ? null : labelledColumns(rows);
   const available = header ? [...new Set(header.columns.map((c) => c.key))] : [];
+  const partialMonths = header ? available.filter((k) => !header.columns.some((c) => c.key === k && !c.partial)) : [];
 
   let col = 1;
   let monthGuess: string | null = null;
@@ -119,7 +138,12 @@ export function parsePnl(csvText: string, month?: string): PnlResult {
     const chosen = header.columns.find((c) => c.key === wanted && !c.partial) ?? header.columns.find((c) => c.key === wanted)!;
     col = chosen.index;
     monthGuess = wanted;
+  } else if (labelled) {
+    // columns that are not plain months (a year, a range, a total): use the one the person picked, else the first that is not a total
+    col = labelled.columns.some((c) => c.index === column) ? (column as number) : (labelled.columns.find((c) => !/^total$/i.test(c.label)) ?? labelled.columns[0]).index;
   }
+  const headerRow = header?.headerRow ?? labelled?.headerRow ?? -1;
+  const byColumn = Boolean(header || labelled);
 
   // Which labels open a group: the ones with a later "Total for <label>" row.
   const groupNames = new Set<string>();
@@ -134,12 +158,12 @@ export function parsePnl(csvText: string, month?: string): PnlResult {
   const groups: string[] = [];
 
   rows.forEach((row, rowIndex) => {
-    if (header && rowIndex <= header.headerRow) return;
+    if (rowIndex <= headerRow) return;
     const label = (row[0] ?? '').trim();
     const rest = row.slice(1);
     const anyNumbers = rest.map(parseAmount).some((a) => a !== null);
 
-    if (!header && monthGuess === null && !anyNumbers) {
+    if (!byColumn && monthGuess === null && !anyNumbers) {
       // title lines of a one-month report: "October 2026", "October 1-31, 2026"
       const m = new RegExp(`\\b(${MONTH_NAMES.join('|')})\\b[^0-9]*(?:\\d{1,2}\\s*-\\s*\\d{1,2},?\\s*)?(\\d{4})`, 'i').exec(label);
       if (m) monthGuess = `${m[2]}-${String(MONTH_NAMES.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}`;
@@ -159,7 +183,7 @@ export function parsePnl(csvText: string, month?: string): PnlResult {
 
     const reportedRow = REPORTED_ROWS.find(([re]) => re.test(label));
     if (reportedRow) {
-      const v = header ? parseAmount(row[col]) : (rest.map(parseAmount).find((a) => a !== null) ?? null);
+      const v = byColumn ? parseAmount(row[col]) : (rest.map(parseAmount).find((a) => a !== null) ?? null);
       if (v !== null) reported[reportedRow[1]] = v;
     }
     const total = TOTAL_OF.exec(label);
@@ -172,7 +196,7 @@ export function parsePnl(csvText: string, month?: string): PnlResult {
 
     // the amount in the chosen column (a one-month report has just one number)
     let amount: Cents | null;
-    if (header) amount = parseAmount(row[col]);
+    if (byColumn) amount = parseAmount(row[col]);
     else {
       const numeric = rest.map(parseAmount).filter((a): a is Cents => a !== null);
       amount = numeric[0] ?? null;
@@ -193,7 +217,7 @@ export function parsePnl(csvText: string, month?: string): PnlResult {
   });
 
   if (lines.size === 0) warnings.push('No cost accounts were found. Is this the Profit and Loss report saved as CSV?');
-  return { lines: [...lines.values()], reported, month_guess: monthGuess, available_months: available, warnings };
+  return { lines: [...lines.values()], reported, month_guess: monthGuess, available_months: available, partial_months: partialMonths, columns: labelled?.columns ?? [], column: labelled ? col : null, warnings };
 }
 
 /** Non-operating items that are not running costs of the business. */

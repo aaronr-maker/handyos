@@ -3,6 +3,7 @@ export * from './types';
 export * from './format';
 export { parseCsv } from './csv';
 export { apiCall } from './integrations';
+export { fileToCsvText, rowsToCsv } from './xlsx';
 export * from './events';
 export * from './actions';
 export * from './data';

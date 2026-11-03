@@ -35,7 +35,12 @@ export async function loadCostingData(companyId: Id) {
   const rateByUser = Object.fromEntries(payRates.map((r) => [r.user_id, r.hourly_cost_cents]));
   const latest = Object.keys(rates).sort().pop();
   // the company hourly cost (all company costs / man-hours) is used for labor when the owner has turned it on
-  const burdened = settings.use_in_job_costing ? { rates, fallback: latest ? rates[latest] : null } : undefined;
+  // the rate averaged over the chosen months applies to all labor; without one, each month's own saved rate is used
+  const burdened = !settings.use_in_job_costing
+    ? undefined
+    : settings.cost_per_hour_cents !== null
+      ? { rates: {}, fallback: settings.cost_per_hour_cents }
+      : { rates, fallback: latest ? rates[latest] : null };
   return { allCosts, rateByUser, entries, invoices, burdened };
 }
 

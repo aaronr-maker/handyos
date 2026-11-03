@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRuntime } from '../src/core';
 import { buildTree, totalsOf } from '../src/modules/jobcosting/pnlTree';
+import { computeWindowRate, crewMinutes, crewMinutesPerYear, loadCostingData } from '../src/modules/jobcosting';
 import { computeJobCost, computeRate, defaultCategory, jobcostingModule, minutesByMonth, monthKey, parseAmount, parsePnl } from '../src/modules/jobcosting';
 
 // Shaped like a QuickBooks Online "Profit and Loss" CSV export (made-up numbers).
@@ -308,5 +309,110 @@ describe('saving a month and using it in job costing', () => {
     expect((again as { output: { cost_per_hour_cents: number } }).output.cost_per_hour_cents).toBe(4500);
     expect((await rt.actions.executeByName('jobcosting.save_overhead_month', { ...month, month: 'October' }, as('owner'))).status).toBe('invalid');
     void vi;
+  });
+});
+
+describe('a report with several columns that are not plain months', () => {
+  // headings like a year and a part-year range, then a total: nothing here names a month
+  const YEARS = `That Handyman Van LLC
+Profit and Loss
+January 1 - November 3, 2026
+
+,Jan - Dec 2025,Jan 1 - Nov 3 2026,Total
+Income
+Services,"90,000.00","148,000.00","238,000.00"
+Total Income,"90,000.00","148,000.00","238,000.00"
+Expenses
+Advertising & marketing,24.00,10.00,34.00
+Contract labor,575.00,300.00,875.00
+Total Expenses,599.00,310.00,909.00
+Net Income,"89,401.00","147,690.00","237,091.00"`;
+
+  it('offers the headings to choose from, reads the first column that is not a total, and any column on request', () => {
+    const r = parsePnl(YEARS);
+    expect(r.available_months).toEqual([]);
+    expect(r.columns.map((c) => c.label)).toEqual(['Jan - Dec 2025', 'Jan 1 - Nov 3 2026', 'Total']);
+    expect(r.warnings).toEqual([]); // no longer "only the first column was used"
+    expect(r.lines.map((l) => [l.account, l.amount_cents])).toEqual([['Advertising & marketing', 2400], ['Contract labor', 57500]]);
+    expect(r.reported.expenses).toBe(59_900);
+
+    const second = parsePnl(YEARS, undefined, r.columns[1].index);
+    expect(second.lines.map((l) => l.amount_cents)).toEqual([1000, 30000]);
+    expect(second.column).toBe(r.columns[1].index);
+    expect(second.reported.expenses).toBe(31_000);
+  });
+
+  it('turns Excel rows into the same text a CSV file would have', async () => {
+    const { rowsToCsv } = await import('../src/core');
+    expect(rowsToCsv([[null, 'Sep 2026', 'Oct 2026'], ['Sales, retail', 8593.939999999999, null], ['Say "hi"', -83.95, 0]])).toBe(',Sep 2026,Oct 2026\n"Sales, retail",8593.94,\n"Say ""hi""",-83.95,0');
+  });
+});
+
+
+describe('the rate averaged over several months', () => {
+  const crew = { people: 3, days_per_week: 5, hours_per_day: 8, working_weeks: 50 };
+
+  it('works out a crew\'s hours with 50 working weeks, not 52, spread over the months', () => {
+    expect(crewMinutesPerYear(crew) / 60).toBe(6000); // 3 people x 5 days x 8 hours x 50 weeks
+    expect(crewMinutes(crew, 3) / 60).toBe(1500); // three months is a quarter of the year
+    expect(crewMinutes(crew, 1) / 60).toBe(500);
+    expect(crewMinutes({ ...crew, working_weeks: 52 }, 12) / 60).toBe(6240); // if it were all 52 weeks
+    expect(crewMinutes({ ...crew, people: 0 }, 3)).toBe(0);
+  });
+
+  it('divides all the months\' counted costs by all their hours, so a busy month counts for more than a quiet one', () => {
+    const lines = (wages: number, overhead: number) => [
+      { amount_cents: wages, category: 'wages' as const },
+      { amount_cents: overhead, category: 'overhead' as const },
+      { amount_cents: 999_999, category: 'excluded' as const },
+    ];
+    const months = [
+      { lines: lines(1_000_000, 200_000), minutes: 400 * 60 }, // $12,000 over 400 h
+      { lines: lines(1_000_000, 200_000), minutes: 200 * 60 }, // $12,000 over 200 h (a quiet month)
+      { lines: lines(1_000_000, 200_000), minutes: 400 * 60 }, // $12,000 over 400 h
+    ];
+    const r = computeWindowRate(months, 3000, null);
+    expect(r.counted_cents).toBe(3_600_000);
+    expect(r.hours).toBe(1000);
+    expect(r.cost_per_hour_cents).toBe(3600); // $36,000 / 1,000 h, not the average of 3000/6000/3000
+    // with a crew schedule the hours come from the schedule: 1,500 h for the three months
+    const planned = computeWindowRate(months, 3000, crew);
+    expect(planned.hours).toBe(1500);
+    expect(planned.cost_per_hour_cents).toBe(2400);
+    expect(planned.price_per_hour_cents).toBe(Math.round(2400 / 0.7));
+  });
+
+  it('saves the chosen months and the hours source, saves the resulting rate, and job costing uses it', async () => {
+    const rt = createRuntime();
+    jobcostingModule.register({ actions: rt.actions, events: rt.events });
+    const co = 'coWindow';
+    const owner = { companyId: co, actor: { kind: 'user' as const, id: 'u-owner' }, role: 'owner' as const };
+    const run = (name: string, input: unknown, c = owner) => rt.actions.executeByName(name, input, c);
+    for (const [month, hours] of [['2026-08', 400], ['2026-09', 200], ['2026-10', 400]] as const) {
+      const saved = await run('jobcosting.save_overhead_month', { month, source: 'quickbooks_csv', hours_override_minutes: hours * 60, lines: [{ account_name: 'Wages', group_path: '', section: 'expense', amount_cents: 1_000_000, category: 'wages' }, { account_name: 'Insurance', group_path: '', section: 'expense', amount_cents: 200_000, category: 'overhead' }] });
+      expect(saved.status, JSON.stringify(saved)).toBe('ok');
+    }
+    const base = { target_margin_bps: 3000, use_in_job_costing: true, accounting_method: 'cash', rate_months: ['2026-08', '2026-09', '2026-10'] };
+
+    // hours typed in for each month
+    const clock = await run('jobcosting.save_rate_settings', { ...base, hours_mode: 'clock' });
+    expect((clock as { output: { cost_per_hour_cents: number; hours: number; months: number } }).output).toMatchObject({ cost_per_hour_cents: 3600, hours: 1000, months: 3 });
+    expect((await loadCostingData(co)).burdened).toEqual({ rates: {}, fallback: 3600 }); // one rate for all labor
+
+    // or the crew's schedule
+    const capacity = await run('jobcosting.save_rate_settings', { ...base, hours_mode: 'capacity', crew_people: 3, crew_days_per_week: 5, crew_hours_per_day: 8 });
+    expect((capacity as { output: { cost_per_hour_cents: number; hours: number } }).output).toMatchObject({ cost_per_hour_cents: 2400, hours: 1500 });
+    expect((await loadCostingData(co)).burdened?.fallback).toBe(2400);
+
+    // 50 working weeks by default; a different number changes the hours
+    const fiftyTwo = await run('jobcosting.save_rate_settings', { ...base, hours_mode: 'capacity', crew_people: 3, crew_days_per_week: 5, working_weeks: 52 });
+    expect((fiftyTwo as { output: { hours: number } }).output.hours).toBe(1560);
+
+    // switched off: job costing goes back to people's own pay rates
+    await run('jobcosting.save_rate_settings', { ...base, use_in_job_costing: false });
+    expect((await loadCostingData(co)).burdened).toBeUndefined();
+    // only owners and admins
+    expect((await run('jobcosting.save_rate_settings', base, { ...owner, role: 'office' as never })).status).toBe('denied');
+    expect((await run('jobcosting.save_rate_settings', { ...base, rate_months: ['October'] })).status).toBe('invalid');
   });
 });
