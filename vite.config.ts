@@ -40,7 +40,13 @@ export default defineConfig({
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'] },
+      workbox: {
+        navigateFallback: '/index.html',
+        // The offline app shell answers page visits, but /api/... addresses belong to the server (for example where
+        // QuickBooks sends people back after they approve), so those must always go to the network.
+        navigateFallbackDenylist: [/^\/api\//],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+      },
     }),
   ],
 });
