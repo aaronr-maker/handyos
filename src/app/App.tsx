@@ -10,13 +10,26 @@ import { SystemScreen } from './screens/SystemScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { TeamScreen } from './screens/TeamScreen';
 import { EarningsScreen } from './screens/EarningsScreen';
+import { PrivacyPage, TermsPage } from './screens/LegalPages';
 
 export function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="*" element={<Private />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+/** Everything that needs a sign-in. */
+function Private() {
   return (
     <AuthProvider>
       <AuthGate>
       <RuntimeProvider runtime={runtime}>
-      <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<HomeScreen />} />
@@ -31,7 +44,6 @@ export function App() {
             <Route path="*" element={<HomeScreen />} />
           </Route>
         </Routes>
-      </BrowserRouter>
       </RuntimeProvider>
       </AuthGate>
     </AuthProvider>
