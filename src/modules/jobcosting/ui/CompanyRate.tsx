@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { centsToInput, formatDuration, formatMoney, isSupabaseConfigured, parseCsv, parseMoney, resultError, useAction, useAsync, useSession } from '@/core';
 import { saveOverheadMonthAction, saveRateSettingsAction } from '../rateActions';
 import { computeRate } from '../rateCalc';
-import { defaultCategory, parsePnl, type PnlLine } from '../qbPnl';
-import { CATEGORY_LABELS, type CostCategory, type CostSource } from '../rateTypes';
+import { PnlSummary } from './PnlSummary';
+import { defaultCategory, parsePnl, type PnlLine, type PnlReported } from '../qbPnl';
+import { accountKey, CATEGORY_LABELS, type CostCategory, type CostSource } from '../rateTypes';
 import { disconnectQuickbooks, pullQuickbooksMonth, quickbooksLink, startQuickbooksConnect } from '../services/integrationService';
 import { clockedMinutes, getAccountMap, getMonth, getRateSettings } from '../services/rateService';
 
@@ -60,6 +61,11 @@ export default function CompanyRate() {
   const [busy, setBusy] = useState(false);
   const [margin, setMargin] = useState('30');
   const [useRate, setUseRate] = useState(false);
+  const [method, setMethod] = useState<'cash' | 'accrual'>('cash');
+  // QuickBooks' own totals for the report that was read, used to check the lines against
+  const [reported, setReported] = useState<PnlReported | null>(null);
+  // a month-by-month file stays loaded, so changing the month switches columns without choosing the file again
+  const fileRef = useRef<{ text: string; months: string[] } | null>(null);
   const [manual, setManual] = useState({ account: '', amount: '', category: 'overhead' as CostCategory });
 
   const data = useAsync(async () => {
@@ -74,8 +80,18 @@ export default function CompanyRate() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setMargin(String(d.settings.target_margin_bps / 100));
     setUseRate(d.settings.use_in_job_costing);
-    setRows(d.saved ? d.saved.lines.map((l) => ({ account: l.account_name, amount: centsToInput(l.amount_cents), category: l.category, section: 'manual' as const, group: null })) : []);
-    setSource(d.saved?.month.source ?? 'manual');
+    setMethod(d.settings.accounting_method);
+    const file = fileRef.current;
+    if (file && file.months.includes(month)) {
+      const r = parsePnl(file.text, month);
+      setRows(r.lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: d.map[accountKey(l.account, l.group)] ?? defaultCategory(l.account, l.section, l.group), section: l.section, group: l.group })));
+      setReported(r.reported);
+      setSource('quickbooks_csv');
+    } else {
+      setRows(d.saved ? d.saved.lines.map((l) => ({ account: l.account_name, amount: centsToInput(l.amount_cents), category: l.category, section: l.section, group: l.group_path })) : []);
+      setReported(null);
+      setSource(d.saved?.month.source ?? 'manual');
+    }
     setHoursText(d.saved && !d.saved.month.hours_from_clock && d.saved.month.hours_minutes !== null ? String(d.saved.month.hours_minutes / 60) : '');
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the month's saved data (re)loads
@@ -83,7 +99,7 @@ export default function CompanyRate() {
 
   const fromPnl = (lines: PnlLine[], src: CostSource) => {
     const map = d?.map ?? {};
-    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[l.account.toLowerCase()] ?? defaultCategory(l.account, l.section, l.group), section: l.section, group: l.group })));
+    setRows(lines.map((l) => ({ account: l.account, amount: centsToInput(l.amount_cents), category: map[accountKey(l.account, l.group)] ?? defaultCategory(l.account, l.section, l.group), section: l.section, group: l.group })));
     setSource(src);
   };
 
@@ -92,19 +108,27 @@ export default function CompanyRate() {
     setNotice(null);
     const text = await file.text();
     if (parseCsv(text).length < 2) return setNotice({ ok: false, text: 'That file looks empty.' });
-    const result = parsePnl(text);
+    const result = parsePnl(text, month);
     if (result.lines.length === 0) return setNotice({ ok: false, text: result.warnings[0] ?? 'No costs found in that file.' });
-    if (result.month_guess && result.month_guess !== month) setMonth(result.month_guess);
+    fileRef.current = { text, months: result.available_months };
+    const target = result.month_guess ?? month;
+    if (target !== month) setMonth(target);
     fromPnl(result.lines, 'quickbooks_csv');
-    setNotice({ ok: true, text: `Read ${result.lines.length} accounts${result.month_guess ? ` for ${monthName(result.month_guess)}` : ''}. Check how each one counts, then save.${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}` });
+    setReported(result.reported);
+    const many = result.available_months.length > 1;
+    setNotice({
+      ok: true,
+      text: `Read ${result.lines.length} accounts for ${monthName(target)}.${many ? ` This file has ${result.available_months.length} months: change the Month above to switch.` : ''} Check how each one counts, then save.${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}`,
+    });
   };
 
   const pull = async () => {
     setBusy(true);
     setNotice(null);
     try {
-      const r = await pullQuickbooksMonth(month, 'Accrual');
+      const r = await pullQuickbooksMonth(month, method === 'cash' ? 'Cash' : 'Accrual');
       fromPnl(r.lines, 'quickbooks_api');
+      setReported(r.reported);
       setNotice(
         r.lines.length === 0
           ? { ok: false, text: `QuickBooks has no costs recorded for ${monthName(month)}. A test company only has sample data for certain months, so try another month.` }
@@ -139,8 +163,8 @@ export default function CompanyRate() {
     if (parsed.some((p) => p.cents === null)) return setSaveNotice({ ok: false, text: 'Every amount needs to be a number, like 1200 or 1200.50.' });
     if (hoursOverride !== null && !Number.isFinite(hoursOverride)) return setSaveNotice({ ok: false, text: 'Hours must be a number.' });
     setBusy(true);
-    const res = await save({ month, source, hours_override_minutes: hoursOverride, lines: parsed.map((p) => ({ account_name: p.account.trim(), amount_cents: p.cents as number, category: p.category })) });
-    const settingsRes = await saveSettings({ target_margin_bps: Math.min(9500, marginBps), use_in_job_costing: useRate });
+    const res = await save({ month, source, hours_override_minutes: hoursOverride, lines: parsed.map((p) => ({ account_name: p.account.trim(), group_path: p.group ?? '', section: p.section, amount_cents: p.cents as number, category: p.category })) });
+    const settingsRes = await saveSettings({ target_margin_bps: Math.min(9500, marginBps), use_in_job_costing: useRate, accounting_method: method });
     setBusy(false);
     const err = resultError(res) ?? resultError(settingsRes);
     if (err) setSaveNotice({ ok: false, text: err });
@@ -181,6 +205,14 @@ export default function CompanyRate() {
         <label>
           Import a QuickBooks Profit and Loss (.csv)
           <input type="file" accept=".csv,text/csv" onChange={(e) => void onFile(e.target.files?.[0])} />
+        </label>
+
+        <label>
+          Accounting method <span className="muted">(used when pulling from QuickBooks; your CSV already has its own)</span>
+          <select value={method} onChange={(e) => setMethod(e.target.value as 'cash' | 'accrual')}>
+            <option value="cash">Cash basis</option>
+            <option value="accrual">Accrual basis</option>
+          </select>
         </label>
 
         {isSupabaseConfigured && (
@@ -239,6 +271,14 @@ export default function CompanyRate() {
               </div>
             ))}
           </div>
+        )}
+
+        {rows.length > 0 && (
+          <PnlSummary
+            rows={parsed.filter((p) => p.cents !== null).map((p) => ({ account: p.account, group: p.group ?? '', section: p.section, cents: p.cents as number, category: p.category }))}
+            reported={reported}
+            monthLabel={monthName(month)}
+          />
         )}
 
         <div className="row cost-add">

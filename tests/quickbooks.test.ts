@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decrypt, encrypt, signState, verifyState } from '../api/_lib/crypto';
 import { disconnect, finishConnect, startConnect, syncMonth, type Deps, type Env, type Store } from '../api/_lib/qb';
-import { monthRange, reportToLines } from '../api/_lib/report';
+import { monthRange, reportedTotals, reportToLines } from '../api/_lib/report';
 
 const env: Env = {
   INTUIT_CLIENT_ID: 'client-id',
@@ -122,6 +122,36 @@ describe('QuickBooks report', () => {
     expect(reportToLines({})).toEqual([]);
   });
 
+  it('keeps two accounts with the same name in different places apart', () => {
+    const lines = reportToLines({
+      Rows: {
+        Row: [
+          { type: 'Section', group: 'COGS', Rows: { Row: [{ type: 'Section', Header: { ColData: [{ value: 'Cost of goods sold' }] }, Rows: { Row: [{ type: 'Data', ColData: [{ value: 'Supplies & materials' }, { value: '1000.00' }] }] } }] } },
+          { type: 'Section', group: 'Expenses', Rows: { Row: [{ type: 'Section', Header: { ColData: [{ value: 'Supplies' }] }, Rows: { Row: [{ type: 'Data', ColData: [{ value: 'Supplies & materials' }, { value: '210.00' }] }] } }] } },
+        ],
+      },
+    });
+    expect(lines.map((l) => [l.section, l.group, l.account, l.amount_cents])).toEqual([
+      ['cogs', 'Cost of goods sold', 'Supplies & materials', 100000],
+      ['expense', 'Supplies', 'Supplies & materials', 21000],
+    ]);
+  });
+
+  it('reads the totals QuickBooks printed for each part of the report', () => {
+    const r = reportedTotals({
+      Rows: {
+        Row: [
+          { type: 'Section', group: 'Income', Summary: { ColData: [{ value: 'Total Income' }, { value: '52000.00' }] } },
+          { type: 'Section', group: 'COGS', Summary: { ColData: [{ value: 'Total Cost of Goods Sold' }, { value: '9500.00' }] } },
+          { type: 'Section', group: 'GrossProfit', Summary: { ColData: [{ value: 'Gross Profit' }, { value: '42500.00' }] } },
+          { type: 'Section', group: 'Expenses', Summary: { ColData: [{ value: 'Total Expenses' }, { value: '22,680.00' }] } },
+          { type: 'Section', group: 'NetIncome', Summary: { ColData: [{ value: 'Net Income' }, { value: '19820.00' }] } },
+        ],
+      },
+    });
+    expect(r).toEqual({ income: 5_200_000, cogs: 950_000, gross_profit: 4_250_000, expenses: 2_268_000, net_operating_income: null, other_expenses: null, net_income: 1_982_000 });
+  });
+
   it('works out the first and last day of a month', () => {
     expect(monthRange('2026-10')).toEqual({ start: '2026-10-01', end: '2026-10-31' });
     expect(monthRange('2028-02')).toEqual({ start: '2028-02-01', end: '2028-02-29' });
@@ -202,7 +232,7 @@ describe('connecting QuickBooks', () => {
     expect(r.lines.map((l) => l.account)).toContain('Wages');
     const report = calls.find((c) => c.url.includes('/reports/ProfitAndLoss'))!;
     expect(report.url).toContain('sandbox-quickbooks.api.intuit.com/v3/company/9130/');
-    expect(report.url).toContain('start_date=2026-10-01&end_date=2026-10-31&accounting_method=Accrual');
+    expect(report.url).toContain('start_date=2026-10-01&end_date=2026-10-31&accounting_method=Cash'); // cash basis unless asked otherwise
     expect((report.init!.headers as Record<string, string>).Authorization).toBe('Bearer access-1');
     expect(db.synced.at(-1)).toBeNull();
     await expect(syncMonth(deps, 'good-token', 'October')).rejects.toMatchObject({ status: 400 });

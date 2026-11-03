@@ -27,9 +27,16 @@ export interface OverheadMonth extends BaseRecord {
 export interface OverheadLine extends BaseRecord {
   month_id: Id;
   account_name: string;
+  /** Where the account sits in QuickBooks, like "Supplies" or "Job Expenses > Job Materials" (empty at the top level). */
+  group_path: string;
+  /** Which part of the Profit and Loss it came from ("manual" if typed in). */
+  section: 'cogs' | 'expense' | 'other_expense' | 'manual';
   amount_cents: Cents;
   category: CostCategory;
 }
+
+/** The key a remembered category is stored under: the account's name together with where it sits. */
+export const accountKey = (account: string, group: string) => (group ? `${group} > ${account}` : account).toLowerCase();
 
 export interface AccountMap extends BaseRecord {
   account_name: string;
@@ -41,4 +48,6 @@ export interface RateSettings extends BaseRecord {
   target_margin_bps: number;
   /** Value labor in job costing at the company hourly cost instead of each person's own pay rate. */
   use_in_job_costing: boolean;
+  /** Which accounting method to ask QuickBooks for. */
+  accounting_method: 'cash' | 'accrual';
 }
