@@ -1,7 +1,7 @@
 import { createRepo, type Id } from '@/core';
 import { listTimeEntries } from '@/modules/jobs';
 import { computeRate, minutesByMonth, type RateResult } from '../rateCalc';
-import type { AccountMap, CostCategory, CostSource, OverheadLine, OverheadMonth, RateSettings } from '../rateTypes';
+import { accountKey, type AccountMap, type CostCategory, type CostSource, type OverheadLine, type OverheadMonth, type RateSettings } from '../rateTypes';
 
 const monthsRepo = createRepo<OverheadMonth>('overhead_months');
 const linesRepo = createRepo<OverheadLine>('overhead_lines');
@@ -11,23 +11,31 @@ const settingsRepo = createRepo<RateSettings>('company_rate_settings');
 /** "2026-10" -> "2026-10-01" (how a month is stored). */
 export const monthDate = (key: string) => `${key}-01`;
 
-export async function getRateSettings(companyId: Id): Promise<{ target_margin_bps: number; use_in_job_costing: boolean }> {
-  const row = (await settingsRepo.list(companyId))[0];
-  return { target_margin_bps: row?.target_margin_bps ?? 3000, use_in_job_costing: row?.use_in_job_costing ?? false };
+export interface RateSettingsValues {
+  target_margin_bps: number;
+  use_in_job_costing: boolean;
+  accounting_method: 'cash' | 'accrual';
 }
 
-export async function saveRateSettings(companyId: Id, data: { target_margin_bps: number; use_in_job_costing: boolean }) {
+export async function getRateSettings(companyId: Id): Promise<RateSettingsValues> {
+  const row = (await settingsRepo.list(companyId))[0];
+  return { target_margin_bps: row?.target_margin_bps ?? 3000, use_in_job_costing: row?.use_in_job_costing ?? false, accounting_method: row?.accounting_method ?? 'cash' };
+}
+
+export async function saveRateSettings(companyId: Id, data: RateSettingsValues) {
   const row = (await settingsRepo.list(companyId))[0];
   return row ? settingsRepo.update(companyId, row.id, data) : settingsRepo.insert(companyId, data);
 }
 
-/** How the company categorized each account before, so a new month's import sorts itself. */
+/** How the company categorized each account before (keyed by name and group), so a new month's import sorts itself. */
 export async function getAccountMap(companyId: Id): Promise<Record<string, CostCategory>> {
   return Object.fromEntries((await mapRepo.list(companyId)).map((m) => [m.account_name.toLowerCase(), m.category]));
 }
 
 export interface MonthLine {
   account_name: string;
+  group_path: string;
+  section: 'cogs' | 'expense' | 'other_expense' | 'manual';
   amount_cents: number;
   category: CostCategory;
 }
@@ -70,12 +78,13 @@ export async function saveMonth(
   const fields = { source, hours_minutes: hoursOverrideMinutes, hours_from_clock: hoursOverrideMinutes === null, cost_per_hour_cents: rate.cost_per_hour_cents, imported_at: new Date().toISOString() };
   const month = existing ? await monthsRepo.update(companyId, existing.month.id, fields) : await monthsRepo.insert(companyId, { month: monthDate(key), ...fields });
   if (existing) for (const l of existing.lines) await linesRepo.remove(companyId, l.id);
-  if (lines.length) await linesRepo.insertMany(companyId, lines.map((l) => ({ month_id: month.id, account_name: l.account_name, amount_cents: l.amount_cents, category: l.category })));
+  if (lines.length) await linesRepo.insertMany(companyId, lines.map((l) => ({ month_id: month.id, account_name: l.account_name, group_path: l.group_path, section: l.section, amount_cents: l.amount_cents, category: l.category })));
 
   const known = await mapRepo.list(companyId);
   for (const l of lines) {
-    const row = known.find((m) => m.account_name.toLowerCase() === l.account_name.toLowerCase());
-    if (!row) known.push(await mapRepo.insert(companyId, { account_name: l.account_name, category: l.category }));
+    const key = accountKey(l.account_name, l.group_path);
+    const row = known.find((m) => m.account_name.toLowerCase() === key);
+    if (!row) known.push(await mapRepo.insert(companyId, { account_name: key, category: l.category }));
     else if (row.category !== l.category) await mapRepo.update(companyId, row.id, { category: l.category });
   }
   return { month, rate };

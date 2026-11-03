@@ -177,3 +177,20 @@ details summary { cursor: pointer; font-weight: 600; }
 .cost-add input[inputmode] { max-width: 110px; }
 .account-cell { display: flex; flex-direction: column; min-width: 140px; }
 .account-cell input { width: 100%; }
+
+/* QuickBooks-style summary */
+.pnl { margin: 16px 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fcfdfd; }
+.pnl h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.pnl-section { margin-bottom: 10px; }
+.pnl-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 8px; font-size: 0.88rem; }
+.pnl-row.section-head { font-weight: 700; border-bottom: 1px solid var(--border); }
+.pnl-row.group { font-weight: 600; color: #334155; }
+.pnl-row.subtotal, .pnl-row.section-total { font-weight: 600; border-top: 1px solid var(--border); }
+.pnl-row.section-total { background: #f1f5f9; }
+.pnl-grand { margin-top: 12px; border-top: 2px solid var(--text); padding-top: 6px; }
+.pnl-row.strong { font-weight: 700; font-size: 0.95rem; }
+.pnl-tag { margin-left: 8px; font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; }
+.pnl-tag.on { background: #dcfce7; color: #166534; }
+.pnl-tag.off { background: #f1f5f9; color: #64748b; }
+.pnl-check { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.ok-text { color: #166534; font-weight: 600; }

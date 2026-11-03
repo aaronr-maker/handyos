@@ -1,5 +1,5 @@
 import { decrypt, encrypt, signState, verifyState } from './crypto.js';
-import { monthRange, reportToLines, type ReportLine } from './report.js';
+import { monthRange, reportedTotals, reportToLines, type Reported, type ReportLine } from './report.js';
 
 /**
  * The QuickBooks connection logic, written against small interfaces (Store, fetch, env) so it can be tested without
@@ -165,10 +165,12 @@ export async function finishConnect(deps: Deps, query: { code?: string; state?: 
 export interface SyncResult {
   month: string;
   lines: ReportLine[];
+  /** QuickBooks' own totals for the report, to check the lines against. */
+  reported: Reported;
 }
 
 /** Pulls one month's Profit and Loss from the company's QuickBooks. Nothing is saved here; the app shows it for review. */
-export async function syncMonth(deps: Deps, token: string | null, month: string, method: 'Accrual' | 'Cash' = 'Accrual'): Promise<SyncResult> {
+export async function syncMonth(deps: Deps, token: string | null, month: string, method: 'Accrual' | 'Cash' = 'Cash'): Promise<SyncResult> {
   const env = need(deps.env);
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new ApiError(400, 'Choose a month like 2026-10.');
   const { companyId } = await requireManager(deps, token);
@@ -200,9 +202,9 @@ export async function syncMonth(deps: Deps, token: string | null, month: string,
     await deps.store.markSync(companyId, `QuickBooks answered ${res.status}`);
     throw new ApiError(502, 'QuickBooks did not return the report. Try again, or connect again.');
   }
-  const lines = reportToLines(await res.json());
+  const json = await res.json();
   await deps.store.markSync(companyId, null);
-  return { month, lines };
+  return { month, lines: reportToLines(json), reported: reportedTotals(json) };
 }
 
 export async function disconnect(deps: Deps, token: string | null): Promise<{ ok: true }> {

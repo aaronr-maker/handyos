@@ -42,7 +42,8 @@ export function reportToLines(report: unknown): ReportLine[] {
         const name = row.ColData[0]?.value?.trim();
         const amount = cents(row.ColData[1]?.value);
         if (!name || amount === null) continue;
-        const k = name.toLowerCase();
+        // two accounts with the same name in different places are different accounts
+        const k = `${section}|${path.join(' > ')}|${name}`.toLowerCase();
         const existing = found.get(k);
         if (existing) existing.amount_cents += amount;
         else found.set(k, { account: name, amount_cents: amount, section, group: path.join(' > ') });
@@ -65,4 +66,35 @@ export function monthRange(month: string): { start: string; end: string } {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const mm = String(m).padStart(2, '0');
   return { start: `${y}-${mm}-01`, end: `${y}-${mm}-${String(last).padStart(2, '0')}` };
+}
+
+/** The totals QuickBooks printed on the report (in cents), so the app can check what it read against them. */
+export interface Reported {
+  income: number | null;
+  cogs: number | null;
+  gross_profit: number | null;
+  expenses: number | null;
+  net_operating_income: number | null;
+  other_expenses: number | null;
+  net_income: number | null;
+}
+
+const REPORTED_GROUPS: Record<string, keyof Reported> = {
+  Income: 'income',
+  COGS: 'cogs',
+  GrossProfit: 'gross_profit',
+  Expenses: 'expenses',
+  NetOperatingIncome: 'net_operating_income',
+  OtherExpenses: 'other_expenses',
+  NetIncome: 'net_income',
+};
+
+export function reportedTotals(report: unknown): Reported {
+  const out: Reported = { income: null, cogs: null, gross_profit: null, expenses: null, net_operating_income: null, other_expenses: null, net_income: null };
+  for (const top of (report as { Rows?: { Row?: (Row & { Summary?: { ColData?: ColData[] } })[] } })?.Rows?.Row ?? []) {
+    const key = top.group ? REPORTED_GROUPS[top.group] : undefined;
+    if (!key) continue;
+    out[key] = cents(top.Summary?.ColData?.[1]?.value);
+  }
+  return out;
 }
