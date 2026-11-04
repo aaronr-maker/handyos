@@ -1,10 +1,11 @@
-import { Suspense } from 'react';
+import { Suspense, type ComponentType } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Icon, isSupabaseConfigured, signOut, useSession, type IconName, type UserRole } from '@/core';
 import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
 interface NavItem {
+  Badge?: ComponentType;
   to: string;
   label: string;
   icon: IconName;
@@ -18,7 +19,7 @@ const itemsFor = (role: UserRole) => {
   return {
     all: [
       home,
-      ...visible.map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
+      ...visible.map((m) => ({ to: m.path, label: m.label, icon: m.icon, Badge: m.Badge })),
       { to: '/earnings', label: 'My earnings', icon: 'jobcosting' as IconName },
       { to: '/team', label: 'Team', icon: 'customers' as IconName },
       ...(role === 'owner' || role === 'admin' ? [{ to: '/settings', label: 'Settings', icon: 'system' as IconName }] : []),
@@ -37,6 +38,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' 
 export function AppShell() {
   const { companyName, role } = useSession();
   const { all, tabs } = itemsFor(role);
+  const overlays = modules.filter((m) => m.Overlay && !m.hiddenFromRoles?.includes(role));
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -52,6 +54,7 @@ export function AppShell() {
             <NavLink key={i.to} to={i.to} end={i.end} className={linkClass}>
               <Icon name={i.icon} />
               {i.label}
+              {i.Badge && <i.Badge />}
             </NavLink>
           ))}
         </nav>
@@ -66,6 +69,8 @@ export function AppShell() {
         <img src="/icon.svg" alt="" width={28} height={28} />
         <strong>{appConfig.name}</strong>
       </header>
+
+      {overlays.map((m) => m.Overlay && <m.Overlay key={m.id} />)}
 
       <main className="content">
         <Suspense fallback={<p className="muted pad">Loading…</p>}>

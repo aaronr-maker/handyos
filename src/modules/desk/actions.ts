@@ -19,6 +19,7 @@ export const closeAlertAction = defineAction({
   module: 'desk',
   description: 'Mark a manager alert resolved or dismissed, with an optional note on what was done.',
   input: z.object({ alert_id: z.string().min(1), status: z.enum(['resolved', 'dismissed']), resolution: z.string().trim().max(300).nullable().default(null) }),
+  handy: 'auto' as const,
   risk: 'low',
   roles: ['owner', 'admin'],
   requiresApproval: false,

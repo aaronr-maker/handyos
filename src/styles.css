@@ -244,3 +244,31 @@ details summary { cursor: pointer; font-weight: 600; }
 .kind-group { margin: 10px 0; }
 .kind-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 0.88rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .kind-row select { max-width: 170px; min-height: 32px; font-size: 0.8rem; }
+
+/* alert popups and the to-do list */
+.alert-popups { position: fixed; top: 12px; right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100vw - 24px)); }
+.alert-popup { background: #fff; border: 1px solid var(--border); border-left: 5px solid #f59e0b; border-radius: 10px; padding: 12px 14px; box-shadow: 0 6px 24px rgba(15, 23, 42, 0.18); }
+.alert-popup.critical { border-left-color: #dc2626; }
+.alert-popup p { margin: 4px 0; }
+.nav-badge { margin-left: auto; background: #dc2626; color: #fff; border-radius: 999px; font-size: 0.72rem; font-weight: 700; min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; }
+.todo { display: flex; gap: 12px; align-items: flex-start; }
+.todo > input[type="checkbox"] { margin-top: 6px; width: 22px; height: 22px; flex: none; }
+.todo-body { flex: 1; min-width: 0; }
+.todo.done .todo-body { opacity: 0.55; text-decoration: line-through; }
+
+/* Handy */
+.handy-fab { position: fixed; right: 16px; bottom: 76px; z-index: 40; display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; min-height: 52px; padding: 0 18px; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3); }
+.handy-fab svg { width: 22px; height: 22px; }
+.handy-panel { position: fixed; right: 12px; bottom: 76px; z-index: 45; width: min(420px, calc(100vw - 24px)); height: min(640px, calc(100vh - 110px)); background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 40px rgba(15, 23, 42, 0.3); display: flex; flex-direction: column; overflow: hidden; }
+.handy-panel header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.handy-panel header .small-note { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handy-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.handy-msg { margin: 0; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; max-width: 88%; }
+.handy-msg.user { align-self: flex-end; background: var(--accent, #0f766e); color: #fff; }
+.handy-msg.assistant { align-self: flex-start; background: #f1f5f9; }
+.handy-msg.action { align-self: flex-start; background: #ecfdf5; color: #065f46; font-size: 0.9rem; }
+.handy-confirm { border: 2px solid #f59e0b; background: #fffbeb; border-radius: 12px; padding: 10px 12px; }
+.handy-panel form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.handy-panel form input { flex: 1; min-width: 0; }
+.handy-foot { padding: 0 14px 10px; margin: 0; }
+@media (min-width: 900px) { .handy-fab, .handy-panel { bottom: 16px; } }

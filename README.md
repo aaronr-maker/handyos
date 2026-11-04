@@ -307,11 +307,11 @@ open and correct anyone's week; everyone else sees and edits only their own. It 
 **efficiency rate** (their time on jobs finished in the last 90 days divided by the time scheduled for them; 1.00 until they have 3 such jobs) and the **projected
 week** = clocked + scheduled ahead × efficiency rate. Over 40 hours turns red (`WEEK_LIMIT_MINUTES`).
 
-**Manager desk** (`src/modules/desk`, migration `20261124000000_desk_alerts.sql`): alerts for a person projected over the limit (or a clock left running), and
+**To-do** (the manager desk, `src/modules/desk`, migration `20261124000000_desk_alerts.sql`): alerts for a person projected over the limit (or a clock left running), and
 tasks such as scheduled jobs nobody is assigned to. "Handy suggests" a fix with a button for each: move the latest upcoming jobs to people who are free then and
-stay under the limit (`suggestReassignments`), or assign a free person. The suggestions are rule-based today, not an AI model. Alerts are worked out when a
-manager opens the desk (and every five minutes while it is open); pushing them to a manager's phone or email needs a scheduled job and a messaging provider,
-which are not set up yet.
+stay under the limit (`suggestReassignments`), or assign a free person. The suggestions are rule-based today, not an AI model. The to-do page is a checklist: tick an item when it is handled. While the app is open, HandyOS checks everyone's week every few minutes, shows each new alert once as a
+popup, and puts the open count on the menu. (Modules can add a menu `Badge` and an always-on `Overlay` through their manifest.) Reaching a manager when the app is
+closed needs a scheduled job and a messaging provider, which are not set up yet.
 
 **Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
@@ -323,6 +323,29 @@ invoice. It starts **off**. The owner chooses the income account, an optional de
 2027, so old history is never sent); each item is sent once. Off switches: untick "Sending is on", set `QB_PUSH_DISABLED=1` on the server, or remove
 `qbsyncModule` from `src/modules.ts`. Refunds and voids are not synced. Needs the same Intuit production approval as pulling the real books.
 Reviewer notes: [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md).
+
+### Handy (the AI assistant): the rules he works under
+
+Handy is just another caller of the action registry, so he can do anything a person can do in the app, and nothing more. Three rules are enforced in `src/core/actions`:
+1. **He acts for a person.** A Handy call carries `onBehalfOf` (who asked, and their role); the action's `roles` are checked against that person's role, and the audit trail
+   names both (`handy/for:<user id>`).
+2. **Each action has a Handy level** (`handy` on `defineAction`): `auto` (he just does it: low-risk office changes only, never anything sent to a customer or about money
+   or pay), `ask` (the default: his request waits in the approval queue for an owner or admin) or `never` (a person's own clocks and consent). Anything not marked asks first.
+3. **Customer-facing actions always ask**, and the plan is for Handy to draft the message, show it, and send only after a person says it looks good.
+
+**The chat** (`src/modules/handy`, `api/handy/chat.ts`, `api/_lib/handyChat.ts`, migration `20261125000000_handy_chat.sql`) is a floating Handy button with a text chat (and a
+"Talk it over with Handy" button on each to-do item). How it works:
+- The browser runs Handy's look-ups and actions *as the signed-in person* (so database rules and the action rules above apply) and keeps the conversation in the company's own
+  tables (`handy_threads`, `handy_messages`). The server function only holds the OpenAI key and passes the conversation on.
+- **Masking** (`mask.ts`): people in the company use real names everywhere; the IDs exist only on the way out. Before anything is sent, each customer, contact and property the company
+  knows about becomes its own ID that is the same in every conversation (`C-4F2A1C3E`, `K-…` for a contact, `P-…` for a property: the start of the record's own id), so a job can be tied to its
+  customer, owner, manager and address without a name leaving. Emails, phone numbers and long numbers become "Email 1", "Phone 1", "Number 1" (kept per conversation). All of it is put
+  back into real names and addresses for the screen. Tools return only an approved set of fields.
+- **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
+- OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
+- **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.
+- He cannot message customers yet (drafting, review and send comes next). Voice is not built yet.
+- Set `OPENAI_API_KEY` (and optionally `HANDY_MODEL`, default `gpt-4.1`) in Vercel. Never put the key in the repository or in a chat.
 
 ### Revenue history
 

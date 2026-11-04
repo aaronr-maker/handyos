@@ -17,6 +17,9 @@ export interface Env {
   APP_URL?: string;
   /** "1" stops every push of invoices and payments into QuickBooks (a master off switch). */
   QB_PUSH_DISABLED?: string;
+  /** Handy: the company's OpenAI key (server only) and the model to use. */
+  OPENAI_API_KEY?: string;
+  HANDY_MODEL?: string;
 }
 
 export interface Store {

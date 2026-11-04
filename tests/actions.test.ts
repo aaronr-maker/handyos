@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createActionRegistry, createEventBus, createMemoryAuditLog, defineAction } from '../src/core';
+import { createActionRegistry, createEventBus, createMemoryAuditLog, createRuntime, defineAction } from '../src/core';
 
 function setup() {
   const events = createEventBus();
@@ -278,5 +278,46 @@ describe('merging duplicate customers', () => {
     expect((await run('customers.merge', { keep_id: keep.id, merge_id: keep.id })).status).toBe('error');
     const byAgent = await rt.actions.executeByName('customers.merge', { keep_id: keep.id, merge_id: keep.id }, { companyId: 'coMerge', actor: agent });
     expect(byAgent.status).toBe('pending_approval');
+  });
+});
+
+describe('Handy acting for a person', () => {
+  const co = 'coHandy';
+  const noop = (name: string, extra: Record<string, unknown>) =>
+    defineAction({ name, module: 'jobs', description: name, input: z.object({}), risk: 'low', requiresApproval: false, handler: async (_i, ctx) => ({ role: ctx.role ?? null }), ...extra });
+  const setup = () => {
+    const rt = createRuntime();
+    rt.actions.register(noop('t.owner_only', { roles: ['owner'], handy: 'auto' }));
+    rt.actions.register(noop('t.auto', { handy: 'auto' }));
+    rt.actions.register(noop('t.default', {}));
+    rt.actions.register(noop('t.never', { handy: 'never' }));
+    return rt;
+  };
+  const handyFor = (role: 'owner' | 'office') => ({ companyId: co, actor: { kind: 'agent' as const, id: 'handy' }, onBehalfOf: { userId: `u-${role}`, role } });
+
+  it('is held to the role of the person he works for', async () => {
+    const rt = setup();
+    expect((await rt.actions.executeByName('t.owner_only', {}, handyFor('office'))).status).toBe('denied');
+    const asOwner = await rt.actions.executeByName('t.owner_only', {}, handyFor('owner'));
+    expect(asOwner).toMatchObject({ status: 'ok', output: { role: 'owner' } });
+  });
+
+  it('does what is marked auto, asks first by default, and never does what is marked never', async () => {
+    const rt = setup();
+    expect((await rt.actions.executeByName('t.auto', {}, handyFor('office'))).status).toBe('ok');
+    const asked = await rt.actions.executeByName('t.default', {}, handyFor('owner'));
+    expect(asked.status).toBe('pending_approval');
+    expect((await rt.actions.executeByName('t.never', {}, handyFor('owner'))).status).toBe('denied');
+    // a person is not held back by Handy's levels
+    expect((await rt.actions.executeByName('t.never', {}, { companyId: co, actor: { kind: 'user', id: 'u1' }, role: 'owner' })).status).toBe('ok');
+    // an owner approves, and it then runs for the person Handy was working for
+    const id = (asked as { approvalId: string }).approvalId;
+    expect((await rt.actions.decide(id, true, { kind: 'user', id: 'boss' }, 'owner')).status).toBe('ok');
+  });
+
+  it('names both Handy and the person in the audit trail', async () => {
+    const rt = setup();
+    await rt.actions.executeByName('t.auto', {}, handyFor('owner'));
+    expect(rt.audit.entries().some((e) => e.action === 't.auto' && e.actor_kind === 'agent' && e.actor_id === 'handy/for:u-owner' && e.outcome === 'ok')).toBe(true);
   });
 });

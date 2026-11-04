@@ -3,6 +3,7 @@ import { cashplanModule } from '@/modules/cashplan';
 import { customersModule } from '@/modules/customers';
 import { deskModule } from '@/modules/desk';
 import { estimatesModule } from '@/modules/estimates';
+import { handyModule } from '@/modules/handy';
 import { invoicingModule } from '@/modules/invoicing';
 import { jobcostingModule } from '@/modules/jobcosting';
 import { jobsModule } from '@/modules/jobs';
@@ -22,6 +23,7 @@ export const modules: ModuleManifest[] = [
   timetrackModule,
   timesheetsModule,
   deskModule,
+  handyModule,
   schedulingModule,
   invoicingModule,
   paymentsModule,

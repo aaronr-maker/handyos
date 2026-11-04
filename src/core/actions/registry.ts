@@ -22,7 +22,15 @@ export interface CallerContext {
   actor: Actor;
   /** The person's role in the company, when the actor is a person. */
   role?: UserRole;
+  /**
+   * Set when an AI agent (Handy) acts for a person: the agent can do no more than that person's role allows, and the
+   * audit trail names both.
+   */
+  onBehalfOf?: { userId: Id; role: UserRole };
 }
+
+/** The id written to the audit trail: for Handy it also names the person he acted for. */
+const auditActorId = (c: CallerContext) => (c.onBehalfOf ? `${c.actor.id}/for:${c.onBehalfOf.userId}` : c.actor.id);
 
 export interface ActionRegistry {
   register(action: ActionDefinition<z.ZodType, unknown>): void;
@@ -67,12 +75,12 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
     const base = {
       company_id: caller.companyId,
       actor_kind: caller.actor.kind,
-      actor_id: caller.actor.id,
+      actor_id: auditActorId(caller),
       action: action.name,
       input,
       approval_id: approvalId,
     };
-    const ctx: ActionContext = { companyId: caller.companyId, actor: caller.actor, role: caller.role, events: deps.events };
+    const ctx: ActionContext = { companyId: caller.companyId, actor: caller.actor, role: caller.onBehalfOf?.role ?? caller.role, events: deps.events };
     try {
       const output = await action.handler(input, ctx);
       const auditId = await audit({ ...base, outcome: 'ok', output });
@@ -88,7 +96,7 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
     const base = {
       company_id: caller.companyId,
       actor_kind: caller.actor.kind,
-      actor_id: caller.actor.id,
+      actor_id: auditActorId(caller),
       action: name,
       input: rawInput,
     };
@@ -97,8 +105,10 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
       const auditId = await audit({ ...base, outcome: 'denied', error: 'Unknown action' });
       return { status: 'denied', reason: `Unknown action "${name}"`, auditId };
     }
-    if (action.roles && caller.actor.kind === 'user' && caller.role && !action.roles.includes(caller.role)) {
-      const reason = `Your role (${caller.role}) isn't allowed to do that`;
+    // a person is held to their own role; Handy is held to the role of the person he is acting for
+    const roleToCheck = caller.actor.kind === 'user' ? caller.role : caller.actor.kind === 'agent' ? caller.onBehalfOf?.role : undefined;
+    if (action.roles && roleToCheck && !action.roles.includes(roleToCheck)) {
+      const reason = caller.actor.kind === 'agent' ? `The person Handy is working for (${roleToCheck}) isn't allowed to do that` : `Your role (${roleToCheck}) isn't allowed to do that`;
       const auditId = await audit({ ...base, outcome: 'denied', error: reason });
       return { status: 'denied', reason, auditId };
     }
@@ -108,11 +118,17 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
       const auditId = await audit({ ...base, outcome: 'invalid', error: issues.join('; ') });
       return { status: 'invalid', issues, auditId };
     }
-    const ctx: ActionContext = { companyId: caller.companyId, actor: caller.actor, role: caller.role, events: deps.events };
+    const ctx: ActionContext = { companyId: caller.companyId, actor: caller.actor, role: caller.onBehalfOf?.role ?? caller.role, events: deps.events };
+    if (caller.actor.kind === 'agent' && action.handy === 'never') {
+      const reason = 'Handy is not allowed to do that';
+      const auditId = await audit({ ...base, outcome: 'denied', error: reason });
+      return { status: 'denied', reason, auditId };
+    }
+    // Handy asks first unless the action says he may just do it
+    const handyAsks = caller.actor.kind === 'agent' && (action.handy ?? 'ask') === 'ask';
     const needsApproval =
-      typeof action.requiresApproval === 'function'
-        ? action.requiresApproval(parsed.data, ctx)
-        : action.requiresApproval;
+      handyAsks ||
+      (typeof action.requiresApproval === 'function' ? action.requiresApproval(parsed.data, ctx) : action.requiresApproval);
     if (needsApproval) {
       const request: ApprovalRequest = {
         id: crypto.randomUUID(),
@@ -120,6 +136,7 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
         action: name,
         input: parsed.data,
         requested_by: caller.actor,
+        on_behalf_of: caller.onBehalfOf,
         status: 'pending',
         created_at: new Date().toISOString(),
       };
@@ -175,7 +192,7 @@ export function createActionRegistry(deps: { events: EventBus; audit: AuditSink 
       await audit({ ...base, outcome: 'approved' });
       const action = actions.get(request.action)!;
       // Runs as the original requester so the audit trail shows who asked and who approved.
-      return run(action, request.input, { companyId: request.company_id, actor: request.requested_by }, approvalId);
+      return run(action, request.input, { companyId: request.company_id, actor: request.requested_by, onBehalfOf: request.on_behalf_of }, approvalId);
     },
     onApprovalsChanged(listener) {
       approvalListeners.add(listener);

@@ -64,7 +64,7 @@ describe('jobs', () => {
     const twice = await run('jobs.clock_in', { job_id: j2.id });
     expect((twice as { message: string }).message).toContain('already clocked in');
     expect((await run('jobs.clock_in', { job_id: j1.id }, tech2)).status).toBe('ok'); // a second person can join the same job
-    expect((await rt.actions.executeByName('jobs.clock_in', { job_id: j2.id }, { companyId: co, actor: { kind: 'agent', id: 'bot' } })).status).toBe('error');
+    expect((await rt.actions.executeByName('jobs.clock_in', { job_id: j2.id }, { companyId: co, actor: { kind: 'agent', id: 'bot' } })).status).toBe('denied'); // Handy never clocks anyone in
 
     expect((await run('jobs.clock_out', { note: 'Done with gate' })).status).toBe('ok');
     expect((await getOpenEntry(co, 'tech-1'))).toBeUndefined();

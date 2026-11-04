@@ -52,3 +52,15 @@ describe('Handy\'s suggestions for a week that is too full', () => {
     expect(who.map((w) => w.userId)).toEqual(['sam']); // Pat is busy then; Alex would go over
   });
 });
+
+import { unseenAlerts } from '../src/modules/desk';
+
+describe('which alerts pop up', () => {
+  const a = (id: string, status: 'open' | 'resolved', created: string) => ({ id, status, created_at: created }) as never;
+  it('shows each open alert once, newest first, and never a closed one', () => {
+    const list = [a('1', 'open', '2027-01-05T10:00:00Z'), a('2', 'open', '2027-01-06T10:00:00Z'), a('3', 'resolved', '2027-01-06T11:00:00Z')];
+    expect(unseenAlerts(list, new Set()).map((x) => x.id)).toEqual(['2', '1']);
+    expect(unseenAlerts(list, new Set(['2'])).map((x) => x.id)).toEqual(['1']);
+    expect(unseenAlerts(list, new Set(['1', '2']))).toEqual([]);
+  });
+});

@@ -1,19 +1,22 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
 import { closeAlertAction, refreshAlertsAction } from './actions';
+import { AlertWatcher, OpenCount } from './ui/AlertWatcher';
 
 /**
- * The manager's desk: alerts (a tech heading over the weekly hours, a clock left running), tasks that need a decision,
+ * The manager's to-do dashboard: alerts (a tech heading over the weekly hours, a clock left running), tasks that need a decision,
  * and Handy's suggested fixes, like moving a job to someone with room. A module of its own: remove it from
  * src/app/modules.ts to switch it off.
  */
 export const deskModule: ModuleManifest = {
   id: 'desk',
-  label: 'Manager desk',
-  description: 'Alerts, tasks and suggested fixes.',
+  label: 'To-do',
+  description: 'Alerts and tasks that need a decision, with suggested fixes.',
   path: '/desk',
   hiddenFromRoles: ['tech', 'office'],
   icon: 'desk',
+  Badge: OpenCount,
+  Overlay: AlertWatcher,
   Screen: lazy(() => import('./ui/DeskScreen')),
   register({ actions }) {
     actions.register(refreshAlertsAction);
@@ -25,3 +28,5 @@ export { suggestAssignees, suggestReassignments } from './suggest';
 export type { Assignee, Reassignment } from './suggest';
 export { listAlerts, refreshAlerts } from './service';
 export type { AlertKind, DeskAlert } from './types';
+export { unseenAlerts } from './store';
+export { closeAlertAction } from './actions';
