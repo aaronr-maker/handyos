@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatMoney, useAsync, useSession } from '@/core';
+import { formatMoney, resultError, useAction, useAsync, useSession } from '@/core';
 import { listInvoices } from '@/modules/invoicing';
 import { listJobs } from '@/modules/jobs';
 import { jobEconomics } from '@/modules/jobcosting';
 import { listPayments } from '@/modules/payments';
+import { setCashMovedAction } from '../actions';
+import { listMoves, moveStatus } from '../moves';
 import { addPlans, BUCKETS, planPayment, type PaymentPlan } from '../calc';
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -18,10 +20,12 @@ export default function CashPlanScreen() {
   const { companyId, role } = useSession();
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
   const [open, setOpen] = useState<string | null>(null);
-  const { data, loading, error } = useAsync(async () => {
-    const [payments, invoices, jobs] = await Promise.all([listPayments(companyId), listInvoices(companyId), listJobs(companyId)]);
+  const setMoved = useAction(setCashMovedAction);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const { data, loading, error, reload } = useAsync(async () => {
+    const [payments, invoices, jobs, moves] = await Promise.all([listPayments(companyId), listInvoices(companyId), listJobs(companyId), listMoves(companyId)]);
     const economics = await jobEconomics(companyId, [...new Set(invoices.map((i) => i.job_id).filter((id): id is string => !!id))]);
-    return { payments, invoices, jobs, economics };
+    return { payments, invoices, jobs, economics, moves };
   }, [companyId]);
 
   if (role !== 'owner' && role !== 'admin' && role !== 'office') return <p className="muted">Only the owner, admins and office can see the cash plan.</p>;
@@ -87,19 +91,46 @@ export default function CashPlanScreen() {
               <p className="muted">No payments were received this week.</p>
             ) : (
               <dl className="totals">
-                {BUCKETS.map((b) => (
-                  <div key={b.id} style={{ display: 'contents' }}>
-                    <dt>
-                      {b.label}
-                      <span className="muted small-note" style={{ display: 'block' }}>
-                        {b.hint}
-                      </span>
-                    </dt>
-                    <dd>{formatMoney(all[b.id])}</dd>
-                  </div>
-                ))}
+                {BUCKETS.map((b) => {
+                  const status = moveStatus(all[b.id], data.moves.find((m) => m.week_start === from && m.bucket === b.id));
+                  return (
+                    <div key={b.id} style={{ display: 'contents' }}>
+                      <dt>
+                        <label className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            aria-label={`${b.label} moved`}
+                            checked={status.state !== 'not_moved'}
+                            disabled={role === 'office'}
+                            onChange={async (e) => {
+                              setMoveError(null);
+                              const err = resultError(await setMoved({ week_start: from, bucket: b.id, amount_cents: all[b.id], moved: e.target.checked }));
+                              if (err) setMoveError(err);
+                              else reload();
+                            }}
+                          />
+                          <span>
+                            {b.label}
+                            <span className="muted small-note" style={{ display: 'block' }}>
+                              {b.hint}
+                            </span>
+                            {status.state === 'moved' && <span className="muted small-note">Moved on {status.moved_on}</span>}
+                            {status.state === 'changed' && (
+                              <span className="err small-note" style={{ display: 'block' }}>
+                                Changed since you moved it on {status.moved_on}: you moved {formatMoney(status.moved_cents)}, it is now {formatMoney(all[b.id])}. Move the {formatMoney(all[b.id] - status.moved_cents)} difference, then tick again.
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      </dt>
+                      <dd>{formatMoney(all[b.id])}</dd>
+                    </div>
+                  );
+                })}
               </dl>
             )}
+            {moveError && <p className="err">{moveError}</p>}
+            {groups.length > 0 && <p className="muted small-note">Tick each one once you have moved the money. The tick is only a note for you; HandyOS never moves money.</p>}
           </div>
 
           {groups.map((g) => {
