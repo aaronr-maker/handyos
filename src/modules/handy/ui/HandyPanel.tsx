@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSession } from '@/core';
-import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type WireMessage, type WireTool } from '../chat';
-import { createMasker } from '../mask';
+import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
+import { createMasker, createSpokenMasker, type Masker } from '../mask';
+import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceStatus } from '../voice';
 import { addMessage, createThread, knownEntities, listMessages, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
 import { setHandyOpen, useHandyOpen } from '../store';
 import { describeAction, HANDY_TOOLS, isActionTool, runActionTool, runReadTool, type ToolContext } from '../tools';
@@ -23,11 +24,81 @@ export function HandyOverlay() {
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [voice, setVoice] = useState<VoiceStatus | null>(null);
+  const call = useRef<{ close(): void } | null>(null);
   const sendRef = useRef<(text: string, current: HandyThread | null) => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'end' });
   }, [shown, busy, confirm]);
+
+  /** Looking things up and doing them, for the text chat and the voice call alike. */
+  const toolDeps = (masker: Masker, team: Awaited<ReturnType<typeof listTeamMembers>>): Omit<TurnDeps, 'system' | 'tools' | 'callModel'> => {
+    const ctx: ToolContext = { companyId, team };
+    const asHandy = (name: string, input: unknown) => actions.executeByName(name, input, { companyId, actor: { kind: 'agent', id: 'handy' }, onBehalfOf: { userId: user.id, role } });
+    return {
+      masker,
+      runRead: (name, args) => runReadTool(ctx, name, args),
+      isAction: isActionTool,
+      confirm: async (name, args) => {
+        const text = await describeAction(ctx, name, args);
+        return new Promise<boolean>((resolve) => setConfirm({ text, answer: (yes) => { setConfirm(null); resolve(yes); } }));
+      },
+      runAction: (name, args) =>
+        runActionTool(ctx, async (action, body) => {
+          const r = await asHandy(action, body);
+          return { status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined };
+        }, name, args),
+    };
+  };
+
+  const hangUp = () => {
+    call.current?.close();
+    call.current = null;
+    setVoice(null);
+  };
+  useEffect(() => () => call.current?.close(), []);
+
+  /** A live voice call with Handy. The words are written down in the conversation like the typed ones. */
+  const startVoice = async () => {
+    if (voice) return hangUp();
+    setError(null);
+    setVoice('connecting');
+    try {
+      const [team, known] = await Promise.all([listTeamMembers(), knownEntities(companyId)]);
+      const me = team.find((m) => m.id === user.id);
+      const t = thread ?? (await createThread(companyId, user.id, 'Voice chat'));
+      setThread(t);
+      const masker = createSpokenMasker(known, t.mask_map);
+      const save = async (role: HandyMessage['role'], content: string) => {
+        const row = await addMessage(companyId, t.id, user.id, role, content);
+        setShown((cur) => [...cur, { id: row.id, role, content }]);
+      };
+      const instructions = `${SYSTEM_PROMPT(companyName, me?.full_name || me?.email || 'a team member')}\n${VOICE_RULES}`;
+      const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS) });
+      let send: (e: unknown) => void = () => undefined;
+      const handle = createVoiceHandler({
+        turn: { ...toolDeps(masker, team), system: '', tools: [], callModel: async () => ({ role: 'assistant', content: null }) },
+        send: (e) => send(e),
+        onUser: (text) => void save('user', text),
+        onHandy: (text) => void save('assistant', text),
+        onAction: (line) => void save('action', line),
+        onStatus: (s) => setVoice(s),
+        onError: (m) => setError(m),
+      });
+      const conn = await connectVoice({ secret: pass.secret, model: pass.model, onEvent: (e) => void handle(e), onClosed: hangUp });
+      send = conn.send;
+      call.current = conn;
+      setVoice('listening');
+      // a call is billed by the minute, so one that is left open ends by itself
+      window.setTimeout(() => call.current === conn && hangUp(), 10 * 60_000);
+    } catch (err) {
+      call.current?.close();
+      call.current = null;
+      setVoice(null);
+      setError(err instanceof Error ? (err.name === 'NotAllowedError' ? 'The microphone is blocked. Allow it for this site in your phone or browser settings.' : err.message) : 'Could not start the call.');
+    }
+  };
 
   const send = async (text: string, current: HandyThread | null) => {
     const said = text.trim();
@@ -45,24 +116,11 @@ export function HandyOverlay() {
       setShown((cur) => [...cur, { id: mine.id, role: 'user', content: said }]);
 
       const masker = createMasker(known, t.mask_map);
-      const ctx: ToolContext = { companyId, team };
-      const asHandy = (name: string, input: unknown) => actions.executeByName(name, input, { companyId, actor: { kind: 'agent', id: 'handy' }, onBehalfOf: { userId: user.id, role } });
       const result = await runTurn(history, said, {
-        masker,
+        ...toolDeps(masker, team),
         system: SYSTEM_PROMPT(companyName, me?.full_name || me?.email || 'a team member'),
         tools: HANDY_TOOLS as WireTool[],
         callModel: async (messages: WireMessage[], tools: WireTool[]) => (await apiCall<{ message: WireMessage }>('/api/handy/chat', { messages, tools })).message,
-        runRead: (name, args) => runReadTool(ctx, name, args),
-        isAction: isActionTool,
-        confirm: async (name, args) => {
-          const text = await describeAction(ctx, name, args);
-          return new Promise<boolean>((resolve) => setConfirm({ text, answer: (yes) => { setConfirm(null); resolve(yes); } }));
-        },
-        runAction: (name, args) =>
-          runActionTool(ctx, async (action, body) => {
-            const r = await asHandy(action, body);
-            return { status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined };
-          }, name, args),
       });
       for (const a of result.actions) {
         const row = await addMessage(companyId, t.id, user.id, 'action', a);
@@ -147,6 +205,11 @@ export function HandyOverlay() {
                 </div>
               </div>
             )}
+            {voice && (
+              <p className="notice">
+                {voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? '● Handy is talking…' : voice === 'thinking' ? '● Handy is thinking…' : '● Listening. Just talk.'} Your spoken words go to OpenAI as audio, so names you say are not masked. The call ends by itself after 10 minutes.
+              </p>
+            )}
             {busy && !confirm && <p className="muted">Handy is thinking…</p>}
             {error && <p className="err">{error}</p>}
             <div ref={endRef} />
@@ -157,6 +220,9 @@ export function HandyOverlay() {
               void send(input, thread);
             }}
           >
+            <button type="button" className={voice ? '' : 'secondary'} onClick={() => void startVoice()} aria-label={voice ? 'End the voice call' : 'Talk to Handy'} title={voice ? 'End the call' : 'Talk to Handy'}>
+              {voice ? 'End' : <Icon name="mic" />}
+            </button>
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask Handy…" aria-label="Message Handy" disabled={busy} />
             <button type="submit" disabled={busy || !input.trim()}>
               Send

@@ -80,3 +80,35 @@ export function createMasker(known: KnownEntity[], existing: MaskMap = {}): Mask
     map: () => ({ ...map }),
   };
 }
+
+const SPOKEN_WORD: Record<string, EntityKind> = { Customer: 'customer', Contact: 'contact', Property: 'property' };
+const WORD: Record<EntityKind, string> = { customer: 'Customer', contact: 'Contact', property: 'Property' };
+
+/**
+ * The same masking for a spoken conversation: an ID read aloud ("C dash four F two A...") is unusable, so each customer,
+ * contact and property is called "Customer 1", "Property 2"... for the length of the call, and mapped back to the real name
+ * on screen. (What a person says out loud still reaches the voice service as audio; this covers what the app sends in text.)
+ */
+export function createSpokenMasker(known: KnownEntity[], existing: MaskMap = {}): Masker {
+  const inner = createMasker(known, existing);
+  const labels = new Map(known.map((e) => [maskId(e.kind, e.id), e.label]));
+  const toSpoken = new Map<string, string>();
+  const fromSpoken = new Map<string, string>(); // "Customer 1" -> ID
+  const counts: Record<string, number> = {};
+  const spokenFor = (id: string) => {
+    const have = toSpoken.get(id);
+    if (have) return have;
+    const kind = Object.entries({ C: 'customer', K: 'contact', P: 'property' }).find(([p]) => id.startsWith(`${p}-`))![1] as EntityKind;
+    counts[kind] = (counts[kind] ?? 0) + 1;
+    const spoken = `${WORD[kind]} ${counts[kind]}`;
+    toSpoken.set(id, spoken);
+    fromSpoken.set(spoken, id);
+    return spoken;
+  };
+  return {
+    mask: (text) => inner.mask(text).replace(/\b[CKP]-[0-9A-F]{8}\b/g, (m) => (labels.has(m) ? spokenFor(m) : m)),
+    unmask: (text) =>
+      inner.unmask(text.replace(new RegExp(`\\b(${Object.keys(SPOKEN_WORD).join('|')}) (\\d+)\\b`, 'g'), (m) => fromSpoken.get(m) ?? m)),
+    map: () => inner.map(),
+  };
+}

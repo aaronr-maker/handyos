@@ -56,6 +56,24 @@ const parse = (raw: string): Record<string, unknown> => {
   }
 };
 
+
+/**
+ * Carries out one thing Handy asked for: a look-up, or (after the person says yes) a change. Returns what to tell Handy, already
+ * masked, and a line for the record when something was done or turned down. A failure is reported to Handy, not thrown.
+ */
+export async function executeToolCall(name: string, rawArgs: string, d: TurnDeps): Promise<{ result: string; action?: string }> {
+  // Handy may have used an ID; the real value is put back before anything is looked up or done
+  const args = parse(d.masker.unmask(rawArgs));
+  try {
+    if (!d.isAction(name)) return { result: d.masker.mask(JSON.stringify(await d.runRead(name, args))) };
+    if (!(await d.confirm(name, args))) return { result: 'The person said not now. Nothing was changed.', action: `Declined: ${name}` };
+    const done = await d.runAction(name, args);
+    return { result: d.masker.mask(done), action: done };
+  } catch (err) {
+    return { result: `That did not work: ${err instanceof Error ? err.message : 'unknown error'}` };
+  }
+}
+
 /**
  * One back-and-forth with Handy. The conversation is masked and sent; if Handy asks to look something up, it is looked up
  * and the (masked) answer sent back; if he wants to do something, the person is asked first and he is told what they said.
@@ -73,24 +91,9 @@ export async function runTurn(history: StoredMessage[], userText: string, d: Tur
     if (!reply.tool_calls?.length) return { reply: d.masker.unmask(reply.content ?? ''), actions };
     messages.push({ role: 'assistant', content: reply.content ?? null, tool_calls: reply.tool_calls });
     for (const call of reply.tool_calls) {
-      // Handy may have used a placeholder; the real value is put back before anything is looked up or done
-      const args = parse(d.masker.unmask(call.function.arguments));
-      let result: string;
-      try {
-        if (!d.isAction(call.function.name)) {
-          result = d.masker.mask(JSON.stringify(await d.runRead(call.function.name, args)));
-        } else if (!(await d.confirm(call.function.name, args))) {
-          result = 'The person said not now. Nothing was changed.';
-          actions.push(`Declined: ${call.function.name}`);
-        } else {
-          const done = await d.runAction(call.function.name, args);
-          actions.push(done);
-          result = d.masker.mask(done);
-        }
-      } catch (err) {
-        result = `That did not work: ${err instanceof Error ? err.message : 'unknown error'}`;
-      }
-      messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+      const out = await executeToolCall(call.function.name, call.function.arguments, d);
+      if (out.action) actions.push(out.action);
+      messages.push({ role: 'tool', tool_call_id: call.id, content: out.result });
     }
   }
   return { reply: "I went around in circles on that one. Tell me what you'd like me to do next.", actions };

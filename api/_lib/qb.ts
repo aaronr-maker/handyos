@@ -20,6 +20,9 @@ export interface Env {
   /** Handy: the company's OpenAI key (server only) and the model to use. */
   OPENAI_API_KEY?: string;
   HANDY_MODEL?: string;
+  /** Handy's voice: the model and the voice (defaults are set in handyVoiceSession). */
+  HANDY_VOICE_MODEL?: string;
+  HANDY_VOICE?: string;
 }
 
 export interface Store {

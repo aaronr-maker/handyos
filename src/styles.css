@@ -272,3 +272,4 @@ details summary { cursor: pointer; font-weight: 600; }
 .handy-panel form input { flex: 1; min-width: 0; }
 .handy-foot { padding: 0 14px 10px; margin: 0; }
 @media (min-width: 900px) { .handy-fab, .handy-panel { bottom: 16px; } }
+.handy-panel form button svg { width: 20px; height: 20px; }

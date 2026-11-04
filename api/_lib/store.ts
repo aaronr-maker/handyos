@@ -73,6 +73,8 @@ export const serverEnv = (): Env & { SUPABASE_URL?: string; SUPABASE_SERVICE_ROL
   QB_PUSH_DISABLED: process.env.QB_PUSH_DISABLED,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   HANDY_MODEL: process.env.HANDY_MODEL,
+  HANDY_VOICE_MODEL: process.env.HANDY_VOICE_MODEL,
+  HANDY_VOICE: process.env.HANDY_VOICE,
   // the same Supabase project the app uses; the service key is server-only
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
