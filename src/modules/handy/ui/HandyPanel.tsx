@@ -162,7 +162,7 @@ export function HandyOverlay() {
               Send
             </button>
           </form>
-          <p className="muted small-note handy-foot">Handy can make mistakes. Customer names, addresses, phones and emails are swapped for placeholders before anything leaves the app.</p>
+          <p className="muted small-note handy-foot">Handy can make mistakes. Customer names, addresses, phones and emails are swapped for IDs before anything leaves the app.</p>
         </section>
       )}
     </>
