@@ -7,6 +7,7 @@ import { jobcostingModule } from '@/modules/jobcosting';
 import { jobsModule } from '@/modules/jobs';
 import { messagingModule } from '@/modules/messaging';
 import { paymentsModule } from '@/modules/payments';
+import { revenueModule } from '@/modules/revenue';
 import { schedulingModule } from '@/modules/scheduling';
 
 /** The only place the app learns which modules exist. Order = sidebar order. */
@@ -19,5 +20,6 @@ export const modules: ModuleManifest[] = [
   paymentsModule,
   jobcostingModule,
   cashplanModule,
+  revenueModule,
   messagingModule,
 ];
