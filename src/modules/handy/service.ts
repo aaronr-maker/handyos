@@ -1,6 +1,7 @@
 import { createRepo, type BaseRecord, type Id } from '@/core';
 import { customerLabel, listAllContacts, listAllProperties, listCustomers } from '@/modules/customers';
 import type { KnownEntity, MaskMap } from './mask';
+import type { Rates, Usage } from './usage';
 
 export interface HandyThread extends BaseRecord {
   user_id: Id;
@@ -38,4 +39,26 @@ export async function knownEntities(companyId: Id): Promise<KnownEntity[]> {
     ...contacts.map((c) => ({ kind: 'contact' as const, id: c.id, label: c.name, aliases: clean([c.name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) })),
     ...properties.map((p) => ({ kind: 'property' as const, id: p.id, label: p.address_line1, aliases: clean([p.address_line1]) })),
   ];
+}
+
+// ---- what Handy costs ----
+export interface UsageRow extends BaseRecord, Usage {
+  user_id: Id;
+  kind: 'voice' | 'text';
+}
+export interface HandySettings extends BaseRecord {
+  rates: Rates;
+}
+const usageRepo = createRepo<UsageRow>('handy_usage');
+const settingsRepo = createRepo<HandySettings>('handy_settings');
+
+export const recordUsage = (companyId: Id, userId: Id, kind: UsageRow['kind'], u: Usage) => usageRepo.insert(companyId, { user_id: userId, kind, ...u });
+export const listUsage = (companyId: Id) => usageRepo.list(companyId);
+export async function getRates(companyId: Id): Promise<Rates> {
+  return (await settingsRepo.list(companyId))[0]?.rates ?? {};
+}
+export async function saveRates(companyId: Id, rates: Rates): Promise<void> {
+  const row = (await settingsRepo.list(companyId))[0];
+  if (row) await settingsRepo.update(companyId, row.id, { rates });
+  else await settingsRepo.insert(companyId, { rates });
 }

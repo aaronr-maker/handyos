@@ -3,9 +3,12 @@ import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSess
 import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
 import { createMasker, createSpokenMasker, type Masker } from '../mask';
 import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceStatus } from '../voice';
-import { addMessage, createThread, knownEntities, listMessages, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
+import { addMessage, createThread, knownEntities, listMessages, recordUsage, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
+import { addUsage, noUsage, type Usage } from '../usage';
 import { setHandyOpen, useHandyOpen } from '../store';
 import { describeAction, HANDY_TOOLS, isActionTool, runActionTool, runReadTool, type ToolContext } from '../tools';
+
+const VOICE_NAMES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
 
 interface Confirm {
   text: string;
@@ -25,6 +28,15 @@ export function HandyOverlay() {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
+  const [voiceName, setVoiceName] = useState(() => {
+    try {
+      return localStorage.getItem('handy.voice') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const typed = useRef<Usage>(noUsage());
+  const callUsage = useRef<{ used: Usage; startedAt: number }>({ used: noUsage(), startedAt: 0 });
   const call = useRef<{ close(): void } | null>(null);
   const sendRef = useRef<(text: string, current: HandyThread | null) => Promise<void>>(async () => undefined);
 
@@ -53,9 +65,15 @@ export function HandyOverlay() {
   };
 
   const hangUp = () => {
+    const had = call.current;
     call.current?.close();
     call.current = null;
     setVoice(null);
+    if (had) {
+      // what the call used is written down, so the cost can be seen
+      const { used, startedAt } = callUsage.current;
+      void recordUsage(companyId, user.id, 'voice', { ...used, seconds: Math.round((Date.now() - startedAt) / 1000) }).catch(() => undefined);
+    }
   };
   useEffect(() => () => call.current?.close(), []);
 
@@ -75,7 +93,8 @@ export function HandyOverlay() {
         setShown((cur) => [...cur, { id: row.id, role, content }]);
       };
       const instructions = `${SYSTEM_PROMPT(companyName, me?.full_name || me?.email || 'a team member')}\n${VOICE_RULES}`;
-      const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS) });
+      const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS), ...(voiceName ? { voice: voiceName } : {}) });
+      callUsage.current = { used: noUsage(), startedAt: Date.now() };
       let send: (e: unknown) => void = () => undefined;
       const handle = createVoiceHandler({
         turn: { ...toolDeps(masker, team), system: '', tools: [], callModel: async () => ({ role: 'assistant', content: null }) },
@@ -84,6 +103,9 @@ export function HandyOverlay() {
         onHandy: (text) => void save('assistant', text),
         onAction: (line) => void save('action', line),
         onStatus: (s) => setVoice(s),
+        onUsage: (u) => {
+          callUsage.current.used = addUsage(callUsage.current.used, u);
+        },
         onError: (m) => setError(m),
       });
       const conn = await connectVoice({ secret: pass.secret, model: pass.model, onEvent: (e) => void handle(e), onClosed: hangUp });
@@ -120,8 +142,14 @@ export function HandyOverlay() {
         ...toolDeps(masker, team),
         system: SYSTEM_PROMPT(companyName, me?.full_name || me?.email || 'a team member'),
         tools: HANDY_TOOLS as WireTool[],
-        callModel: async (messages: WireMessage[], tools: WireTool[]) => (await apiCall<{ message: WireMessage }>('/api/handy/chat', { messages, tools })).message,
+        callModel: async (messages: WireMessage[], tools: WireTool[]) => {
+          const r = await apiCall<{ message: WireMessage; usage?: { input: number; output: number } }>('/api/handy/chat', { messages, tools });
+          typed.current = addUsage(typed.current, { text_in: r.usage?.input ?? 0, text_out: r.usage?.output ?? 0 });
+          return r.message;
+        },
       });
+      if (typed.current.text_in + typed.current.text_out > 0) void recordUsage(companyId, user.id, 'text', typed.current).catch(() => undefined);
+      typed.current = noUsage();
       for (const a of result.actions) {
         const row = await addMessage(companyId, t.id, user.id, 'action', a);
         setShown((cur) => [...cur, { id: row.id, role: 'action', content: a }]);
@@ -220,6 +248,23 @@ export function HandyOverlay() {
               void send(input, thread);
             }}
           >
+            {!voice && (
+              <select aria-label="Handy's voice" value={voiceName} onChange={(e) => {
+                setVoiceName(e.target.value);
+                try {
+                  localStorage.setItem('handy.voice', e.target.value);
+                } catch {
+                  // the choice just is not remembered
+                }
+              }} style={{ maxWidth: 92 }}>
+                <option value="">Voice</option>
+                {VOICE_NAMES.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            )}
             <button type="button" className={voice ? '' : 'secondary'} onClick={() => void startVoice()} aria-label={voice ? 'End the voice call' : 'Talk to Handy'} title={voice ? 'End the call' : 'Talk to Handy'}>
               {voice ? 'End' : <Icon name="mic" />}
             </button>
