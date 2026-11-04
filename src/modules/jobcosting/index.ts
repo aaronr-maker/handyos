@@ -45,3 +45,5 @@ export type { JobP4P, JobP4PStatus, Setup, SetupInput } from './services/p4pServ
 export { computeJobCost } from './calc';
 export type { JobCostResult } from './calc';
 export { costJob, expectedCost, loadCostingData } from './services/jobCostService';
+export { jobEconomics } from './services/economicsService';
+export type { JobEconomics } from './services/economicsService';

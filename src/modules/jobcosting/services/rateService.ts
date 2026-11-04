@@ -199,3 +199,24 @@ export async function monthlyIncome(companyId: Id): Promise<MonthlyIncome[]> {
     .filter((m) => m.lines.length > 0)
     .sort((a, b) => b.month.localeCompare(a.month));
 }
+
+/**
+ * How each hourly dollar splits into wages, payroll tax and other running costs, from the saved months of the rate
+ * (or every saved month when none are chosen). Shares are in basis points and add up to 10000, or are all 0 when
+ * nothing is saved.
+ */
+export async function costShares(companyId: Id): Promise<{ wages_bps: number; payroll_tax_bps: number; overhead_bps: number }> {
+  const [settings, months] = await Promise.all([getRateSettings(companyId), monthsRepo.list(companyId)]);
+  const keys = new Set(settings.rate_months);
+  const use = months.filter((m) => keys.size === 0 || keys.has(m.month.slice(0, 7)));
+  const lines = (await Promise.all(use.map((m) => linesRepo.list(companyId, { where: { month_id: m.id } })))).flat();
+  const sum = (c: CostCategory) => lines.filter((l) => l.category === c).reduce((n, l) => n + l.amount_cents, 0);
+  const wages = sum('wages');
+  const tax = sum('payroll_tax');
+  const other = sum('overhead');
+  const total = wages + tax + other;
+  if (total <= 0) return { wages_bps: 0, payroll_tax_bps: 0, overhead_bps: 0 };
+  const w = Math.round((wages / total) * 10000);
+  const t = Math.round((tax / total) * 10000);
+  return { wages_bps: w, payroll_tax_bps: t, overhead_bps: 10000 - w - t };
+}

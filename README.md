@@ -295,7 +295,8 @@ keys and set `INTUIT_ENV=production`. Check Intuit's current requirements on dev
 - **Wages and payroll tax** come from QuickBooks (Gusto feeds payroll into it), not typed into the app. Their share of total cost tells the owner what
   percent of each hourly cost needs to flow into the wages account as jobs are paid. Per-person wages are optional; Gusto's own API may be partner-only and
   needs checking before we depend on it.
-- **Cash distribution module** (later): when a job is paid it suggests where the money goes (payroll, taxes, P4P, company reserve, overhead). It only
-  suggests; the owner moves money manually.
+- **Cash plan** (built): when a job is paid it suggests where the money goes: sales tax, materials, wages, payroll tax, running costs, the P4P pool, the
+  company reserve, and what's left. Each payment pays its share of the job's costs. It only suggests; the owner moves money manually. The
+  per-job numbers come from `jobEconomics()` in the job costing module; the split is `planPayment()` in `src/modules/cashplan`.
 - **Integrations foundation** first: a small server piece (Supabase Edge Functions) to hold secrets, handle QuickBooks sign-in and scheduled syncs. Stripe,
   messaging and the AI agents need the same piece.
