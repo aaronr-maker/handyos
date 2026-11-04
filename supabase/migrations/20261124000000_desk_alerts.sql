@@ -31,3 +31,14 @@ create policy desk_alerts_insert on public.desk_alerts for insert to authenticat
 create policy desk_alerts_update on public.desk_alerts for update to authenticated
   using (company_id = public.current_company_id() and public.current_user_role() in ('owner', 'admin'))
   with check (company_id = public.current_company_id());
+
+-- Only admins and owners may change someone else's day clock or task times (everyone changes only their own).
+-- This replaces the earlier rule from the time tracking file, which also let the office do it.
+drop policy if exists shifts_update on public.shifts;
+create policy shifts_update on public.shifts for update to authenticated
+  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin')))
+  with check (company_id = public.current_company_id());
+drop policy if exists task_timers_update on public.task_timers;
+create policy task_timers_update on public.task_timers for update to authenticated
+  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin')))
+  with check (company_id = public.current_company_id());
