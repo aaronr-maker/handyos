@@ -6,6 +6,7 @@ import { loadTimeFacts, WEEK_LIMIT_MINUTES } from '@/modules/timesheets';
 import { hoursMinutes } from '@/modules/timetrack';
 import { closeAlertAction, refreshAlertsAction } from '../actions';
 import { listAlerts } from '../service';
+import { setOpenAlerts } from '../store';
 import { suggestAssignees, suggestReassignments } from '../suggest';
 
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -36,7 +37,12 @@ export default function DeskScreen() {
     return () => window.clearInterval(t);
   }, []);
 
-  if (role !== 'owner' && role !== 'admin') return <p className="muted">Only the owner and admins can see the manager desk.</p>;
+  const openNow = data?.alerts.filter((a) => a.status === 'open');
+  useEffect(() => {
+    if (openNow) setOpenAlerts(openNow);
+  }, [openNow]);
+
+  if (role !== 'owner' && role !== 'admin') return <p className="muted">Only the owner and admins can see the to-do list.</p>;
   if (loading) return <p className="muted">Looking at everyone's week…</p>;
   if (error || !data) return <p className="err">{error ?? 'Could not load the desk.'}</p>;
 
@@ -66,24 +72,26 @@ export default function DeskScreen() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Manager desk</h1>
+          <h1>To-do</h1>
           <p className="muted">
-            {open.length + unassigned.length === 0 ? 'Nothing needs you right now.' : `${open.length} alert${open.length === 1 ? '' : 's'} and ${unassigned.length} job${unassigned.length === 1 ? '' : 's'} with nobody assigned.`} Handy suggests a fix for each; nothing changes until you click.
+            {open.length + unassigned.length === 0 ? 'All clear. Nothing needs you right now.' : `${open.length + unassigned.length} thing${open.length + unassigned.length === 1 ? '' : 's'} to do.`} Handy suggests a fix for each; nothing changes until you click. Tick an item when it's handled.
           </p>
         </div>
       </header>
       {note && <p className={note.ok ? 'notice' : 'err'}>{note.text}</p>}
 
-      <h2>Alerts</h2>
+      <h2>Needs you</h2>
       {open.length === 0 && (
         <div className="card">
-          <p className="muted">No open alerts. The desk checks everyone's week each time you open it and every five minutes after.</p>
+          <p className="muted">No open alerts. HandyOS checks everyone's week while the app is open and pops up anything new.</p>
         </div>
       )}
       {open.map((a) => {
         const fixes = a.kind === 'overtime_risk' ? suggestReassignments({ facts, overUser: a.subject_user_id, candidates: candidates.filter((c) => c !== a.subject_user_id), now, limit: WEEK_LIMIT_MINUTES }) : [];
         return (
-          <div key={a.id} className="card" style={{ borderColor: a.severity === 'critical' ? '#dc2626' : '#f59e0b' }}>
+          <div key={a.id} className="card todo" style={{ borderColor: a.severity === 'critical' ? '#dc2626' : '#f59e0b' }}>
+            <input type="checkbox" aria-label={`Mark handled: ${a.title}`} checked={false} onChange={() => void close(a.id, 'resolved')} />
+            <div className="todo-body">
             <h3>{a.title}</h3>
             <p className="muted">{a.detail}</p>
             {a.kind === 'overtime_risk' && (
@@ -111,19 +119,15 @@ export default function DeskScreen() {
                 <strong>Handy suggests:</strong> open <Link to="/timesheets">their timesheet</Link> and set the correct end time (your change is logged).
               </p>
             )}
-            <div className="row">
-              <button type="button" className="secondary" onClick={() => void close(a.id, 'resolved')}>
-                Mark handled
-              </button>
-              <button type="button" className="link" onClick={() => void close(a.id, 'dismissed')}>
-                Dismiss
-              </button>
+            <button type="button" className="link" onClick={() => void close(a.id, 'dismissed')}>
+              Dismiss (not a problem)
+            </button>
             </div>
           </div>
         );
       })}
 
-      <h2>Tasks</h2>
+      <h2>Jobs to staff</h2>
       {unassigned.length === 0 && (
         <div className="card">
           <p className="muted">Every scheduled job has someone on it.</p>
@@ -132,7 +136,9 @@ export default function DeskScreen() {
       {unassigned.map((j) => {
         const options = suggestAssignees({ facts, job: { id: j.id, scheduled_start: j.scheduled_start!, scheduled_end: j.scheduled_end! }, candidates, now, limit: WEEK_LIMIT_MINUTES });
         return (
-          <div key={j.id} className="card">
+          <div key={j.id} className="card todo">
+            <input type="checkbox" disabled checked={false} readOnly aria-label="Ticks itself once someone is assigned" title="Ticks itself once someone is assigned" />
+            <div className="todo-body">
             <h3>
               <Link to={`/jobs/${j.id}`}>{j.title}</Link> has nobody assigned
             </h3>
@@ -150,6 +156,7 @@ export default function DeskScreen() {
                 </button>
               </div>
             ))}
+            </div>
           </div>
         );
       })}
@@ -157,14 +164,17 @@ export default function DeskScreen() {
       {closed.length > 0 && (
         <>
           <button type="button" className="link" onClick={() => setShowClosed(!showClosed)}>
-            {showClosed ? 'Hide' : 'Show'} handled alerts ({closed.length})
+            {showClosed ? 'Hide' : 'Show'} done ({closed.length})
           </button>
           {showClosed &&
             closed.map((a) => (
-              <p key={a.id} className="muted small-note">
-                {a.title} · {a.status}
-                {a.resolution ? `: ${a.resolution}` : ''}
-              </p>
+              <div key={a.id} className="todo done">
+                <input type="checkbox" checked readOnly disabled aria-label="Done" />
+                <div className="todo-body">
+                  {a.title}
+                  {a.resolution ? ` · ${a.resolution}` : a.status === 'dismissed' ? ' · dismissed' : ''}
+                </div>
+              </div>
             ))}
         </>
       )}

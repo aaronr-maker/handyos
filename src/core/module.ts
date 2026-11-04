@@ -25,6 +25,10 @@ export interface ModuleManifest {
   mobileTab?: boolean;
   /** Roles that don't see this section in the menu (the actions and the database enforce the real limits). */
   hiddenFromRoles?: readonly UserRole[];
+  /** Shown next to the menu label (e.g. a count of open items). */
+  Badge?: ComponentType;
+  /** Rendered once on every screen while signed in (e.g. popups), for roles that see this section. */
+  Overlay?: ComponentType;
   /** Lazy-loaded main screen. */
   Screen: LazyExoticComponent<ComponentType>;
   /** Called once at startup: register actions, subscribe to events. */

@@ -307,11 +307,11 @@ open and correct anyone's week; everyone else sees and edits only their own. It 
 **efficiency rate** (their time on jobs finished in the last 90 days divided by the time scheduled for them; 1.00 until they have 3 such jobs) and the **projected
 week** = clocked + scheduled ahead × efficiency rate. Over 40 hours turns red (`WEEK_LIMIT_MINUTES`).
 
-**Manager desk** (`src/modules/desk`, migration `20261124000000_desk_alerts.sql`): alerts for a person projected over the limit (or a clock left running), and
+**To-do** (the manager desk, `src/modules/desk`, migration `20261124000000_desk_alerts.sql`): alerts for a person projected over the limit (or a clock left running), and
 tasks such as scheduled jobs nobody is assigned to. "Handy suggests" a fix with a button for each: move the latest upcoming jobs to people who are free then and
-stay under the limit (`suggestReassignments`), or assign a free person. The suggestions are rule-based today, not an AI model. Alerts are worked out when a
-manager opens the desk (and every five minutes while it is open); pushing them to a manager's phone or email needs a scheduled job and a messaging provider,
-which are not set up yet.
+stay under the limit (`suggestReassignments`), or assign a free person. The suggestions are rule-based today, not an AI model. The to-do page is a checklist: tick an item when it is handled. While the app is open, HandyOS checks everyone's week every few minutes, shows each new alert once as a
+popup, and puts the open count on the menu. (Modules can add a menu `Badge` and an always-on `Overlay` through their manifest.) Reaching a manager when the app is
+closed needs a scheduled job and a messaging provider, which are not set up yet.
 
 **Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
