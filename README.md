@@ -313,7 +313,13 @@ stay under the limit (`suggestReassignments`), or assign a free person. The sugg
 popup, and puts the open count on the menu. (Modules can add a menu `Badge` and an always-on `Overlay` through their manifest.) Reaching a manager when the app is
 closed needs a scheduled job and a messaging provider, which are not set up yet.
 
-**Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
+**Standard times** (`src/modules/timetrack/standards.ts`, page at `/time/standards` for owners and admins): how long each service takes per unit (minutes per foot, per each...), learned from the company's own
+jobs. A task a tech timed gives the time directly (measured). A job where no task was timed gives one equation (all the time on the job = quantities x times + overhead per visit); those are solved together
+by non-negative least squares (`nnls`), so a door-only job anchors the door and a gutters-and-door job then gives the gutters, as in the example. Each service shows how many jobs it rests on, the spread,
+and a confidence (solid, getting there, learning); measured and inferred times that disagree by more than a third are flagged; finished jobs far from what the standards predict are listed as jobs that don't
+fit; and each tech's timed tasks are compared with the standards (their speed). It is advisory: nothing uses these numbers for prices or pay yet.
+
+**Coming next (originally):** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
 ### Sending invoices and payments to QuickBooks
 

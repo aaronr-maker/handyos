@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
 import { editTimeAction, hoursMinutes, initials, Punch, type TimeEdit } from '@/modules/timetrack';
 import { dayKey } from '../calc';
@@ -50,6 +51,11 @@ export default function TimesheetsScreen() {
       <header className="page-header">
         <div>
           <h1>Timesheets</h1>
+          {isAdmin && (
+            <p className="small-note">
+              <Link to="/time/standards">Standard times: how long each service takes</Link>
+            </p>
+          )}
           <p className="muted">{isAdmin ? "Anyone's week. You can correct anyone's time; each change is logged." : 'Your week. You can correct your own time; each change is logged.'}</p>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import { createRepo, type Id } from '@/core';
 import { getEstimate, listPriceItems } from '@/modules/estimates';
-import { getJob, getOpenEntry, getTimeEntry, listTimeEntries, updateTimeEntry } from '@/modules/jobs';
+import { getJob, getOpenEntry, getTimeEntry, listJobs, listTimeEntries, updateTimeEntry } from '@/modules/jobs';
+import { learnStandards, type Standards } from './standards';
 import type { GeofenceConsent, JobSite, JobTask, Shift, TaskTimer, TimeEdit, TimeEntity } from './types';
 
 const shifts = createRepo<Shift>('shifts');
@@ -177,4 +178,15 @@ export async function jobTimeData(companyId: Id, jobId: Id) {
   const mine = entries.filter((e) => e.job_id === jobId);
   const ids = new Set([...mine.map((e) => e.id), ...tm.map((x) => x.id)]);
   return { tasks: t, timers: tm, entries: mine, edits: ed.filter((e) => ids.has(e.entity_id)) };
+}
+
+/** Standard times learned from every finished and running job's tasks and timers. */
+export async function loadStandards(companyId: Id): Promise<Standards> {
+  const [jobs, allTasks, entries, allTimers] = await Promise.all([listJobs(companyId), tasks.list(companyId), listTimeEntries(companyId), timers.list(companyId)]);
+  return learnStandards({
+    jobs: jobs.map((j) => ({ id: j.id, title: j.title, completed: j.status === 'completed' })),
+    tasks: allTasks.map((t) => ({ id: t.id, job_id: t.job_id, name: t.name, price_book_item_id: t.price_book_item_id, quantity: t.quantity, unit: t.unit })),
+    entries: entries.map((e) => ({ id: e.id, job_id: e.job_id, user_id: e.user_id, clock_in: e.clock_in, clock_out: e.clock_out })),
+    timers: allTimers.map((t) => ({ id: t.id, task_id: t.task_id, user_id: t.user_id, started_at: t.started_at, ended_at: t.ended_at })),
+  });
 }
