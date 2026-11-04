@@ -11,6 +11,8 @@ export const MODULE_IDS = [
   'revenue',
   'qbsync',
   'timetrack',
+  'timesheets',
+  'desk',
   'messaging',
 ] as const;
 

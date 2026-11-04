@@ -93,7 +93,7 @@ describe('the day clock, job time and task timers together', () => {
     for (const m of [customersModule, jobsModule]) m.register({ actions: rt.actions, events: rt.events });
     timetrackModule.register({ actions: rt.actions, events: rt.events });
     const co = 'coTime';
-    const as = (id: string, role: 'owner' | 'tech') => ({ companyId: co, actor: { kind: 'user' as const, id }, role });
+    const as = (id: string, role: 'owner' | 'tech' | 'office') => ({ companyId: co, actor: { kind: 'user' as const, id }, role });
     const run = (name: string, input: unknown, c = as('alex', 'tech')) => rt.actions.executeByName(name, input, c);
 
     const cust = await run('customers.create', { first_name: 'Pat', last_name: 'R' }, as('owner1', 'owner'));
@@ -126,8 +126,9 @@ describe('the day clock, job time and task timers together', () => {
     expect(data.entries[0].clock_out).toBe(newEnd);
     expect(data.edits).toMatchObject([{ entity: 'job', entity_id: entryId, user_id: 'alex', edited_by: 'alex', field: 'clock_out', new_value: newEnd, reason: 'Forgot to stop' }]);
     expect(data.edits[0].old_value).not.toBeNull();
-    // another tech cannot change it; the office can; an end before the start is refused
+    // another tech (or the office) cannot change it; an admin or owner can; an end before the start is refused
     expect((await run('timetrack.edit_time', { entity: 'job', id: entryId, end: newEnd }, as('sam', 'tech'))).status).toBe('error');
+    expect((await run('timetrack.edit_time', { entity: 'job', id: entryId, end: newEnd }, as('off1', 'office'))).status).toBe('error');
     expect((await run('timetrack.edit_time', { entity: 'job', id: entryId, end: new Date(Date.parse(data.entries[0].clock_in) - 1000).toISOString() }, as('owner1', 'owner'))).status).toBe('error');
     expect((await run('timetrack.edit_time', { entity: 'job', id: entryId, end: new Date(Date.parse(newEnd) + 60_000).toISOString() }, as('owner1', 'owner'))).status).toBe('ok');
     expect((await jobTimeData(co, jobId)).edits.map((e) => e.edited_by)).toEqual(['alex', 'owner1']);

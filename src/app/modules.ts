@@ -1,6 +1,7 @@
 import type { ModuleManifest } from '@/core';
 import { cashplanModule } from '@/modules/cashplan';
 import { customersModule } from '@/modules/customers';
+import { deskModule } from '@/modules/desk';
 import { estimatesModule } from '@/modules/estimates';
 import { invoicingModule } from '@/modules/invoicing';
 import { jobcostingModule } from '@/modules/jobcosting';
@@ -9,6 +10,7 @@ import { messagingModule } from '@/modules/messaging';
 import { paymentsModule } from '@/modules/payments';
 import { qbsyncModule } from '@/modules/qbsync';
 import { revenueModule } from '@/modules/revenue';
+import { timesheetsModule } from '@/modules/timesheets';
 import { timetrackModule } from '@/modules/timetrack';
 import { schedulingModule } from '@/modules/scheduling';
 
@@ -18,6 +20,8 @@ export const modules: ModuleManifest[] = [
   estimatesModule,
   jobsModule,
   timetrackModule,
+  timesheetsModule,
+  deskModule,
   schedulingModule,
   invoicingModule,
   paymentsModule,

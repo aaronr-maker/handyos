@@ -302,6 +302,17 @@ Cross-checks flag forgotten clocks, overlaps, timers outside the job and multi-t
 arrival. Reminders with the app closed need the native phone app (Capacitor) with a background-location plugin and the tech's permission on their phone: that
 part is not built yet, and the check lives in one place (`useArrival`) so the native version can replace it. Check your state's rules on employee location tracking.
 
+**Timesheets** (`src/modules/timesheets`): each person's week, Monday to Sunday, day by day, with the same editable punches ("edited by AB"). Admins and owners can
+open and correct anyone's week; everyone else sees and edits only their own. It shows hours clocked, the scheduled time still ahead this week, the person's
+**efficiency rate** (their time on jobs finished in the last 90 days divided by the time scheduled for them; 1.00 until they have 3 such jobs) and the **projected
+week** = clocked + scheduled ahead × efficiency rate. Over 40 hours turns red (`WEEK_LIMIT_MINUTES`).
+
+**Manager desk** (`src/modules/desk`, migration `20261124000000_desk_alerts.sql`): alerts for a person projected over the limit (or a clock left running), and
+tasks such as scheduled jobs nobody is assigned to. "Handy suggests" a fix with a button for each: move the latest upcoming jobs to people who are free then and
+stay under the limit (`suggestReassignments`), or assign a free person. The suggestions are rule-based today, not an AI model. Alerts are worked out when a
+manager opens the desk (and every five minutes while it is open); pushing them to a manager's phone or email needs a scheduled job and a messaging provider,
+which are not set up yet.
+
 **Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
 ### Sending invoices and payments to QuickBooks
