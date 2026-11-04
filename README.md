@@ -319,6 +319,12 @@ by non-negative least squares (`nnls`), so a door-only job anchors the door and 
 and a confidence (solid, getting there, learning); measured and inferred times that disagree by more than a third are flagged; finished jobs far from what the standards predict are listed as jobs that don't
 fit; and each tech's timed tasks are compared with the standards (their speed). It is advisory: nothing uses these numbers for prices or pay yet.
 
+**Dashboard** (`src/modules/dashboard`, owners and admins): the numbers that matter on one page for the last 30 days against the 30 before: sales (close rate, estimates sent, average job sold, a seller leaderboard),
+production (booked work ahead in crew-weeks, time on jobs against paid time, revenue per man-hour against the cost per hour, a tech list with efficiency rates), profit (what finished jobs kept against the target margin)
+and cash (owed, overdue, days to get paid). Each has a target and a green/amber/red status. At the top it names **the constraint**, the first stage, from work coming in to money coming back, that is holding the business
+back (`findConstraint` in `kpis.ts`): a full schedule is capacity; an empty one is sales (estimates not closing) or leads (not enough estimates); thin profit is pricing and efficiency; slow money is cash. It
+says so plainly when there is not enough data. The targets are common starting points (`TARGETS`) and can be changed in one place.
+
 **Coming next (originally):** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
 ### Sending invoices and payments to QuickBooks
