@@ -97,3 +97,43 @@ export async function handyChat(deps: Deps, token: string | null, body: { messag
   if (!message) throw new ApiError(502, 'OpenAI sent back nothing. Try again.');
   return { message: { role: 'assistant', content: message.content ?? null, ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) } };
 }
+
+/**
+ * Hands the browser a short-lived pass to start a voice call with OpenAI. The audio goes straight from the phone to OpenAI;
+ * this server never hears it. The call's instructions and tools are fixed here, and checked for private details first.
+ */
+export async function handyVoiceSession(deps: Deps, token: string | null, body: { instructions?: string; tools?: unknown[] }): Promise<{ secret: string; model: string }> {
+  await requireStaff(deps, token);
+  const key = deps.env.OPENAI_API_KEY;
+  if (!key) throw new ApiError(503, 'Handy is not set up yet: the OpenAI key is missing on the server (OPENAI_API_KEY).');
+  const instructions = typeof body.instructions === 'string' ? body.instructions : '';
+  const tools = Array.isArray(body.tools) ? body.tools : [];
+  if (!instructions || instructions.length > 8000 || tools.length > MAX_TOOLS) throw new ApiError(400, 'That voice session was not set up correctly.');
+  const found = findPrivateDetail(`${instructions} ${JSON.stringify(tools)}`);
+  if (found) throw new ApiError(422, `Handy did not start the call because its setup contained ${found}.`);
+  const model = deps.env.HANDY_VOICE_MODEL || 'gpt-realtime';
+  const res = await deps.fetch('https://api.openai.com/v1/realtime/client_secrets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      expires_after: { anchor: 'created_at', seconds: 120 },
+      session: {
+        type: 'realtime',
+        model,
+        instructions,
+        tools,
+        tool_choice: 'auto',
+        audio: { input: { transcription: { model: 'gpt-4o-mini-transcribe' } }, output: { voice: deps.env.HANDY_VOICE || 'alloy' } },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    if (res.status === 401) throw new ApiError(502, 'OpenAI did not accept the key. Check OPENAI_API_KEY in Vercel.');
+    throw new ApiError(502, `OpenAI could not start a voice call: ${err.error?.message ?? `answered ${res.status}`}`);
+  }
+  const json = (await res.json()) as { value?: string; client_secret?: { value?: string } };
+  const secret = json.value ?? json.client_secret?.value;
+  if (!secret) throw new ApiError(502, 'OpenAI did not give a voice pass. Try again.');
+  return { secret, model };
+}
