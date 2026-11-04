@@ -9,6 +9,7 @@ export const MODULE_IDS = [
   'jobcosting',
   'cashplan',
   'revenue',
+  'qbsync',
   'messaging',
 ] as const;
 

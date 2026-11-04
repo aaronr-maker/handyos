@@ -11,6 +11,7 @@ const paths = {
   jobcosting: 'M4 20V10M10 20V4M16 20v-8M22 20H2',
   cashplan: 'M12 3v18M16 7H10a3 3 0 000 6h4a3 3 0 010 6H8',
   revenue: 'M3 17l6-6 4 4 8-9M15 6h6v6',
+  qbsync: 'M4 12a8 8 0 0114-5l2 2M20 12a8 8 0 01-14 5l-2-2M18 4v5h-5M6 20v-5h5',
   messaging: 'M4 5h16v11H9l-5 4z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   system: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3',

@@ -7,6 +7,7 @@ import { jobcostingModule } from '@/modules/jobcosting';
 import { jobsModule } from '@/modules/jobs';
 import { messagingModule } from '@/modules/messaging';
 import { paymentsModule } from '@/modules/payments';
+import { qbsyncModule } from '@/modules/qbsync';
 import { revenueModule } from '@/modules/revenue';
 import { schedulingModule } from '@/modules/scheduling';
 
@@ -21,5 +22,6 @@ export const modules: ModuleManifest[] = [
   jobcostingModule,
   cashplanModule,
   revenueModule,
+  qbsyncModule,
   messagingModule,
 ];
