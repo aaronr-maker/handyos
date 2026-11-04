@@ -288,6 +288,13 @@ Development keys only connect to Intuit's **sandbox** test companies. To connect
 app to pass its production review (privacy policy, terms of service and a short security questionnaire), after which you switch to the *Production*
 keys and set `INTUIT_ENV=production`. Check Intuit's current requirements on developer.intuit.com when you get there.
 
+### Revenue history
+
+**Revenue** (owner and admins) shows revenue by day, week (Monday to Sunday), month, quarter, year, job or customer. Past years are loaded from invoice or
+payment exports (QuickBooks transaction lists, old CRMs, Excel or CSV; `revenue_history` table, migration `20261120000000_revenue_history.sql`), up to the
+launch month (January 2027, `LAUNCH_MONTH`), and HandyOS payments (without sales tax) count from then on. Months that only have a QuickBooks Profit and Loss
+total appear in the month, quarter and year views.
+
 ### Planned: cash distribution and the wider integrations plan (decisions so far)
 
 - **Burdened cost rate** = last month's total company costs (from QuickBooks, by the accounts the owner marks as overhead) divided by the man-hours

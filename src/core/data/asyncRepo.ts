@@ -20,6 +20,8 @@ export interface AsyncRepo<T extends BaseRecord> {
   list(companyId: Id, options?: ListOptions): Promise<T[]>;
   update(companyId: Id, id: Id, patch: Partial<Omit<T, keyof BaseRecord>>): Promise<T>;
   remove(companyId: Id, id: Id): Promise<void>;
+  /** Deletes every row matching the equality filters (all of the company's rows when none are given). Returns how many. */
+  removeWhere(companyId: Id, where: Record<string, string | number | boolean>): Promise<number>;
 }
 
 export function createRepo<T extends BaseRecord>(table: string): AsyncRepo<T> {
@@ -61,12 +63,18 @@ export function createRepo<T extends BaseRecord>(table: string): AsyncRepo<T> {
         if (key) rows = [...rows].sort((a, b) => String((a as Record<string, unknown>)[key]).localeCompare(String((b as Record<string, unknown>)[key])));
         return rows;
       }
-      let q = db.from(table).select().eq('company_id', companyId);
-      for (const [k, v] of Object.entries(options.where ?? {})) q = q.eq(k, v);
-      if (options.orderBy) q = q.order(options.orderBy);
-      const { data: rows, error } = await q;
-      if (error) throw new Error(error.message);
-      return (rows ?? []) as T[];
+      // the database answers at most 1,000 rows at a time, so read it page by page
+      const all: T[] = [];
+      for (let from = 0; ; from += 1000) {
+        let q = db.from(table).select().eq('company_id', companyId);
+        for (const [k, v] of Object.entries(options.where ?? {})) q = q.eq(k, v);
+        q = q.order(options.orderBy ?? 'id').range(from, from + 999);
+        const { data: rows, error } = await q;
+        if (error) throw new Error(error.message);
+        all.push(...((rows ?? []) as T[]));
+        if ((rows ?? []).length < 1000) break;
+      }
+      return all;
     },
     async update(companyId, id, patch) {
       const db = getSupabase();
@@ -80,6 +88,19 @@ export function createRepo<T extends BaseRecord>(table: string): AsyncRepo<T> {
       if (!db) return memory.remove(companyId, id);
       const { error } = await db.from(table).delete().eq('company_id', companyId).eq('id', id);
       if (error) throw new Error(error.message);
+    },
+    async removeWhere(companyId, where) {
+      const db = getSupabase();
+      if (!db) {
+        const rows = memory.list(companyId).filter((r) => Object.entries(where).every(([k, v]) => (r as Record<string, unknown>)[k] === v));
+        for (const r of rows) memory.remove(companyId, r.id);
+        return rows.length;
+      }
+      let q = db.from(table).delete({ count: 'exact' }).eq('company_id', companyId);
+      for (const [k, v] of Object.entries(where)) q = q.eq(k, v);
+      const { error, count } = await q;
+      if (error) throw new Error(error.message);
+      return count ?? 0;
     },
   };
 }
