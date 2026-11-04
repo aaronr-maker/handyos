@@ -112,7 +112,7 @@ export const removeTaskAction = defineAction({
 export const editTimeAction = defineAction({
   name: 'timetrack.edit_time',
   module: 'timetrack',
-  description: 'Change the start and/or end time of a job time entry, a task timer or a day shift. The old time, the new time, who changed it and why are kept. A tech can change only their own.',
+  description: 'Change the start and/or end time of a job time entry, a task timer or a day shift. The old time, the new time, who changed it and why are kept. Anyone can change their own; only admins and owners can change another person\'s.',
   input: z.object({
     entity: z.enum(['job', 'task', 'shift']),
     id: z.string().min(1),

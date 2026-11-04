@@ -6,7 +6,8 @@ import { addTaskAction, editTimeAction, loadTasksAction, removeTaskAction, setJo
 import { checkJobTime, splitJobTime } from '../calc';
 import { jobTimeData } from '../service';
 import type { TimeEntity } from '../types';
-import { clock, fromLocalInput, hm, initials, toLocalInput } from './fmt';
+import { hm, initials } from './fmt';
+import { Punch } from './Punch';
 
 /** One job's time: each tech's own punches (editable only by that tech, greyed out for the others), and the split into task time and overhead. */
 export default function JobTime() {
@@ -33,7 +34,7 @@ export default function JobTime() {
   const taskName = (tid: string) => time.tasks.find((t) => t.id === tid)?.name ?? 'Task';
   const split = splitJobTime({ tasks: time.tasks, entries: time.entries, timers: time.timers });
   const flags = checkJobTime({ tasks: time.tasks, entries: time.entries, timers: time.timers, jobDone: job.status === 'completed', nameOf });
-  const canEdit = (owner: string) => role !== 'tech' || owner === userId;
+  const canEdit = (owner: string) => role === 'owner' || role === 'admin' || owner === userId;
   const editedBy = (entityId: string) => {
     const e = time.edits.filter((x) => x.entity_id === entityId).sort((a, b) => b.created_at.localeCompare(a.created_at));
     return e.length ? { initials: initials(nameOf(e[0].edited_by)), count: e.length, who: nameOf(e[0].edited_by) } : null;
@@ -46,27 +47,6 @@ export default function JobTime() {
     if (err) setNote({ ok: false, text: err });
     else reload();
   };
-
-  const Punch = ({ entity, rowId, owner, start, end }: { entity: TimeEntity; rowId: string; owner: string; start: string; end: string | null }) => {
-    const mine = canEdit(owner);
-    const who = editedBy(rowId);
-    return (
-      <div className="row" style={{ alignItems: 'center', gap: 8, opacity: mine ? 1 : 0.5, flexWrap: 'wrap' }}>
-        <input type="datetime-local" aria-label="Start" disabled={!mine} defaultValue={toLocalInput(start)} onBlur={(e) => e.target.value && fromLocalInput(e.target.value) !== new Date(start).toISOString() && void change(entity, rowId, { start: fromLocalInput(e.target.value) })} />
-        <span>to</span>
-        <input type="datetime-local" aria-label="End" disabled={!mine} defaultValue={toLocalInput(end)} onBlur={(e) => e.target.value && (!end || fromLocalInput(e.target.value) !== new Date(end).toISOString()) && void change(entity, rowId, { end: fromLocalInput(e.target.value) })} />
-        {end === null && <span className="muted small-note">still running</span>}
-        {who && (
-          <span className="muted small-note" title={`Changed ${who.count} time${who.count === 1 ? '' : 's'}; last by ${who.who}`}>
-            edited by {who.initials}
-          </span>
-        )}
-      </div>
-    );
-  };
-
-  const stampOf = (e: (typeof time.entries)[number]) => `${clock(e.clock_in)}${e.clock_out ? ` to ${clock(e.clock_out)}` : ' (running)'}`;
-  void stampOf;
 
   return (
     <section className="page">
@@ -205,7 +185,7 @@ export default function JobTime() {
             .filter((e) => e.user_id === tech.user_id)
             .sort((a, b) => a.clock_in.localeCompare(b.clock_in))
             .map((e) => (
-              <Punch key={e.id} entity="job" rowId={e.id} owner={e.user_id} start={e.clock_in} end={e.clock_out} />
+              <Punch key={e.id} start={e.clock_in} end={e.clock_out} canEdit={canEdit(e.user_id)} editedBy={editedBy(e.id)} onChange={(p) => void change('job', e.id, p)} />
             ))}
           {time.timers.some((t) => t.user_id === tech.user_id) && <h3>Task time</h3>}
           {time.timers
@@ -214,7 +194,7 @@ export default function JobTime() {
             .map((t) => (
               <div key={t.id}>
                 <span className="muted small-note">{taskName(t.task_id)}</span>
-                <Punch entity="task" rowId={t.id} owner={t.user_id} start={t.started_at} end={t.ended_at} />
+                <Punch start={t.started_at} end={t.ended_at} canEdit={canEdit(t.user_id)} editedBy={editedBy(t.id)} onChange={(p) => void change('task', t.id, p)} />
               </div>
             ))}
         </div>

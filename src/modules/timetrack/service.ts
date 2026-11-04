@@ -102,6 +102,7 @@ export async function closeTimers(companyId: Id, where: { userId?: Id; jobId?: I
 
 // ---- editing time stamps, with the history kept ----
 export const listEdits = (companyId: Id) => edits.list(companyId);
+export const listAllTimers = (companyId: Id) => timers.list(companyId);
 
 interface Editable {
   user_id: Id;
@@ -128,7 +129,7 @@ async function editable(companyId: Id, entity: TimeEntity, id: Id): Promise<Edit
 }
 
 /**
- * Changes a start and/or end time. A tech may change their own; the office, admins and owners anyone's. Each changed
+ * Changes a start and/or end time. Anyone may change their own; only admins and owners may change someone else's. Each changed
  * field is written to the edit history (old value, new value, who, why) before the time changes.
  */
 export async function editTime(
@@ -140,7 +141,7 @@ export async function editTime(
   reason: string | null,
 ): Promise<void> {
   const rec = await editable(companyId, entity, id);
-  if (actor.role === 'tech' && rec.user_id !== actor.id) throw new Error('You can only change your own time.');
+  if (rec.user_id !== actor.id && actor.role !== 'owner' && actor.role !== 'admin') throw new Error('You can only change your own time. An admin can change anyone\'s.');
   const start = patch.start ?? rec.start;
   const end = patch.end === undefined ? rec.end : patch.end;
   if (Number.isNaN(Date.parse(start)) || (end !== null && Number.isNaN(Date.parse(end)))) throw new Error('That is not a valid time.');

@@ -13,6 +13,8 @@ const paths = {
   revenue: 'M3 17l6-6 4 4 8-9M15 6h6v6',
   qbsync: 'M4 12a8 8 0 0114-5l2 2M20 12a8 8 0 01-14 5l-2-2M18 4v5h-5M6 20v-5h5',
   timetrack: 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z',
+  timesheets: 'M5 4h14v17H5zM9 2v4M15 2v4M8 11h8M8 15h5',
+  desk: 'M4 5h16v10H4zM8 19h8M12 15v4M8 9h8',
   messaging: 'M4 5h16v11H9l-5 4z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   system: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3',

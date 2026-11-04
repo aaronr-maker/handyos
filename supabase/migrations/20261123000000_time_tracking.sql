@@ -92,11 +92,11 @@ begin
   end loop;
 end $$;
 
--- Everyone in the company can see time and tasks (as with time_entries); a tech changes only their own, the office and owners anyone's.
+-- Everyone in the company can see time and tasks (as with time_entries); anyone changes only their own, admins and owners anyone's.
 create policy shifts_select on public.shifts for select to authenticated using (company_id = public.current_company_id());
 create policy shifts_insert on public.shifts for insert to authenticated with check (company_id = public.current_company_id() and user_id = auth.uid());
 create policy shifts_update on public.shifts for update to authenticated
-  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin', 'office')))
+  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin')))
   with check (company_id = public.current_company_id());
 create policy shifts_delete on public.shifts for delete to authenticated
   using (company_id = public.current_company_id() and public.current_user_role() in ('owner', 'admin'));
@@ -104,7 +104,7 @@ create policy shifts_delete on public.shifts for delete to authenticated
 create policy task_timers_select on public.task_timers for select to authenticated using (company_id = public.current_company_id());
 create policy task_timers_insert on public.task_timers for insert to authenticated with check (company_id = public.current_company_id() and user_id = auth.uid());
 create policy task_timers_update on public.task_timers for update to authenticated
-  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin', 'office')))
+  using (company_id = public.current_company_id() and (user_id = auth.uid() or public.current_user_role() in ('owner', 'admin')))
   with check (company_id = public.current_company_id());
 create policy task_timers_delete on public.task_timers for delete to authenticated
   using (company_id = public.current_company_id() and public.current_user_role() in ('owner', 'admin'));

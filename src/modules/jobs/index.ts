@@ -31,4 +31,4 @@ export const jobsModule: ModuleManifest = {
 
 export type { Job, JobAssignment, JobStatus, TimeEntry } from './types';
 export { getJob, getOpenEntry, getTimeEntry, listAssignments, listJobs, listTimeEntries, setJobSchedule, updateTimeEntry } from './services/jobService';
-export { clockInAction, clockOutAction } from './actions';
+export { assignJobAction, clockInAction, clockOutAction } from './actions';
