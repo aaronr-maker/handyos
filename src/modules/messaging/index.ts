@@ -15,5 +15,6 @@ export const messagingModule: ModuleManifest = {
   },
 };
 
-export type { Message } from './types';
-export { listMessages } from './services/messageService';
+export { sendMessageAction } from './actions';
+export type { Message, MessageStatus } from './types';
+export { listAllMessages, listMessages } from './services/messageService';

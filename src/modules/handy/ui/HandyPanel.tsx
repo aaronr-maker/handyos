@@ -12,7 +12,9 @@ const VOICE_NAMES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer
 
 interface Confirm {
   text: string;
-  answer(yes: boolean): void;
+  /** For a message: the words, which the person can change before saying yes. */
+  edit?: { key: string; label: string; value: string };
+  answer(yes: boolean, edited?: string): void;
 }
 
 /** The floating Handy button and its chat panel. */
@@ -26,6 +28,7 @@ export function HandyOverlay() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [editing, setEditing] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [voiceName, setVoiceName] = useState(() => {
@@ -52,15 +55,28 @@ export function HandyOverlay() {
       masker,
       runRead: (name, args) => runReadTool(ctx, name, args),
       isAction: isActionTool,
-      confirm: async (name, args) => {
-        const text = await describeAction(ctx, name, args);
-        return new Promise<boolean>((resolve) => setConfirm({ text, answer: (yes) => { setConfirm(null); resolve(yes); } }));
+      confirm: async (name, args, refs) => {
+        const d = await describeAction(ctx, name, args, refs);
+        setEditing(d.edit?.value ?? '');
+        return new Promise((resolve) =>
+          setConfirm({
+            text: d.text,
+            edit: d.edit,
+            answer: (yes, edited) => {
+              setConfirm(null);
+              if (!yes) return resolve(false);
+              // the person may have rewritten the message before approving it
+              resolve(d.edit && edited !== undefined && edited !== d.edit.value ? { overrides: { [d.edit.key]: edited } } : true);
+            },
+          }),
+        );
       },
-      runAction: (name, args) =>
-        runActionTool(ctx, async (action, body) => {
-          const r = await asHandy(action, body);
-          return { status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined };
-        }, name, args),
+      runAction: (name, args, refs) => {
+        const outcome = (r: Awaited<ReturnType<typeof asHandy>>) => ({ status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined });
+        // customer-facing words are saved by the person who approved them, not by Handy
+        const asPerson = async (action: string, input: unknown) => outcome(await actions.executeByName(action, input, { companyId, actor: user, role }));
+        return runActionTool(ctx, async (action, body) => outcome(await asHandy(action, body)), name, args, { refs, asPerson });
+      },
     };
   };
 
@@ -223,9 +239,15 @@ export function HandyOverlay() {
                 <p>
                   <strong>Handy wants to:</strong> {confirm.text}
                 </p>
+                {confirm.edit && (
+                  <label>
+                    {confirm.edit.label} (you can change it)
+                    <textarea rows={4} value={editing} onChange={(e) => setEditing(e.target.value)} style={{ width: '100%' }} />
+                  </label>
+                )}
                 <div className="row">
-                  <button type="button" onClick={() => confirm.answer(true)}>
-                    Do it
+                  <button type="button" onClick={() => confirm.answer(true, confirm.edit ? editing : undefined)}>
+                    {confirm.edit ? 'Save it' : 'Do it'}
                   </button>
                   <button type="button" className="secondary" onClick={() => confirm.answer(false)}>
                     Not now

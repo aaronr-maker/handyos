@@ -356,7 +356,10 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
 - OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
 - **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.
-- He cannot message customers yet (drafting, review and send comes next).
+- **Customer messages** (`send_message`): Handy drafts a text or email (with `{first_name}` filled in by the app, never an ID), and a card shows the person where it goes and the words, which they can
+  edit; only their click saves it, and it is saved **by the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
+  (`messages`, migration `20261127000000_messages.sql`) with a status: `queued` until a sending service is connected, then `sent` or `failed`. Nothing is shown as sent that was not delivered, and Handy is
+  told so. The Messages page lists them. **No email or text provider is connected yet**, so messages wait as queued.
 - **Voice** (`voice.ts`, `api/handy/voice.ts`): the mic button starts a live call with OpenAI's voice model. The server only hands out a short-lived pass (`/v1/realtime/client_secrets`); the audio
   goes straight from the phone to OpenAI and never through our server. Handy's look-ups and changes during a call use the same tools, permissions and "Do it" card as the text chat,
   and the call's words are written into the conversation. In a call customers are "Customer 1", "Property 2" (a spoken ID would be unusable) and mapped back on screen; **what a person says out
