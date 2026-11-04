@@ -13,6 +13,7 @@ export const MODULE_IDS = [
   'timetrack',
   'timesheets',
   'desk',
+  'handy',
   'messaging',
 ] as const;
 

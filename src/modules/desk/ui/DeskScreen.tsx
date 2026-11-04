@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
+import { askAssistant, listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
 import { assignJobAction } from '@/modules/jobs';
 import { loadTimeFacts, WEEK_LIMIT_MINUTES } from '@/modules/timesheets';
 import { hoursMinutes } from '@/modules/timetrack';
@@ -119,9 +119,14 @@ export default function DeskScreen() {
                 <strong>Handy suggests:</strong> open <Link to="/timesheets">their timesheet</Link> and set the correct end time (your change is logged).
               </p>
             )}
-            <button type="button" className="link" onClick={() => void close(a.id, 'dismissed')}>
-              Dismiss (not a problem)
-            </button>
+            <div className="row">
+              <button type="button" className="secondary" onClick={() => askAssistant({ title: a.title, prompt: `${a.title}. ${a.detail} Alert id: ${a.id}. What do you suggest?` })}>
+                ✱ Talk it over with Handy
+              </button>
+              <button type="button" className="link" onClick={() => void close(a.id, 'dismissed')}>
+                Dismiss (not a problem)
+              </button>
+            </div>
             </div>
           </div>
         );
@@ -146,6 +151,9 @@ export default function DeskScreen() {
             <p>
               <strong>Handy suggests:</strong> {options.length === 0 ? 'nobody is free then with room in their week. You may need to reschedule it.' : 'these people are free and stay under the weekly limit.'}
             </p>
+            <button type="button" className="secondary" onClick={() => askAssistant({ title: j.title, prompt: `The job "${j.title}" (job id ${j.id}) is scheduled for ${when(j.scheduled_start!)} and nobody is assigned. Who should take it?` })}>
+              ✱ Talk it over with Handy
+            </button>
             {options.slice(0, 3).map((o) => (
               <div key={o.userId} className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>

@@ -52,4 +52,4 @@ export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } fr
 export { customerLabel, displayContact } from './display';
 export { CustomerPropertyPicker } from './ui/CustomerPropertyPicker';
 export type { WhoValue } from './ui/CustomerPropertyPicker';
-export { billingFor, getCustomer, getPropertyBilling, getProperty, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listAllContacts, listAllProperties, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';

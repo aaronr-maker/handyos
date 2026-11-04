@@ -333,7 +333,17 @@ Handy is just another caller of the action registry, so he can do anything a per
    or pay), `ask` (the default: his request waits in the approval queue for an owner or admin) or `never` (a person's own clocks and consent). Anything not marked asks first.
 3. **Customer-facing actions always ask**, and the plan is for Handy to draft the message, show it, and send only after a person says it looks good.
 
-Not built yet: the chat and voice screens, the floating Handy button and the connection to an AI provider (see the notes on data going to the provider).
+**The chat** (`src/modules/handy`, `api/handy/chat.ts`, `api/_lib/handyChat.ts`, migration `20261125000000_handy_chat.sql`) is a floating Handy button with a text chat (and a
+"Talk it over with Handy" button on each to-do item). How it works:
+- The browser runs Handy's look-ups and actions *as the signed-in person* (so database rules and the action rules above apply) and keeps the conversation in the company's own
+  tables (`handy_threads`, `handy_messages`). The server function only holds the OpenAI key and passes the conversation on.
+- **Masking** (`mask.ts`): before anything is sent, customer names, contacts and street addresses the company knows about become "Customer 1", "Address 2", and emails, phone numbers and
+  long numbers become "Email 1", "Phone 1", "Number 1" (kept per conversation), then are put back for the screen. Tools return only an approved set of fields.
+- **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
+- OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
+- **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.
+- He cannot message customers yet (drafting, review and send comes next). Voice is not built yet.
+- Set `OPENAI_API_KEY` (and optionally `HANDY_MODEL`, default `gpt-4.1`) in Vercel. Never put the key in the repository or in a chat.
 
 ### Revenue history
 

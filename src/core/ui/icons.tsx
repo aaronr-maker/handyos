@@ -15,6 +15,7 @@ const paths = {
   timetrack: 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z',
   timesheets: 'M5 4h14v17H5zM9 2v4M15 2v4M8 11h8M8 15h5',
   desk: 'M4 5h16v10H4zM8 19h8M12 15v4M8 9h8',
+  handy: 'M8 13V5a1.5 1.5 0 013 0v6M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5a1.5 1.5 0 013 0v8M17 9a1.5 1.5 0 013 0v5a7 7 0 01-7 7h-1a6 6 0 01-5-3l-3-5a1.5 1.5 0 012.5-1.5L8 14',
   messaging: 'M4 5h16v11H9l-5 4z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   system: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3',

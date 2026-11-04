@@ -29,3 +29,4 @@ export type { Assignee, Reassignment } from './suggest';
 export { listAlerts, refreshAlerts } from './service';
 export type { AlertKind, DeskAlert } from './types';
 export { unseenAlerts } from './store';
+export { closeAlertAction } from './actions';
