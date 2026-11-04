@@ -1,4 +1,5 @@
 import type { ModuleManifest } from '@/core';
+import { cashplanModule } from '@/modules/cashplan';
 import { customersModule } from '@/modules/customers';
 import { estimatesModule } from '@/modules/estimates';
 import { invoicingModule } from '@/modules/invoicing';
@@ -17,5 +18,6 @@ export const modules: ModuleManifest[] = [
   invoicingModule,
   paymentsModule,
   jobcostingModule,
+  cashplanModule,
   messagingModule,
 ];
