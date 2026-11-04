@@ -61,6 +61,9 @@ function setup(over: { reportStatuses?: number[]; role?: string } = {}) {
       db.deleted = true;
     },
     markSync: async (_c, e) => void db.synced.push(e),
+    getPushSettings: async () => null,
+    getSyncRecord: async () => null,
+    saveSyncRecord: async () => undefined,
   };
   const statuses = [...(over.reportStatuses ?? [200])];
   let refreshCount = 0;

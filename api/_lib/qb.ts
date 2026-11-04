@@ -15,6 +15,8 @@ export interface Env {
   INTEGRATIONS_SECRET?: string;
   /** The site's address, e.g. https://handyos-eight.vercel.app */
   APP_URL?: string;
+  /** "1" stops every push of invoices and payments into QuickBooks (a master off switch). */
+  QB_PUSH_DISABLED?: string;
 }
 
 export interface Store {
@@ -25,6 +27,29 @@ export interface Store {
   updateSecret(companyId: string, secretEncrypted: string, accessExpiresAt: string): Promise<void>;
   deleteConnection(companyId: string): Promise<void>;
   markSync(companyId: string, error: string | null): Promise<void>;
+  /** The company's sync settings (what to send, where it posts, whether sending is on). */
+  getPushSettings(companyId: string): Promise<PushSettings | null>;
+  /** What has already been sent to QuickBooks for one local invoice or payment. */
+  getSyncRecord(companyId: string, entity: 'invoice' | 'payment', localId: string): Promise<SyncRecord | null>;
+  saveSyncRecord(companyId: string, record: SyncRecord): Promise<void>;
+}
+
+export interface PushSettings {
+  enabled: boolean;
+  income_account_id: string | null;
+  deposit_account_id: string | null;
+  tax_code_id: string | null;
+  /** Only invoices and payments dated on or after this day are sent (YYYY-MM-DD), so old history is never pushed. */
+  start_date: string;
+}
+
+export interface SyncRecord {
+  entity: 'invoice' | 'payment';
+  local_id: string;
+  /** QuickBooks' id once it was sent; null when the last try failed. */
+  qb_id: string | null;
+  qb_customer_id: string | null;
+  error: string | null;
 }
 
 export interface Deps {
@@ -162,6 +187,52 @@ export async function finishConnect(deps: Deps, query: { code?: string; state?: 
   }
 }
 
+
+export interface Session {
+  companyId: string;
+  realmId: string;
+  /** Calls the company's QuickBooks (path starts with "/", after /v3/company/{id}); renews the access token once if it ran out. */
+  call(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response>;
+}
+
+/** The signed-in owner/admin's QuickBooks connection, ready to call. Tokens stay on the server. */
+export async function openSession(deps: Deps, token: string | null): Promise<Session> {
+  const env = need(deps.env);
+  const { companyId } = await requireManager(deps, token);
+  const stored = await deps.store.getSecret(companyId);
+  if (!stored) throw new ApiError(409, 'QuickBooks is not connected.');
+  let tokens = JSON.parse(decrypt(env.INTEGRATIONS_SECRET, stored.secretEncrypted)) as Tokens;
+  if (tokens.refresh_expires_at <= deps.now()) {
+    await deps.store.markSync(companyId, 'The QuickBooks connection expired. Connect again.');
+    throw new ApiError(409, 'The QuickBooks connection expired. Connect again.');
+  }
+  const refresh = async () => {
+    // QuickBooks hands back a new refresh token each time; the old one stops working, so it is saved straight away
+    const fresh = await tokenRequest(deps, env, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
+    tokens = fresh.tokens;
+    await deps.store.updateSecret(companyId, pack(env, tokens), fresh.accessExpiresAt);
+  };
+  const base = `${apiBase(deps.env)}/v3/company/${stored.realmId}`;
+  const send = (method: 'GET' | 'POST', path: string, body?: unknown) =>
+    deps.fetch(`${base}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  return {
+    companyId,
+    realmId: stored.realmId,
+    async call(method, path, body) {
+      let res = await send(method, path, body);
+      if (res.status === 401) {
+        await refresh(); // the one-hour access token ran out
+        res = await send(method, path, body);
+      }
+      return res;
+    },
+  };
+}
+
 export interface SyncResult {
   month: string;
   lines: ReportLine[];
@@ -173,39 +244,16 @@ export interface SyncResult {
 
 /** Pulls one month's Profit and Loss from the company's QuickBooks. Nothing is saved here; the app shows it for review. */
 export async function syncMonth(deps: Deps, token: string | null, month: string, method: 'Accrual' | 'Cash' = 'Cash'): Promise<SyncResult> {
-  const env = need(deps.env);
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new ApiError(400, 'Choose a month like 2026-10.');
-  const { companyId } = await requireManager(deps, token);
-  const stored = await deps.store.getSecret(companyId);
-  if (!stored) throw new ApiError(409, 'QuickBooks is not connected.');
-
-  let tokens = JSON.parse(decrypt(env.INTEGRATIONS_SECRET, stored.secretEncrypted)) as Tokens;
-  const refresh = async () => {
-    // QuickBooks hands back a new refresh token each time; the old one stops working, so it is saved straight away
-    const fresh = await tokenRequest(deps, env, { grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
-    tokens = fresh.tokens;
-    await deps.store.updateSecret(companyId, pack(env, tokens), fresh.accessExpiresAt);
-  };
-  if (tokens.refresh_expires_at <= deps.now()) {
-    await deps.store.markSync(companyId, 'The QuickBooks connection expired. Connect again.');
-    throw new ApiError(409, 'The QuickBooks connection expired. Connect again.');
-  }
-
+  const session = await openSession(deps, token);
   const { start, end } = monthRange(month);
-  const url = `${apiBase(deps.env)}/v3/company/${stored.realmId}/reports/ProfitAndLoss?start_date=${start}&end_date=${end}&accounting_method=${method}&minorversion=75`;
-  const get = () => deps.fetch(url, { headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' } });
-
-  let res = await get();
-  if (res.status === 401) {
-    await refresh(); // the one-hour access token ran out
-    res = await get();
-  }
+  const res = await session.call('GET', `/reports/ProfitAndLoss?start_date=${start}&end_date=${end}&accounting_method=${method}&minorversion=75`);
   if (!res.ok) {
-    await deps.store.markSync(companyId, `QuickBooks answered ${res.status}`);
+    await deps.store.markSync(session.companyId, `QuickBooks answered ${res.status}`);
     throw new ApiError(502, 'QuickBooks did not return the report. Try again, or connect again.');
   }
   const json = await res.json();
-  await deps.store.markSync(companyId, null);
+  await deps.store.markSync(session.companyId, null);
   return { month, lines: reportToLines(json), income: reportToIncome(json), reported: reportedTotals(json) };
 }
 

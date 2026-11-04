@@ -43,6 +43,20 @@ export function supabaseStore(env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROL
       await db.from('integration_secrets').delete().eq('company_id', companyId).eq('provider', 'quickbooks');
       await db.from('integration_links').delete().eq('company_id', companyId).eq('provider', 'quickbooks');
     },
+    async getPushSettings(companyId) {
+      const { data } = await db.from('qb_sync_settings').select('enabled, income_account_id, deposit_account_id, tax_code_id, start_date').eq('company_id', companyId).maybeSingle();
+      return data ? { enabled: !!data.enabled, income_account_id: data.income_account_id ?? null, deposit_account_id: data.deposit_account_id ?? null, tax_code_id: data.tax_code_id ?? null, start_date: String(data.start_date) } : null;
+    },
+    async getSyncRecord(companyId, entity, localId) {
+      const { data } = await db.from('qb_sync_records').select('qb_id, qb_customer_id, error').eq('company_id', companyId).eq('entity', entity).eq('local_id', localId).maybeSingle();
+      return data ? { entity, local_id: localId, qb_id: data.qb_id ?? null, qb_customer_id: data.qb_customer_id ?? null, error: data.error ?? null } : null;
+    },
+    async saveSyncRecord(companyId, r) {
+      const res = await db
+        .from('qb_sync_records')
+        .upsert({ company_id: companyId, entity: r.entity, local_id: r.local_id, qb_id: r.qb_id, qb_customer_id: r.qb_customer_id, error: r.error, synced_at: r.qb_id ? new Date().toISOString() : null }, { onConflict: 'company_id,entity,local_id' });
+      fail('Saving the sync result', res.error);
+    },
     async markSync(companyId, error) {
       await db.from('integration_links').update({ last_sync_at: new Date().toISOString(), last_error: error }).eq('company_id', companyId).eq('provider', 'quickbooks');
     },
@@ -56,6 +70,7 @@ export const serverEnv = (): Env & { SUPABASE_URL?: string; SUPABASE_SERVICE_ROL
   INTUIT_ENV: process.env.INTUIT_ENV,
   INTEGRATIONS_SECRET: process.env.INTEGRATIONS_SECRET,
   APP_URL: process.env.APP_URL,
+  QB_PUSH_DISABLED: process.env.QB_PUSH_DISABLED,
   // the same Supabase project the app uses; the service key is server-only
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,

@@ -288,6 +288,15 @@ Development keys only connect to Intuit's **sandbox** test companies. To connect
 app to pass its production review (privacy policy, terms of service and a short security questionnaire), after which you switch to the *Production*
 keys and set `INTUIT_ENV=production`. Check Intuit's current requirements on developer.intuit.com when you get there.
 
+### Sending invoices and payments to QuickBooks
+
+The **QuickBooks sync** module (`src/modules/qbsync`, server code in `api/_lib/qbPush.ts`, `api/qb/push.ts`, `api/qb/setup.ts`; migration
+`20261121000000_qb_sync.sql`) sends HandyOS invoices and payments into the connected QuickBooks: customer, lines, sales tax, and payments linked to their
+invoice. It starts **off**. The owner chooses the income account, an optional deposit account and sales tax code, and a start date (default January 1,
+2027, so old history is never sent); each item is sent once. Off switches: untick "Sending is on", set `QB_PUSH_DISABLED=1` on the server, or remove
+`qbsyncModule` from `src/modules.ts`. Refunds and voids are not synced. Needs the same Intuit production approval as pulling the real books.
+Reviewer notes: [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md).
+
 ### Revenue history
 
 **Revenue** (owner and admins) shows revenue by day, week (Monday to Sunday), month, quarter, year, job or customer. Past years are loaded from invoice or

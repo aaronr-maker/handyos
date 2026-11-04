@@ -47,3 +47,5 @@ export type { JobCostResult } from './calc';
 export { costJob, expectedCost, loadCostingData } from './services/jobCostService';
 export { jobEconomics } from './services/economicsService';
 export type { JobEconomics } from './services/economicsService';
+export { quickbooksLink } from './services/integrationService';
+export type { IntegrationLink } from './services/integrationService';
