@@ -36,9 +36,9 @@ export default function MyTime() {
   const job = entry ? data.allJobs.find((j) => j.id === entry.job_id) : null;
   const arrived = arrival.jobId ? data.jobs.find((j) => j.id === arrival.jobId) : null;
 
-  const run = async (p: Promise<unknown>) => {
+  const run = async (p: Promise<Parameters<typeof resultError>[0]>) => {
     setNote(null);
-    const err = resultError(p as never);
+    const err = resultError(await p);
     if (err) setNote({ ok: false, text: err });
     reload();
   };
