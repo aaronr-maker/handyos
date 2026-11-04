@@ -156,6 +156,9 @@ export default function JobDetail() {
       {!done && (
         <div className="card">
           <h2>Time clock</h2>
+          <p className="muted small-note">
+            <Link to={`/time/job/${job.id}`}>Task times, overhead and each tech's punches</Link>
+          </p>
           {onThisJob ? (
             <>
               <p>

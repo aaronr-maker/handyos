@@ -288,6 +288,22 @@ Development keys only connect to Intuit's **sandbox** test companies. To connect
 app to pass its production review (privacy policy, terms of service and a short security questionnaire), after which you switch to the *Production*
 keys and set `INTUIT_ENV=production`. Check Intuit's current requirements on developer.intuit.com when you get there.
 
+### Time tracking: the day, the job and the task
+
+The **timetrack** module (`src/modules/timetrack`, migration `20261123000000_time_tracking.sql`) tracks time at three levels. The **day clock** (shift) is what
+the company pays for and, with the job time, will give each tech's utilization (drive and shop time is company overhead). The **job clock** is the existing
+one in the jobs module. **Task timers** measure one task of the job (made from the estimate's service lines, or added by hand); only one runs per person, and it
+stops with the job time. A job's time is each tech's direct task time plus **overhead** (customer, cleanup, time between tasks), and the overhead is shared evenly
+across the tasks that tech timed (or all the job's tasks when they timed none), then every tech is added together (`splitJobTime`). Each tech edits only their own
+punches (others show greyed out); office, admins and owners can correct anyone's. Every edit keeps the old value, who changed it and why ("edited by AB").
+Cross-checks flag forgotten clocks, overlaps, timers outside the job and multi-task jobs with no task timing (`checkJobTime`).
+
+**Arrival reminders (geofencing).** A tech agrees on the My time screen, and jobs can have a location (`job_sites`). While the web app is open it offers to start job time on
+arrival. Reminders with the app closed need the native phone app (Capacitor) with a background-location plugin and the tech's permission on their phone: that
+part is not built yet, and the check lives in one place (`useArrival`) so the native version can replace it. Check your state's rules on employee location tracking.
+
+**Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
+
 ### Sending invoices and payments to QuickBooks
 
 The **QuickBooks sync** module (`src/modules/qbsync`, server code in `api/_lib/qbPush.ts`, `api/qb/push.ts`, `api/qb/setup.ts`; migration

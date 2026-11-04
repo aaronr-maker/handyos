@@ -10,6 +10,7 @@ export const MODULE_IDS = [
   'cashplan',
   'revenue',
   'qbsync',
+  'timetrack',
   'messaging',
 ] as const;
 

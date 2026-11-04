@@ -25,6 +25,12 @@ export interface EventCatalog {
   /** A tech clocked in/out of a job. Job costing turns these into labor cost. */
   'timeclock.in': { jobId: Id; userId: Id };
   'timeclock.out': { jobId: Id; userId: Id; minutes: number };
+  /** The day clock, and the task timer inside a job. */
+  'shift.in': { userId: Id };
+  'shift.out': { userId: Id; minutes: number };
+  'task.started': { jobId: Id; taskId: Id; userId: Id };
+  'task.stopped': { jobId: Id; taskId: Id; userId: Id };
+  'time.edited': { entity: 'job' | 'task' | 'shift'; entityId: Id; userId: Id; editedBy: Id };
   'invoice.created': { invoiceId: Id; customerId: Id; totalCents: Cents };
   'invoice.sent': { invoiceId: Id; customerId: Id };
   'invoice.overdue': { invoiceId: Id; customerId: Id; amountDueCents: Cents; daysOverdue: number };

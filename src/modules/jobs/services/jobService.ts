@@ -113,3 +113,12 @@ export async function clockOut(companyId: Id, userId: Id, note: string | null): 
   const entry = await timeEntries.update(companyId, open.id, { clock_out: now.toISOString(), note });
   return { entry, minutes: Math.max(0, Math.round((now.getTime() - Date.parse(open.clock_in)) / 60000)) };
 }
+
+export const getTimeEntry = (companyId: Id, id: Id) => timeEntries.get(companyId, id);
+
+/** Changes the times of one stretch of work (the time tracking module records who changed what and why). */
+export async function updateTimeEntry(companyId: Id, id: Id, patch: { clock_in?: string; clock_out?: string | null }): Promise<TimeEntry> {
+  const entry = await timeEntries.get(companyId, id);
+  if (!entry) throw new Error('That time entry was not found');
+  return timeEntries.update(companyId, id, patch);
+}
