@@ -65,3 +65,29 @@ describe('cash plan', () => {
     expect(total.sales_tax).toBe(10_000);
   });
 });
+
+import { createRuntime } from '../src/core';
+import { cashplanModule, listMoves, moveStatus } from '../src/modules/cashplan';
+
+describe('ticking off the week\'s transfers', () => {
+  it('remembers a tick with its amount, replaces it when ticked again, removes it when unticked, and only owners and admins tick', async () => {
+    const rt = createRuntime();
+    cashplanModule.register({ actions: rt.actions, events: rt.events });
+    const as = (role: 'owner' | 'office') => ({ companyId: 'coMoves', actor: { kind: 'user' as const, id: `u-${role}` }, role });
+    const tick = { week_start: '2027-01-04', bucket: 'wages', amount_cents: 120_000, moved: true };
+    expect((await rt.actions.executeByName('cashplan.set_moved', tick, as('office'))).status).toBe('denied');
+    expect((await rt.actions.executeByName('cashplan.set_moved', tick, as('owner'))).status).toBe('ok');
+    expect(await listMoves('coMoves')).toMatchObject([{ week_start: '2027-01-04', bucket: 'wages', amount_cents: 120_000 }]);
+    await rt.actions.executeByName('cashplan.set_moved', { ...tick, amount_cents: 150_000 }, as('owner'));
+    expect(await listMoves('coMoves')).toHaveLength(1); // replaced, not doubled
+    expect((await listMoves('coMoves'))[0].amount_cents).toBe(150_000);
+    await rt.actions.executeByName('cashplan.set_moved', { ...tick, moved: false }, as('owner'));
+    expect(await listMoves('coMoves')).toHaveLength(0);
+  });
+
+  it('says whether a transfer was made and whether the plan changed afterward', () => {
+    expect(moveStatus(100, undefined)).toEqual({ state: 'not_moved' });
+    expect(moveStatus(100, { amount_cents: 100, moved_on: '2027-01-10' })).toEqual({ state: 'moved', moved_on: '2027-01-10' });
+    expect(moveStatus(130, { amount_cents: 100, moved_on: '2027-01-10' })).toEqual({ state: 'changed', moved_on: '2027-01-10', moved_cents: 100 });
+  });
+});
