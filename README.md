@@ -359,7 +359,10 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **Customer messages** (`send_message`): Handy drafts a text or email (with `{first_name}` filled in by the app, never an ID), and a card shows the person where it goes and the words, which they can
   edit; only their click saves it, and it is saved **by the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
   (`messages`, migration `20261127000000_messages.sql`) with a status: `queued` until a sending service is connected, then `sent` or `failed`. Nothing is shown as sent that was not delivered, and Handy is
-  told so. The Messages page lists them. **No email or text provider is connected yet**, so messages wait as queued.
+  told so. The Messages page lists them, with a **Send** button on each waiting message. Sending (`api/messages/send.ts`, `api/_lib/messageSend.ts`) happens only when a person taps it: the server reads
+  the message and the customer's phone or email from the database itself, delivers it by email (Resend: `RESEND_API_KEY`, `RESEND_FROM`) or text (Twilio: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_FROM`), and records `sent` (with the service's reference) or `failed` (with the reason). `MESSAGES_DISABLED=1` stops all sending. Until those accounts are set up, Send says so and the message stays
+  waiting. For US texts, Twilio requires registering the business (A2P 10DLC) before messages are delivered reliably; for email, the sending domain must be verified with the email service.
 - **Voice** (`voice.ts`, `api/handy/voice.ts`): the mic button starts a live call with OpenAI's voice model. The server only hands out a short-lived pass (`/v1/realtime/client_secrets`); the audio
   goes straight from the phone to OpenAI and never through our server. Handy's look-ups and changes during a call use the same tools, permissions and "Do it" card as the text chat,
   and the call's words are written into the conversation. In a call customers are "Customer 1", "Property 2" (a spoken ID would be unusable) and mapped back on screen; **what a person says out
