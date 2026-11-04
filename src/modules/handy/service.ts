@@ -1,6 +1,6 @@
 import { createRepo, type BaseRecord, type Id } from '@/core';
-import { listAllContacts, listAllProperties, listCustomers } from '@/modules/customers';
-import type { KnownDetail, MaskMap } from './mask';
+import { customerLabel, listAllContacts, listAllProperties, listCustomers } from '@/modules/customers';
+import type { KnownEntity, MaskMap } from './mask';
 
 export interface HandyThread extends BaseRecord {
   user_id: Id;
@@ -29,14 +29,13 @@ export const deleteThread = async (companyId: Id, threadId: Id) => {
 export const listMessages = async (companyId: Id, threadId: Id) => (await messages.list(companyId, { where: { thread_id: threadId } })).sort((a, b) => a.created_at.localeCompare(b.created_at));
 export const addMessage = (companyId: Id, threadId: Id, userId: Id, role: HandyMessage['role'], content: string, data: Record<string, unknown> = {}) => messages.insert(companyId, { thread_id: threadId, user_id: userId, role, content, data });
 
-/** The names and addresses of the company's customers, so they can be swapped for placeholders before anything is sent. */
-export async function knownDetails(companyId: Id): Promise<KnownDetail[]> {
+/** The company's customers, contacts and properties, so their names and addresses can be sent as IDs. */
+export async function knownEntities(companyId: Id): Promise<KnownEntity[]> {
   const [customers, contacts, properties] = await Promise.all([listCustomers(companyId), listAllContacts(companyId), listAllProperties(companyId)]);
-  const out: KnownDetail[] = [];
-  for (const c of customers) {
-    for (const v of [c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) if (v) out.push({ kind: 'Customer', value: v });
-  }
-  for (const c of contacts) for (const v of [c.name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) if (v) out.push({ kind: 'Contact', value: v });
-  for (const p of properties) if (p.address_line1) out.push({ kind: 'Address', value: p.address_line1 });
-  return out;
+  const clean = (list: (string | null | undefined)[]) => [...new Set(list.map((v) => (v ?? '').trim()).filter(Boolean))];
+  return [
+    ...customers.map((c) => ({ kind: 'customer' as const, id: c.id, label: customerLabel(c), aliases: clean([c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) })),
+    ...contacts.map((c) => ({ kind: 'contact' as const, id: c.id, label: c.name, aliases: clean([c.name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) })),
+    ...properties.map((p) => ({ kind: 'property' as const, id: p.id, label: p.address_line1, aliases: clean([p.address_line1]) })),
+  ];
 }

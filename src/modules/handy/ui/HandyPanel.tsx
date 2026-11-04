@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSession } from '@/core';
 import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type WireMessage, type WireTool } from '../chat';
 import { createMasker } from '../mask';
-import { addMessage, createThread, knownDetails, listMessages, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
+import { addMessage, createThread, knownEntities, listMessages, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
 import { setHandyOpen, useHandyOpen } from '../store';
 import { describeAction, HANDY_TOOLS, isActionTool, runActionTool, runReadTool, type ToolContext } from '../tools';
 
@@ -36,7 +36,7 @@ export function HandyOverlay() {
     setError(null);
     setInput('');
     try {
-      const [team, known] = await Promise.all([listTeamMembers(), knownDetails(companyId)]);
+      const [team, known] = await Promise.all([listTeamMembers(), knownEntities(companyId)]);
       const me = team.find((m) => m.id === user.id);
       let t = current ?? (await createThread(companyId, user.id, said));
       if (!current) setThread(t);

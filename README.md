@@ -337,8 +337,10 @@ Handy is just another caller of the action registry, so he can do anything a per
 "Talk it over with Handy" button on each to-do item). How it works:
 - The browser runs Handy's look-ups and actions *as the signed-in person* (so database rules and the action rules above apply) and keeps the conversation in the company's own
   tables (`handy_threads`, `handy_messages`). The server function only holds the OpenAI key and passes the conversation on.
-- **Masking** (`mask.ts`): before anything is sent, customer names, contacts and street addresses the company knows about become "Customer 1", "Address 2", and emails, phone numbers and
-  long numbers become "Email 1", "Phone 1", "Number 1" (kept per conversation), then are put back for the screen. Tools return only an approved set of fields.
+- **Masking** (`mask.ts`): people in the company use real names everywhere; the IDs exist only on the way out. Before anything is sent, each customer, contact and property the company
+  knows about becomes its own ID that is the same in every conversation (`C-4F2A1C3E`, `K-…` for a contact, `P-…` for a property: the start of the record's own id), so a job can be tied to its
+  customer, owner, manager and address without a name leaving. Emails, phone numbers and long numbers become "Email 1", "Phone 1", "Number 1" (kept per conversation). All of it is put
+  back into real names and addresses for the screen. Tools return only an approved set of fields.
 - **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
 - OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
 - **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.

@@ -1,5 +1,6 @@
 import { assignJobAction } from '@/modules/jobs';
 import type { Id } from '@/core';
+import { customerLabel, listAllProperties, listCustomers } from '@/modules/customers';
 import { closeAlertAction, listAlerts } from '@/modules/desk';
 import { efficiencyFor, loadTimeFacts, upcomingJobsFor, weekReport } from '@/modules/timesheets';
 import type { WireTool } from './chat';
@@ -38,6 +39,20 @@ export function findPerson(team: ToolContext['team'], said: unknown): ToolContex
   throw new Error(part.length > 1 ? `More than one team member matches "${said}": ${part.map(nameOf).join(', ')}.` : `No team member matches "${said}".`);
 }
 
+/** Who and where each job is for, so the answer ties the job to its customer, the owner it is labeled as owed by, and the property. (Real names and addresses: they are sent as IDs.) */
+async function jobParties(companyId: Id) {
+  const [customers, properties] = await Promise.all([listCustomers(companyId), listAllProperties(companyId)]);
+  const label = (id: Id | null) => {
+    const c = customers.find((x) => x.id === id);
+    return c ? customerLabel(c) : null;
+  };
+  return (j: { customer_id: Id; owed_by_customer_id: Id | null; property_id: Id | null }) => ({
+    billed_to: label(j.customer_id),
+    owed_by: label(j.owed_by_customer_id),
+    property: properties.find((p) => p.id === j.property_id)?.address_line1 ?? null,
+  });
+}
+
 const mins = (m: number) => `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -54,10 +69,13 @@ export async function runReadTool(ctx: ToolContext, name: string, args: Record<s
   }
   if (name === 'upcoming_jobs') {
     const who = args.person ? [findPerson(ctx.team, args.person)] : ctx.team;
-    return who.flatMap((p) => upcomingJobsFor(facts, p.id).map((j) => ({ job_id: j.id, title: j.title, person: nameOf(p), starts: when(j.scheduled_start), ends: when(j.scheduled_end), efficiency_rate: efficiencyFor(facts, p.id, now).rate })));
+    const parties = await jobParties(ctx.companyId);
+    return who.flatMap((p) => upcomingJobsFor(facts, p.id).map((j) => ({ job_id: j.id, job_number: j.job_number, title: j.title, ...parties(j), person: nameOf(p), starts: when(j.scheduled_start), ends: when(j.scheduled_end), efficiency_rate: efficiencyFor(facts, p.id, now).rate })));
   }
-  if (name === 'unassigned_jobs')
-    return facts.jobs.filter((j) => j.status === 'scheduled' && j.scheduled_start && j.scheduled_end && Date.parse(j.scheduled_end) > now && !facts.assignments.some((a) => a.job_id === j.id)).map((j) => ({ job_id: j.id, title: j.title, starts: when(j.scheduled_start!), ends: when(j.scheduled_end!) }));
+  if (name === 'unassigned_jobs') {
+    const parties = await jobParties(ctx.companyId);
+    return facts.jobs.filter((j) => j.status === 'scheduled' && j.scheduled_start && j.scheduled_end && Date.parse(j.scheduled_end) > now && !facts.assignments.some((a) => a.job_id === j.id)).map((j) => ({ job_id: j.id, job_number: j.job_number, title: j.title, ...parties(j), starts: when(j.scheduled_start!), ends: when(j.scheduled_end!) }));
+  }
   throw new Error(`I don't have a tool called ${name}.`);
 }
 
