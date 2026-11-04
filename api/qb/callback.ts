@@ -16,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.redirect(302, redirect);
   } catch (err) {
     console.error('QuickBooks callback error', err instanceof Error ? err.message : err);
-    res.status(503).send('QuickBooks is not set up on the server yet.');
+    // never answer this address with a page: it carries the sign-in code in its web address, so always send the person on
+    res.redirect(302, '/job-costing/rate?qb=error&reason=server');
   }
 }
