@@ -324,6 +324,17 @@ invoice. It starts **off**. The owner chooses the income account, an optional de
 `qbsyncModule` from `src/modules.ts`. Refunds and voids are not synced. Needs the same Intuit production approval as pulling the real books.
 Reviewer notes: [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md).
 
+### Handy (the AI assistant): the rules he works under
+
+Handy is just another caller of the action registry, so he can do anything a person can do in the app, and nothing more. Three rules are enforced in `src/core/actions`:
+1. **He acts for a person.** A Handy call carries `onBehalfOf` (who asked, and their role); the action's `roles` are checked against that person's role, and the audit trail
+   names both (`handy/for:<user id>`).
+2. **Each action has a Handy level** (`handy` on `defineAction`): `auto` (he just does it: low-risk office changes only, never anything sent to a customer or about money
+   or pay), `ask` (the default: his request waits in the approval queue for an owner or admin) or `never` (a person's own clocks and consent). Anything not marked asks first.
+3. **Customer-facing actions always ask**, and the plan is for Handy to draft the message, show it, and send only after a person says it looks good.
+
+Not built yet: the chat and voice screens, the floating Handy button and the connection to an AI provider (see the notes on data going to the provider).
+
 ### Revenue history
 
 **Revenue** (owner and admins) shows revenue by day, week (Monday to Sunday), month, quarter, year, job or customer. Past years are loaded from invoice or

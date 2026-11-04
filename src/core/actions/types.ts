@@ -20,6 +20,9 @@ export interface ActionContext {
   events: EventBus;
 }
 
+/** How far Handy (the AI assistant) may go with an action: do it, do it once a human approves, or never. */
+export type HandyLevel = 'auto' | 'ask' | 'never';
+
 export interface ActionDefinition<S extends z.ZodType = z.ZodType, O = unknown> {
   /** Unique, `module.verb_noun`, e.g. `estimates.create`. */
   name: string;
@@ -38,6 +41,12 @@ export interface ActionDefinition<S extends z.ZodType = z.ZodType, O = unknown> 
    * Can be a function to decide per call (e.g. only when an AI agent is the actor).
    */
   requiresApproval: boolean | ((input: z.output<S>, ctx: ActionContext) => boolean);
+  /**
+   * What Handy may do with this action. Leave unset for 'ask': every Handy request waits for a human to approve it.
+   * Use 'auto' only for low-risk changes inside the company (never anything sent to a customer, or about money or pay),
+   * and 'never' for things Handy must not do at all.
+   */
+  handy?: HandyLevel;
   /** Sample input, used by the System screen and by agent tool descriptions. */
   example?: z.input<S>;
   handler(input: z.output<S>, ctx: ActionContext): Promise<O>;
@@ -76,6 +85,8 @@ export interface ApprovalRequest {
   action: string;
   input: unknown;
   requested_by: Actor;
+  /** The person Handy was acting for (their role limits what Handy may ask for). */
+  on_behalf_of?: { userId: Id; role: UserRole };
   status: 'pending' | 'approved' | 'rejected';
   decided_by?: Actor;
   created_at: string;
