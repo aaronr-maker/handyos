@@ -1,25 +1,12 @@
 import { listTeamMembers, useAsync, useSession } from '@/core';
-import type { Kpi, Status } from '../kpis';
+import type { Kpi } from '../kpis';
 import { loadDashboard } from '../service';
+import { COLORS } from './palette';
+import { Bar, KpiTile, Pipeline } from './Visuals';
 
-const COLORS: Record<Status, string> = { good: '#15803d', watch: '#b45309', bad: '#dc2626', unknown: '#9ca3af' };
-const WORDS: Record<Status, string> = { good: 'On target', watch: 'Watch', bad: 'Needs work', unknown: 'Not enough data' };
 const AREAS: Kpi['area'][] = ['Sales', 'Production', 'Profit', 'Cash'];
 const pct = (v: number | null) => (v === null ? '' : `${Math.round(v * 100)}%`);
 const money = (cents: number) => '$' + Math.round(cents / 100).toLocaleString('en-US');
-
-/** A small arrow comparing this month's figure with the month before. */
-function Trend({ k }: { k: Kpi }) {
-  if (k.raw === null || k.previous === null || k.previous === 0) return null;
-  const change = (k.raw - k.previous) / Math.abs(k.previous);
-  if (Math.abs(change) < 0.02) return <span className="muted small-note"> → same as the month before</span>;
-  return (
-    <span className="muted small-note">
-      {' '}
-      {change > 0 ? '▲' : '▼'} {Math.round(Math.abs(change) * 100)}% vs the month before
-    </span>
-  );
-}
 
 /** Your numbers on one page, and the one thing holding the business back right now. */
 export default function DashboardScreen() {
@@ -44,6 +31,7 @@ export default function DashboardScreen() {
 
       <div className="card" style={{ borderColor: tone, borderWidth: 2 }}>
         <p className="muted small-note">YOUR CONSTRAINT RIGHT NOW</p>
+        <Pipeline constraint={c} />
         <h2 style={{ color: tone }}>{c.label}</h2>
         {c.why.map((w) => (
           <p key={w}>{w}</p>
@@ -58,26 +46,15 @@ export default function DashboardScreen() {
       </div>
 
       {AREAS.map((area) => (
-        <div key={area} className="card">
+        <div key={area}>
           <h2>{area}</h2>
-          {dash.kpis
-            .filter((k) => k.area === area)
-            .map((k) => (
-              <div key={k.id} className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                <span>
-                  <strong>{k.label}</strong>
-                  <span className="muted small-note" style={{ display: 'block' }}>
-                    Target: {k.target}
-                    {k.note ? ` · ${k.note}` : ''}
-                  </span>
-                </span>
-                <span style={{ textAlign: 'right' }}>
-                  <strong style={{ fontSize: '1.2rem' }}>{k.value ?? '—'}</strong>
-                  <Trend k={k} />
-                  <span style={{ display: 'block', color: COLORS[k.status], fontWeight: 600, fontSize: '0.8rem' }}>● {WORDS[k.status]}</span>
-                </span>
-              </div>
-            ))}
+          <div className="kpi-grid">
+            {dash.kpis
+              .filter((k) => k.area === area)
+              .map((k) => (
+                <KpiTile key={k.id} k={k} />
+              ))}
+          </div>
         </div>
       ))}
 
@@ -99,7 +76,7 @@ export default function DashboardScreen() {
               {dash.sellers.map((s) => (
                 <tr key={s.user_id}>
                   <td>{nameOf(s.user_id)}</td>
-                  <td>{pct(s.rate)}</td>
+                  <td>{s.rate === null ? '' : <Bar value={s.rate} max={1} label={pct(s.rate)} />}</td>
                   <td>
                     {s.approved} of {s.decided}
                   </td>
@@ -128,8 +105,8 @@ export default function DashboardScreen() {
               {dash.techs.map((t) => (
                 <tr key={t.user_id}>
                   <td>{nameOf(t.user_id)}</td>
-                  <td>{t.hours}</td>
-                  <td>{t.efficiency === null ? '' : t.efficiency.toFixed(2)}</td>
+                  <td><Bar value={t.hours} max={Math.max(...dash.techs.map((x) => x.hours), 1)} label={String(t.hours)} /></td>
+                  <td>{t.efficiency === null ? '' : <Bar value={Math.min(t.efficiency, 2)} max={2} color={t.efficiency <= 1.1 ? '#15803d' : t.efficiency <= 1.4 ? '#b45309' : '#dc2626'} label={t.efficiency.toFixed(2)} />}</td>
                 </tr>
               ))}
             </tbody>

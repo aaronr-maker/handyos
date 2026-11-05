@@ -305,3 +305,12 @@ details summary { cursor: pointer; font-weight: 600; }
 .wk-job .muted { font-size: 0.68rem; }
 .wk-trayrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .wk-job.wk-tray { position: static; width: 170px; padding: 6px 8px; background: #fef9c3; border-color: #fde047; }
+
+/* the visual dashboard */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi-tile { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.pipeline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 10px; }
+.pipe-wrap { display: flex; align-items: center; gap: 4px; }
+.pipe-stage { padding: 6px 12px; border-radius: 999px; background: #f1f5f9; border: 2px solid #e2e8f0; font-weight: 600; font-size: 0.85rem; }
+.pipe-hit { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+.pipe-arrow { color: #94a3b8; }
