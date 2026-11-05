@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { bearer, realDeps, respond } from '../_lib/handler.js';
-import { sendMessage, supabaseMessageStore, type SendEnv } from '../_lib/messageSend.js';
+import { sendMessageSafely, supabaseMessageStore, type SendEnv } from '../_lib/messageSend.js';
 import { serverEnv } from '../_lib/store.js';
 
 /** POST { message_id }: delivers one saved customer message by email or text, when a person asks. */
@@ -12,6 +12,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const e = process.env;
     const sending: SendEnv = { MESSAGES_DISABLED: e.MESSAGES_DISABLED, RESEND_API_KEY: e.RESEND_API_KEY, RESEND_FROM: e.RESEND_FROM, TWILIO_ACCOUNT_SID: e.TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN: e.TWILIO_AUTH_TOKEN, TWILIO_FROM: e.TWILIO_FROM };
     const env = { ...deps.env, ...sending };
-    return sendMessage({ ...deps, env }, supabaseMessageStore(serverEnv()), bearer(req), String(body.message_id ?? ''));
+    return sendMessageSafely({ ...deps, env }, supabaseMessageStore(serverEnv()), bearer(req), String(body.message_id ?? ''));
   });
 }
