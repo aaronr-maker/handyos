@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSession } from '@/core';
-import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
+import { createRepeatGuard, MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
 import { createMasker, createSpokenMasker, type Masker } from '../mask';
 import { createSpokenConfirm, type SpokenConfirm } from '../spoken';
 import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceStatus } from '../voice';
@@ -31,6 +31,7 @@ export function HandyOverlay() {
   const endRef = useRef<HTMLDivElement>(null);
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const typed = useRef<Usage>(noUsage());
+  const repeats = useRef(createRepeatGuard());
   const callUsage = useRef<{ used: Usage; startedAt: number }>({ used: noUsage(), startedAt: 0 });
   const call = useRef<{ close(): void } | null>(null);
   const sendRef = useRef<(text: string, current: HandyThread | null) => Promise<void>>(async () => undefined);
@@ -46,6 +47,8 @@ export function HandyOverlay() {
     return {
       masker,
       runRead: (name, args, refs) => runReadTool(ctx, name, args, refs),
+      isDuplicate: (name, args) => repeats.current.isDuplicate?.(name, args) ?? null,
+      recordDone: (name, args) => repeats.current.recordDone?.(name, args),
       isAction: isActionTool,
       confirm: async (name, args, refs) => {
         const d = await describeAction(ctx, name, args, refs);

@@ -97,3 +97,20 @@ describe('Handy drafting a customer message', () => {
     expect(await listMessages(co, w.pat.id)).toHaveLength(0);
   });
 });
+
+import { createRepeatGuard } from '../src/modules/handy/chat';
+
+describe('not doing the same thing twice', () => {
+  it('refuses an identical action within a few minutes, allows a different one, and allows the same one later', () => {
+    let t = 0;
+    const g = createRepeatGuard(() => t, 180_000);
+    const a = { customer: 'C-1', channel: 'email', body: 'Test' };
+    expect(g.isDuplicate!('send_message', a)).toBeNull();
+    g.recordDone!('send_message', a);
+    expect(g.isDuplicate!('send_message', { body: 'Test', channel: 'email', customer: 'C-1' })).toMatch(/already done a moment ago/); // key order does not matter
+    expect(g.isDuplicate!('send_message', { ...a, body: 'Different' })).toBeNull();
+    expect(g.isDuplicate!('update_customer', a)).toBeNull();
+    t = 181_000;
+    expect(g.isDuplicate!('send_message', a)).toBeNull();
+  });
+});
