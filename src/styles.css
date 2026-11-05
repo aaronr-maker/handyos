@@ -273,3 +273,11 @@ details summary { cursor: pointer; font-weight: 600; }
 .handy-foot { padding: 0 14px 10px; margin: 0; }
 @media (min-width: 900px) { .handy-fab, .handy-panel { bottom: 16px; } }
 .handy-panel form button svg { width: 20px; height: 20px; }
+
+/* the call tree builder */
+.call-canvas { height: 560px; border: 1px solid var(--border); border-radius: var(--radius); background: #f8fafc; }
+.pb { background: #fff; border: 2px solid #cbd5e1; border-radius: 10px; min-width: 190px; max-width: 240px; font-size: 0.85rem; box-shadow: 0 1px 3px rgb(15 23 42 / 0.1); }
+.pb-selected { border-color: var(--brand); }
+.pb-title { padding: 6px 10px; font-weight: 700; background: #f1f5f9; border-radius: 8px 8px 0 0; }
+.pb-sum { padding: 6px 10px; color: #475569; }
+.pb-port { position: relative; padding: 4px 22px 4px 10px; text-align: right; border-top: 1px solid #f1f5f9; }

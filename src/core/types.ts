@@ -15,6 +15,7 @@ export const MODULE_IDS = [
   'desk',
   'handy',
   'dashboard',
+  'phone',
   'messaging',
 ] as const;
 
