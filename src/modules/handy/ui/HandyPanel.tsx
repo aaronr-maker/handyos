@@ -121,6 +121,8 @@ export function HandyOverlay() {
             if (v.kind === 'yes') return true;
             if (v.kind === 'no') return false;
             if (v.kind === 'feedback') return { feedback: v.said };
+            // the spoken yes could not be counted: say so out loud, and the card on screen waits for a tap
+            send({ type: 'response.create', response: { instructions: 'Say only: "I could not be sure I heard your yes, so please tap the green button on the screen." Do not say anything was done or sent.' } });
             return base.confirm(name, args, refs);
           },
         },
