@@ -119,3 +119,31 @@ describe('the voice pass on the server', () => {
     await expect(handyVoiceSession(world({ status: 400 }).deps, 'tok', body)).rejects.toThrow(/nope/);
   });
 });
+
+
+describe('Handy talking while a change is still waiting', () => {
+  it('is stopped from answering, because nothing has been done yet, and is allowed to speak once the result is in', async () => {
+    const sent: { type?: string }[] = [];
+    let release: (v: boolean) => void = () => undefined;
+    const handle = createVoiceHandler({
+      turn: { masker: createMasker([]), system: '', tools: [], callModel: async () => ({ role: 'assistant', content: null }), runRead: async () => ({}), isAction: () => true, confirm: () => new Promise<boolean>((r) => (release = r)), runAction: async () => 'Sent the email.' },
+      send: (e) => sent.push(e as { type?: string }),
+      onUser: () => undefined,
+      onHandy: () => undefined,
+      onAction: () => undefined,
+      onStatus: () => undefined,
+      onError: () => undefined,
+    });
+    const call = handle({ type: 'response.function_call_arguments.done', call_id: 'c1', name: 'send_message', arguments: '{}' });
+    await Promise.resolve();
+    await handle({ type: 'response.created' }); // Handy begins to say "it's sent" while the confirmation is still open
+    expect(sent.map((e) => e.type)).toEqual(['response.cancel', 'output_audio_buffer.clear']);
+    handle.say('Please tap the button.'); // the app's own prompt is allowed through
+    await handle({ type: 'response.created' });
+    expect(sent.map((e) => e.type)).toEqual(['response.cancel', 'output_audio_buffer.clear', 'response.create']);
+    release(true);
+    await call;
+    await handle({ type: 'response.created' }); // after the result is in, he can speak freely
+    expect(sent.map((e) => e.type)).toEqual(['response.cancel', 'output_audio_buffer.clear', 'response.create', 'conversation.item.create', 'response.create']);
+  });
+});

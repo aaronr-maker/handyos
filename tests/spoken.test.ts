@@ -5,11 +5,11 @@ import { createSpokenConfirm, isNo, isYes, spokenCovers } from '../src/modules/h
 
 describe('what counts as a spoken yes or no', () => {
   it('accepts short, clear yeses', () => {
-    for (const t of ['Yes', 'yes.', 'Yeah', 'Yep, do it', "That's right", 'Yes please', 'Go ahead', 'Sounds good', 'Okay', 'Correct', 'Yes, save it', 'Absolutely']) expect(isYes(t), t).toBe(true);
+    for (const t of ['Yes', 'yes.', 'Yeah', 'Yep, do it', "That's right", 'Yes please', 'Go ahead', 'Sounds good', 'Okay', 'Correct', 'Yes, save it', 'Absolutely', 'Send it', 'Send it.', 'Send', 'Do it', 'Please send it', 'I said yes, send it', 'Yes, send the email', 'Save it']) expect(isYes(t), t).toBe(true);
   });
 
   it('does not accept anything with a no, a change, a question, or a long answer', () => {
-    for (const t of ['No', 'Yes but change the phone number', 'Actually make it Thursday', 'Yeah wait', "Don't", 'What was that again', 'Yes and also text him', 'Maybe', 'Hmm', '', 'Yes yes yes yes yes yes yes', 'Is that right', 'Not yet, yes later']) expect(isYes(t), t).toBe(false);
+    for (const t of ['No', 'Yes but change the phone number', 'Actually make it Thursday', 'Yeah wait', "Don't", "Don't send it", 'What was that again', 'Yes and also text him', 'Maybe', 'Hmm', '', 'Test Customer', 'Is that right', 'Not yet, yes later', 'Send it to Sam instead']) expect(isYes(t), t).toBe(false);
   });
 
   it('recognizes a clear no, and not a yes as a no', () => {
@@ -20,19 +20,20 @@ describe('what counts as a spoken yes or no', () => {
 
 describe('checking that Handy read back what he is about to save', () => {
   it('needs every new value to appear in what he said, however a transcript writes it', () => {
-    const args = { customer: 'C-1', email: 'aaronr@thathandymanvan.com', phone: '512-555-0147', first_name: 'Pat' };
+    const args = { customer: 'Pat Miller', email: 'aaronr@thathandymanvan.com', phone: '512-555-0147', first_name: 'Pat' };
     expect(spokenCovers(args, "I'll change Pat's email to aaronr@thathandymanvan.com and the phone to 512-555-0147. Is that right?")).toBe(true);
     expect(spokenCovers(args, "I'll set Pat's email to aaronr at thathandymanvan dot com and the phone to five one two five five five zero one four seven. Is that right?")).toBe(false); // spelled-out digits are not matched: the card is the backup
     expect(spokenCovers(args, "I'll set Pat's email to aaronr at thathandymanvan dot com and the phone to 5125550147. Is that right?")).toBe(true);
     expect(spokenCovers(args, "I'll change Pat's email to aaronr@thathandymanvan.com. Is that right?")).toBe(false); // the phone was not read
     expect(spokenCovers({ email: 'a@b.com' }, "I'll change the email to someone@else.com")).toBe(false); // a different value than the one he will save
-    expect(spokenCovers({ customer: 'C-1' }, 'I will do something')).toBe(false); // nothing was read that could be checked
+    expect(spokenCovers({ customer: 'Pat Miller' }, 'I will do something')).toBe(false); // he never said who it is for
   });
 
   it('checks a message word for word, and a person by first name', () => {
-    const body = 'Hi Pat, we are running about thirty minutes late and will be there by 2:30.';
-    expect(spokenCovers({ customer: 'C-1', channel: 'sms', body }, `Here is the message: ${body} Should I save it?`)).toBe(true);
-    expect(spokenCovers({ customer: 'C-1', channel: 'sms', body }, 'Here is the message: Hi Pat, we are running a little late. Should I save it?')).toBe(false);
+    const body = 'We are running about thirty minutes late and will be there by 2:30.';
+    expect(spokenCovers({ customer: 'Pat Miller', channel: 'sms', body }, `Text to Pat: ${body} Should I send it?`)).toBe(true);
+    expect(spokenCovers({ customer: 'Pat Miller', channel: 'sms', body }, `Here is the message: ${body} Should I send it?`)).toBe(false); // the words were read, but not who they are for
+    expect(spokenCovers({ customer: 'Pat Miller', channel: 'sms', body }, 'Text to Pat: we are running a little late. Should I send it?')).toBe(false);
     expect(spokenCovers({ job_id: 'j1', person: 'Sam Lee' }, "I'll put Sam on the fence job. Is that right?")).toBe(true);
     expect(spokenCovers({ job_id: 'j1', person: 'Sam Lee' }, "I'll put Alex on the fence job. Is that right?")).toBe(false);
   });
@@ -45,7 +46,7 @@ describe('judging a tool request from the conversation', () => {
     const sc = createSpokenConfirm(() => t, async (ms) => void (t += ms));
     return { sc, tick: (ms = 10) => void (t += ms) };
   }
-  const args = { customer: 'C-1', email: 'pat.new@example.com' };
+  const args = { customer: 'Pat Miller', email: 'pat.new@example.com' };
   const readBack = "I'll change Pat's email to pat.new@example.com. Is that right?";
 
   it('accepts a yes that came after the read-back and covers what will be saved', async () => {

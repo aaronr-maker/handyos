@@ -41,9 +41,17 @@ export interface VoiceDeps {
  * Reads what the voice model reports and reacts. Events come in two spellings across versions of the service; both are handled.
  * A look-up or change Handy asks for is carried out and the result handed back, then he carries on talking.
  */
-export function createVoiceHandler(d: VoiceDeps): (event: VoiceEvent) => Promise<void> {
+export type VoiceHandler = ((event: VoiceEvent) => Promise<void>) & {
+  /** Asks the voice to say something specific right now (allowed even while a confirmation is waiting). */
+  say(instructions: string): void;
+};
+
+export function createVoiceHandler(d: VoiceDeps): VoiceHandler {
   const answered = new Set<string>();
-  return async (ev) => {
+  // While a change is waiting for the person's yes (or a tap), Handy must not be allowed to talk about it as if it were done.
+  let waiting = 0;
+  let allowNext = false;
+  const handler = async (ev: VoiceEvent) => {
     switch (ev.type) {
       case 'input_audio_buffer.speech_started':
         return d.onStatus('listening');
@@ -59,6 +67,15 @@ export function createVoiceHandler(d: VoiceDeps): (event: VoiceEvent) => Promise
       case 'response.audio_transcript.done':
         if (ev.transcript?.trim()) d.onHandy(d.turn.masker.unmask(ev.transcript.trim()));
         return;
+      case 'response.created': {
+        // Handy started to answer while a change is still waiting: stop him, since nothing has happened yet
+        if (waiting > 0 && !allowNext) {
+          d.send({ type: 'response.cancel' });
+          d.send({ type: 'output_audio_buffer.clear' });
+        }
+        allowNext = false;
+        return;
+      }
       case 'response.done':
         d.onUsage?.(fromVoiceUsage(ev.response?.usage));
         return d.onStatus('listening');
@@ -68,13 +85,25 @@ export function createVoiceHandler(d: VoiceDeps): (event: VoiceEvent) => Promise
         if (!ev.call_id || !ev.name || answered.has(ev.call_id)) return;
         answered.add(ev.call_id);
         d.onStatus('thinking');
-        const out = await executeToolCall(ev.name, ev.arguments ?? '{}', d.turn);
-        if (out.action) d.onAction(out.action);
-        d.send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: ev.call_id, output: out.result } });
-        d.send({ type: 'response.create' });
+        waiting++;
+        try {
+          const out = await executeToolCall(ev.name, ev.arguments ?? '{}', d.turn);
+          if (out.action) d.onAction(out.action);
+          d.send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: ev.call_id, output: out.result } });
+          allowNext = true;
+          d.send({ type: 'response.create' });
+        } finally {
+          waiting--;
+        }
       }
     }
   };
+  return Object.assign(handler, {
+    say(instructions: string) {
+      allowNext = true;
+      d.send({ type: 'response.create', response: { instructions } });
+    },
+  });
 }
 
 /** The settings for a call: how Handy behaves, what he can use, and that his words are written down. */
@@ -86,7 +115,7 @@ export const VOICE_RULES = `
 Sound like a warm, relaxed, friendly office manager: unhurried, with natural pauses, never robotic or salesy.
 When the person names a customer, a property or a contact, call find_customer or find_property straight away to get the ID, then carry on. Never ask the person for an ID: they do not know them.
 You are speaking out loud, so keep answers short and natural, one or two sentences, and say numbers the way a person would ("about forty-two hours").
-Before you change anything, say exactly what you are about to do, including the new values (the name, the email address, the phone number, the full words of a message), then ask "Is that right?" and stop and wait for the answer. Only after the person says yes, call the tool. If they say anything else, such as a change, do not call the tool: say the new version and ask again. A message to a customer: read the whole message aloud and ask "Should I send it?"; when they say yes it is sent right then. Never claim something is done until the tool says so; a confirmation card on screen is the backup if the app cannot be sure of the spoken yes.
+Before you change anything, say exactly what you are about to do, including WHO it is for (the customer's name) and how it goes (text or email), and the new values (the name, the email address, the phone number, the full words of a message), then ask "Is that right?" and stop and wait for the answer. Only after the person says yes, call the tool. If they say anything else, such as a change, do not call the tool: say the new version and ask again. A message to a customer: read the whole message aloud and ask "Should I send it?"; when they say yes it is sent right then. Never claim something is done until the tool says so; a confirmation card on screen is the backup if the app cannot be sure of the spoken yes.
 If you are not sure you heard a name or number right, ask again instead of guessing.`;
 
 /** Connects the microphone to the voice model and returns how to talk to it and how to hang up. Only runs in a browser. */
