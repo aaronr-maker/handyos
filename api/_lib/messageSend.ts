@@ -32,6 +32,23 @@ export interface SendEnv {
   TWILIO_FROM?: string;
 }
 
+/**
+ * Checks the sending settings for the usual pasting mistakes (extra lines, spaces, the wrong thing copied) and says which one,
+ * without showing the value. Returns null when they look right.
+ */
+export function sendSettingProblem(env: SendEnv, channel: 'sms' | 'email'): string | null {
+  const oneLine = (v: string | undefined) => !!v && v === v.trim() && !/\s/.test(v);
+  if (channel === 'email') {
+    if (!oneLine(env.RESEND_API_KEY) || !/^re_[A-Za-z0-9_]{16,}$/.test(env.RESEND_API_KEY ?? '')) return 'RESEND_API_KEY in Vercel is not just a Resend key. It must be one line that starts with re_ and nothing else (no spaces, line breaks or extra text). Create a new key in Resend, copy only the key, and paste it as the value.';
+    if (!/^[^<>@\s][^<>@]*<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>$|^[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+$/.test((env.RESEND_FROM ?? '').trim())) return 'RESEND_FROM in Vercel should look like That Handyman Van <aaronr@thathandymanvan.com> (a name, then the address in angle brackets), using your verified domain.';
+    return null;
+  }
+  if (!oneLine(env.TWILIO_ACCOUNT_SID) || !/^AC[0-9a-f]{32}$/i.test(env.TWILIO_ACCOUNT_SID ?? '')) return 'TWILIO_ACCOUNT_SID in Vercel should be one line starting with AC (copy it from the Twilio console).';
+  if (!oneLine(env.TWILIO_AUTH_TOKEN) || (env.TWILIO_AUTH_TOKEN ?? '').length < 20) return 'TWILIO_AUTH_TOKEN in Vercel should be one line, copied whole from the Twilio console.';
+  if (!/^\+[0-9]{8,15}$/.test((env.TWILIO_FROM ?? '').trim())) return 'TWILIO_FROM in Vercel should be your Twilio number written like +15125550000.';
+  return null;
+}
+
 /** Digits to the +1XXXXXXXXXX form Twilio wants (US numbers); anything else is passed through if it already starts with +. */
 export function toE164(phone: string): string | null {
   const d = phone.replace(/\D/g, '');
@@ -75,6 +92,8 @@ export async function sendMessage(
 
   if (msg.channel === 'email') {
     if (!env.RESEND_API_KEY || !env.RESEND_FROM) throw new ApiError(503, 'Email sending is not set up yet (RESEND_API_KEY and RESEND_FROM are missing on the server).');
+    const bad = sendSettingProblem(env, 'email');
+    if (bad) throw new ApiError(503, bad);
     if (!contact.email) return fail('There is no email address on file for this customer.');
     const company = await mstore.companyName(m.companyId);
     const res = await deps.fetch('https://api.resend.com/emails', {
@@ -89,6 +108,8 @@ export async function sendMessage(
   }
 
   if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_FROM) throw new ApiError(503, 'Text sending is not set up yet (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM are missing on the server).');
+  const badSms = sendSettingProblem(env, 'sms');
+  if (badSms) throw new ApiError(503, badSms);
   const to = contact.phone ? toE164(contact.phone) : null;
   if (!to) return fail(contact.phone ? 'The phone number on file does not look like a valid number.' : 'There is no phone number on file for this customer.');
   const res = await deps.fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`, {
