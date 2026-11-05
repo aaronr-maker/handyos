@@ -129,7 +129,7 @@ export async function handyVoiceSession(deps: Deps, token: string | null, body: 
         instructions,
         tools,
         tool_choice: 'auto',
-        audio: { input: { transcription: { model: 'gpt-4o-mini-transcribe' } }, output: { voice: body.voice && VOICES.includes(body.voice) ? body.voice : deps.env.HANDY_VOICE || 'alloy' } },
+        audio: { input: { transcription: { model: 'gpt-4o-mini-transcribe' } }, output: { voice: body.voice && VOICES.includes(body.voice) ? body.voice : deps.env.HANDY_VOICE || 'cedar' } },
       },
     }),
   });

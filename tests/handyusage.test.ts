@@ -53,14 +53,14 @@ describe('usage and voice choice on the server', () => {
     expect(r.usage).toEqual({ input: 120, output: 30 });
   });
 
-  it('uses the voice the person chose when it is one the service has, and the default otherwise', async () => {
+  it('speaks in cedar unless the server is set to another voice, and still accepts a voice the service has', async () => {
     const pick = async (voice?: string) => {
       const w = make({ value: 'ek_x' });
       await handyVoiceSession(w.deps, 'tok', { instructions: 'You are Handy.', tools: [], ...(voice ? { voice } : {}) });
       return ((w.bodies[0].session as { audio: { output: { voice: string } } }).audio.output.voice);
     };
     expect(await pick('marin')).toBe('marin');
-    expect(await pick('not-a-voice')).toBe('alloy');
-    expect(await pick()).toBe('alloy');
+    expect(await pick('not-a-voice')).toBe('cedar');
+    expect(await pick()).toBe('cedar');
   });
 });

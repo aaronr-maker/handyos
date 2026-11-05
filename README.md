@@ -366,8 +366,8 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **Voice** (`voice.ts`, `api/handy/voice.ts`): the mic button starts a live call with OpenAI's voice model. The server only hands out a short-lived pass (`/v1/realtime/client_secrets`); the audio
   goes straight from the phone to OpenAI and never through our server. Handy's look-ups and changes during a call use the same tools, permissions and "Do it" card as the text chat,
   and the call's words are written into the conversation. In a call customers are "Customer 1", "Property 2" (a spoken ID would be unusable) and mapped back on screen; **what a person says out
-  loud reaches OpenAI as audio, so spoken names are not masked** (the app says so during a call). A call ends by itself after 10 minutes. Optional settings: `HANDY_VOICE_MODEL` (default
-  `gpt-realtime`) and `HANDY_VOICE` (default `alloy`). The browser connection (`connectVoice`) follows OpenAI's published WebRTC flow but has not yet been tried against the live service.
+  loud reaches OpenAI as audio, so spoken names are not masked** (the app says so during a call). A call ends by itself after 10 minutes. The voice is `cedar` (set `HANDY_VOICE` on the server to change it; there is no picker). Optional settings: `HANDY_VOICE_MODEL` (default
+  `gpt-realtime`). The browser connection (`connectVoice`) follows OpenAI's published WebRTC flow but has not yet been tried against the live service.
 - Set `OPENAI_API_KEY` (and optionally `HANDY_MODEL`, default `gpt-4.1`) in Vercel. Never put the key in the repository or in a chat.
 
 ### Revenue history
