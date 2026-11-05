@@ -1,9 +1,10 @@
-import { assignJobAction } from '@/modules/jobs';
 import type { Id } from '@/core';
-import { customerLabel, listAllProperties, listCustomers } from '@/modules/customers';
+import { assignJobAction } from '@/modules/jobs';
+import { sendMessageAction } from '@/modules/messaging';
+import { customerLabel, getCustomer, listAllProperties, listCustomers } from '@/modules/customers';
 import { closeAlertAction, listAlerts } from '@/modules/desk';
 import { efficiencyFor, loadTimeFacts, upcomingJobsFor, weekReport } from '@/modules/timesheets';
-import type { WireTool } from './chat';
+import type { Refs, WireTool } from './chat';
 
 /** What a tool needs to look things up for the person Handy is working for. */
 export interface ToolContext {
@@ -22,9 +23,15 @@ export const HANDY_TOOLS: WireTool[] = [
   tool('open_alerts', 'The open items on the to-do list, with ids.'),
   tool('assign_job', 'Put a team member on a job. With replace_person, that person comes off the job first (a reassignment).', { job_id: { type: 'string' }, person, replace_person: { type: 'string', description: 'Optional: someone currently on the job to take off.' } }, ['job_id', 'person']),
   tool('close_alert', 'Mark a to-do item handled.', { alert_id: { type: 'string' }, note: { type: 'string' } }, ['alert_id']),
+  tool(
+    'send_message',
+    "Draft a text or email to a customer. The person reviews and can edit it, and decides whether to save it. Use {first_name} for the customer's first name; never put an ID in the message.",
+    { customer: { type: 'string', description: "The customer's ID (C-...) as written in the conversation." }, channel: { type: 'string', enum: ['sms', 'email'] }, body: { type: 'string' } },
+    ['customer', 'channel', 'body'],
+  ),
 ];
 
-const ACTIONS = new Set(['assign_job', 'close_alert']);
+const ACTIONS = new Set(['assign_job', 'close_alert', 'send_message']);
 export const isActionTool = (name: string) => ACTIONS.has(name);
 
 const nameOf = (m: ToolContext['team'][number]) => m.full_name || m.email || 'Team member';
@@ -79,17 +86,49 @@ export async function runReadTool(ctx: ToolContext, name: string, args: Record<s
   throw new Error(`I don't have a tool called ${name}.`);
 }
 
+/** What the confirmation card shows: a sentence, and for a message the words themselves so the person can change them. */
+export interface Described {
+  text: string;
+  edit?: { key: string; label: string; value: string };
+}
+
+type Customer = NonNullable<Awaited<ReturnType<typeof getCustomer>>>;
+
+/** The customer Handy means: by the ID he used, else by an exact name. */
+async function customerFor(ctx: ToolContext, args: Record<string, unknown>, refs: Refs): Promise<Customer> {
+  const ref = refs('customer');
+  if (ref?.kind === 'customer') {
+    const c = await getCustomer(ctx.companyId, ref.id);
+    if (c) return c;
+  }
+  const said = String(args.customer ?? '').trim().toLowerCase();
+  const all = (await listCustomers(ctx.companyId)).filter((c) => customerLabel(c).toLowerCase() === said || c.name.toLowerCase() === said);
+  if (all.length === 1) return all[0];
+  throw new Error(all.length > 1 ? 'More than one customer has that name. Use the customer ID.' : 'I could not tell which customer that is.');
+}
+
+const firstNameOf = (c: Customer) => c.first_name?.trim() || customerLabel(c).split(/\s+/)[0];
+const fill = (body: string, c: Customer) => body.replaceAll('{first_name}', firstNameOf(c));
+const where = (c: Customer, channel: string) => (channel === 'email' ? c.email : c.phone);
+
 /** A plain sentence for the confirmation card. */
-export async function describeAction(ctx: ToolContext, name: string, args: Record<string, unknown>): Promise<string> {
+export async function describeAction(ctx: ToolContext, name: string, args: Record<string, unknown>, refs: Refs): Promise<Described> {
   if (name === 'assign_job') {
     const facts = await loadTimeFacts(ctx.companyId);
     const job = facts.jobs.find((j) => j.id === args.job_id);
     const to = nameOf(findPerson(ctx.team, args.person));
     const from = args.replace_person ? nameOf(findPerson(ctx.team, args.replace_person)) : null;
-    return from ? `Move "${job?.title ?? 'this job'}" from ${from} to ${to}.` : `Put ${to} on "${job?.title ?? 'this job'}".`;
+    return { text: from ? `Move "${job?.title ?? 'this job'}" from ${from} to ${to}.` : `Put ${to} on "${job?.title ?? 'this job'}".` };
   }
-  if (name === 'close_alert') return `Mark this to-do item handled${args.note ? `: ${String(args.note)}` : ''}.`;
-  return name;
+  if (name === 'close_alert') return { text: `Mark this to-do item handled${args.note ? `: ${String(args.note)}` : ''}.` };
+  if (name === 'send_message') {
+    const c = await customerFor(ctx, args, refs);
+    const channel = args.channel === 'email' ? 'email' : 'sms';
+    const to = where(c, channel);
+    if (!to) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
+    return { text: `Save this ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)} (${to}). It will wait to go out until sending is connected.`, edit: { key: 'body', label: 'Message', value: fill(String(args.body ?? ''), c) } };
+  }
+  return { text: name };
 }
 
 /** Does what Handy asked, through the same actions a person uses (so the permission rules and the audit trail apply). */
@@ -98,6 +137,7 @@ export async function runActionTool(
   run: (action: string, input: unknown) => Promise<{ status: string; message?: string }>,
   name: string,
   args: Record<string, unknown>,
+  extra: { refs: Refs; asPerson: (action: string, input: unknown) => Promise<{ status: string; message?: string }> },
 ): Promise<string> {
   if (name === 'assign_job') {
     const facts = await loadTimeFacts(ctx.companyId);
@@ -113,6 +153,14 @@ export async function runActionTool(
   if (name === 'close_alert') {
     const result = await run(closeAlertAction.name, { alert_id: String(args.alert_id ?? ''), status: 'resolved', resolution: args.note ? String(args.note) : 'Handled with Handy' });
     return outcome(result, 'Marked the to-do item handled.');
+  }
+  if (name === 'send_message') {
+    // customer-facing words are saved by the person who approved them, not by Handy
+    const c = await customerFor(ctx, args, extra.refs);
+    const channel = args.channel === 'email' ? 'email' : 'sms';
+    if (!where(c, channel)) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
+    const result = await extra.asPerson(sendMessageAction.name, { customer_id: c.id, channel, body: fill(String(args.body ?? ''), c) });
+    return outcome(result, `Saved the ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)}'s messages. It is waiting to go out: sending is not connected yet, so it has NOT been delivered.`);
   }
   throw new Error(`I can't do ${name}.`);
 }

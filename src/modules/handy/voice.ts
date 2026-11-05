@@ -1,5 +1,6 @@
 import type { TurnDeps, WireTool } from './chat';
 import { executeToolCall } from './chat';
+import { fromVoiceUsage, type Usage } from './usage';
 
 /**
  * Handy's voice: a live call with OpenAI's voice model. The browser holds the microphone and the call; the server only hands out a
@@ -19,6 +20,7 @@ export interface VoiceEvent {
   call_id?: string;
   arguments?: string;
   error?: { message?: string };
+  response?: { usage?: Parameters<typeof fromVoiceUsage>[0] };
 }
 
 export interface VoiceDeps {
@@ -31,6 +33,8 @@ export interface VoiceDeps {
   onAction(line: string): void;
   onStatus(status: VoiceStatus): void;
   onError(message: string): void;
+  /** What a spoken answer used (reported by the voice service). */
+  onUsage?(u: Partial<Usage>): void;
 }
 
 /**
@@ -56,6 +60,7 @@ export function createVoiceHandler(d: VoiceDeps): (event: VoiceEvent) => Promise
         if (ev.transcript?.trim()) d.onHandy(d.turn.masker.unmask(ev.transcript.trim()));
         return;
       case 'response.done':
+        d.onUsage?.(fromVoiceUsage(ev.response?.usage));
         return d.onStatus('listening');
       case 'error':
         return d.onError(ev.error?.message ?? 'The voice service reported a problem.');
@@ -78,6 +83,7 @@ export function voiceSession(instructions: string, tools: WireTool[]) {
 }
 
 export const VOICE_RULES = `
+Sound like a warm, relaxed, friendly office manager: unhurried, with natural pauses, never robotic or salesy.
 You are speaking out loud, so keep answers short and natural, one or two sentences, and say numbers the way a person would ("about forty-two hours").
 Before you change anything, say what you are about to do and ask if that is right; then call the tool. The person also taps a confirmation on screen, so never claim something is done until the tool says so.
 If you are not sure you heard a name or number right, ask again instead of guessing.`;

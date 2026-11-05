@@ -30,6 +30,8 @@ export const maskId = (kind: EntityKind, id: string) => `${PREFIX[kind]}-${id.re
 export interface Masker {
   mask(text: string): string;
   unmask(text: string): string;
+  /** The record an ID (or spoken "Customer 1") in some text stands for, so a tool can act on the right customer. */
+  resolve(text: string): { kind: EntityKind; id: string } | null;
   /** The placeholders for emails, phones and numbers, to save with the conversation. */
   map(): MaskMap;
 }
@@ -77,6 +79,11 @@ export function createMasker(known: KnownEntity[], existing: MaskMap = {}): Mask
         .replace(/\b([CKP])-([0-9A-F]{8})\b/g, (m) => byToken.get(m)?.label ?? m)
         .replace(new RegExp(`\\b(${GENERIC}) (\\d+)\\b`, 'g'), (m, kind: string, n: string) => map[`${kind} ${n}`] ?? m);
     },
+    resolve(text) {
+      const m = /\b([CKP])-([0-9A-F]{8})\b/.exec(text);
+      const e = m ? byToken.get(m[0]) : undefined;
+      return e ? { kind: e.kind, id: e.id } : null;
+    },
     map: () => ({ ...map }),
   };
 }
@@ -109,6 +116,11 @@ export function createSpokenMasker(known: KnownEntity[], existing: MaskMap = {})
     mask: (text) => inner.mask(text).replace(/\b[CKP]-[0-9A-F]{8}\b/g, (m) => (labels.has(m) ? spokenFor(m) : m)),
     unmask: (text) =>
       inner.unmask(text.replace(new RegExp(`\\b(${Object.keys(SPOKEN_WORD).join('|')}) (\\d+)\\b`, 'g'), (m) => fromSpoken.get(m) ?? m)),
+    resolve(text) {
+      const spoken = new RegExp(`\\b(${Object.keys(SPOKEN_WORD).join('|')}) (\\d+)\\b`).exec(text);
+      const viaSpoken = spoken ? fromSpoken.get(spoken[0]) : undefined;
+      return inner.resolve(viaSpoken ?? text);
+    },
     map: () => inner.map(),
   };
 }

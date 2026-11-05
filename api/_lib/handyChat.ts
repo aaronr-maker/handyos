@@ -65,7 +65,7 @@ async function requireStaff(deps: Deps, token: string | null) {
 }
 
 /** One turn: the conversation so far (already masked) goes in; Handy's next message (words and/or things he wants to do) comes out. */
-export async function handyChat(deps: Deps, token: string | null, body: { messages?: ChatMessage[]; tools?: ToolDef[] }): Promise<{ message: ChatMessage }> {
+export async function handyChat(deps: Deps, token: string | null, body: { messages?: ChatMessage[]; tools?: ToolDef[] }): Promise<{ message: ChatMessage; usage: { input: number; output: number } }> {
   await requireStaff(deps, token);
   const key = deps.env.OPENAI_API_KEY;
   if (!key) throw new ApiError(503, 'Handy is not set up yet: the OpenAI key is missing on the server (OPENAI_API_KEY).');
@@ -92,17 +92,23 @@ export async function handyChat(deps: Deps, token: string | null, body: { messag
     if (res.status === 429) throw new ApiError(502, `OpenAI says to slow down or that the account is out of credit: ${why}`);
     throw new ApiError(502, `OpenAI could not answer: ${why}`);
   }
-  const json = (await res.json()) as { choices?: { message?: ChatMessage }[] };
+  const json = (await res.json()) as { choices?: { message?: ChatMessage }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const message = json.choices?.[0]?.message;
   if (!message) throw new ApiError(502, 'OpenAI sent back nothing. Try again.');
-  return { message: { role: 'assistant', content: message.content ?? null, ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) } };
+  return {
+    message: { role: 'assistant', content: message.content ?? null, ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
+    usage: { input: json.usage?.prompt_tokens ?? 0, output: json.usage?.completion_tokens ?? 0 },
+  };
 }
 
 /**
  * Hands the browser a short-lived pass to start a voice call with OpenAI. The audio goes straight from the phone to OpenAI;
  * this server never hears it. The call's instructions and tools are fixed here, and checked for private details first.
  */
-export async function handyVoiceSession(deps: Deps, token: string | null, body: { instructions?: string; tools?: unknown[] }): Promise<{ secret: string; model: string }> {
+/** The voices a call can use (the service's own names). */
+export const VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
+
+export async function handyVoiceSession(deps: Deps, token: string | null, body: { instructions?: string; tools?: unknown[]; voice?: string }): Promise<{ secret: string; model: string }> {
   await requireStaff(deps, token);
   const key = deps.env.OPENAI_API_KEY;
   if (!key) throw new ApiError(503, 'Handy is not set up yet: the OpenAI key is missing on the server (OPENAI_API_KEY).');
@@ -123,7 +129,7 @@ export async function handyVoiceSession(deps: Deps, token: string | null, body: 
         instructions,
         tools,
         tool_choice: 'auto',
-        audio: { input: { transcription: { model: 'gpt-4o-mini-transcribe' } }, output: { voice: deps.env.HANDY_VOICE || 'alloy' } },
+        audio: { input: { transcription: { model: 'gpt-4o-mini-transcribe' } }, output: { voice: body.voice && VOICES.includes(body.voice) ? body.voice : deps.env.HANDY_VOICE || 'alloy' } },
       },
     }),
   });

@@ -313,7 +313,19 @@ stay under the limit (`suggestReassignments`), or assign a free person. The sugg
 popup, and puts the open count on the menu. (Modules can add a menu `Badge` and an always-on `Overlay` through their manifest.) Reaching a manager when the app is
 closed needs a scheduled job and a messaging provider, which are not set up yet.
 
-**Coming next:** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
+**Standard times** (`src/modules/timetrack/standards.ts`, page at `/time/standards` for owners and admins): how long each service takes per unit (minutes per foot, per each...), learned from the company's own
+jobs. A task a tech timed gives the time directly (measured). A job where no task was timed gives one equation (all the time on the job = quantities x times + overhead per visit); those are solved together
+by non-negative least squares (`nnls`), so a door-only job anchors the door and a gutters-and-door job then gives the gutters, as in the example. Each service shows how many jobs it rests on, the spread,
+and a confidence (solid, getting there, learning); measured and inferred times that disagree by more than a third are flagged; finished jobs far from what the standards predict are listed as jobs that don't
+fit; and each tech's timed tasks are compared with the standards (their speed). It is advisory: nothing uses these numbers for prices or pay yet.
+
+**Dashboard** (`src/modules/dashboard`, owners and admins): the numbers that matter on one page for the last 30 days against the 30 before: sales (close rate, estimates sent, average job sold, a seller leaderboard),
+production (booked work ahead in crew-weeks, time on jobs against paid time, revenue per man-hour against the cost per hour, a tech list with efficiency rates), profit (what finished jobs kept against the target margin)
+and cash (owed, overdue, days to get paid). Each has a target and a green/amber/red status. At the top it names **the constraint**, the first stage, from work coming in to money coming back, that is holding the business
+back (`findConstraint` in `kpis.ts`): a full schedule is capacity; an empty one is sales (estimates not closing) or leads (not enough estimates); thin profit is pricing and efficiency; slow money is cash. It
+says so plainly when there is not enough data. The targets are common starting points (`TARGETS`) and can be changed in one place.
+
+**Coming next (originally):** standard times per service per unit learned from these timers (and from single-service jobs), efficiency and pace, and the constraint dashboard.
 
 ### Sending invoices and payments to QuickBooks
 
@@ -344,7 +356,13 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
 - OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
 - **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.
-- He cannot message customers yet (drafting, review and send comes next).
+- **Customer messages** (`send_message`): Handy drafts a text or email (with `{first_name}` filled in by the app, never an ID), and a card shows the person where it goes and the words, which they can
+  edit; only their click saves it, and it is saved **by the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
+  (`messages`, migration `20261127000000_messages.sql`) with a status: `queued` until a sending service is connected, then `sent` or `failed`. Nothing is shown as sent that was not delivered, and Handy is
+  told so. The Messages page lists them, with a **Send** button on each waiting message. Sending (`api/messages/send.ts`, `api/_lib/messageSend.ts`) happens only when a person taps it: the server reads
+  the message and the customer's phone or email from the database itself, delivers it by email (Resend: `RESEND_API_KEY`, `RESEND_FROM`) or text (Twilio: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_FROM`), and records `sent` (with the service's reference) or `failed` (with the reason). `MESSAGES_DISABLED=1` stops all sending. Until those accounts are set up, Send says so and the message stays
+  waiting. For US texts, Twilio requires registering the business (A2P 10DLC) before messages are delivered reliably; for email, the sending domain must be verified with the email service.
 - **Voice** (`voice.ts`, `api/handy/voice.ts`): the mic button starts a live call with OpenAI's voice model. The server only hands out a short-lived pass (`/v1/realtime/client_secrets`); the audio
   goes straight from the phone to OpenAI and never through our server. Handy's look-ups and changes during a call use the same tools, permissions and "Do it" card as the text chat,
   and the call's words are written into the conversation. In a call customers are "Customer 1", "Property 2" (a spoken ID would be unusable) and mapped back on screen; **what a person says out

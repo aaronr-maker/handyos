@@ -36,7 +36,7 @@ export { computeRate, computeWindowRate, crewMinutes, crewMinutesPerYear, minute
 export type { RateResult } from './rateCalc';
 export { defaultCategory, parseAmount, parsePnl } from './qbPnl';
 export type { PnlIncomeLine, PnlLine, PnlResult } from './qbPnl';
-export { monthlyIncome } from './services/rateService';
+export { getRateSettings, monthlyIncome } from './services/rateService';
 export type { MonthlyIncome } from './services/rateService';
 export { computeP4P, validateSetup, splitCents } from './p4pCalc';
 export type { P4PResult, LevelResult } from './p4pCalc';
