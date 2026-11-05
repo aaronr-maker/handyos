@@ -70,3 +70,14 @@ describe('delivering a saved message', () => {
     await expect(sendMessage(world().deps, world().mstore, null, 'm1')).rejects.toThrow(/Sign in/);
   });
 });
+
+import { sendMessageSafely } from '../api/_lib/messageSend';
+
+describe('a surprise while sending', () => {
+  it('is reported with what went wrong, without any key or token in it', async () => {
+    const w = world();
+    const broken: MessageStore = { ...w.mstore, getMessage: async () => { throw new Error('connection refused using key re_abc123XYZ789secret'); } };
+    await expect(sendMessageSafely(w.deps, broken, 'tok', 'm1')).rejects.toThrow(/Sending failed on the server: connection refused using key \[hidden\]/);
+    await expect(sendMessageSafely(world({ env: { MESSAGES_DISABLED: '1' } }).deps, w.mstore, 'tok', 'm1')).rejects.toThrow(/switched off/); // known problems keep their own wording
+  });
+});

@@ -125,3 +125,23 @@ export function supabaseMessageStore(env: { SUPABASE_URL?: string; SUPABASE_SERV
     },
   };
 }
+
+/**
+ * Sends one message, and turns any surprise into a message that says what went wrong (without secrets), so the Messages page
+ * shows a real reason instead of "something went wrong".
+ */
+export async function sendMessageSafely(
+  deps: Deps & { env: Deps['env'] & SendEnv },
+  mstore: MessageStore,
+  token: string | null,
+  messageId: string,
+): Promise<{ status: 'sent' | 'failed' | 'already_sent'; error?: string }> {
+  try {
+    return await sendMessage(deps, mstore, token, messageId);
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error('Sending a message failed:', reason);
+    throw new ApiError(500, `Sending failed on the server: ${reason.replace(/(sk|re|key|token)[-_][A-Za-z0-9_-]{8,}/gi, '[hidden]').slice(0, 300)}`);
+  }
+}
