@@ -118,7 +118,7 @@ export async function describeAction(ctx: ToolContext, name: string, args: Recor
     const channel = args.channel === 'email' ? 'email' : 'sms';
     const to = where(c, channel);
     if (!to) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
-    return { text: `Save this ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)} (${to}). It stays on the Messages page until you tap Send.`, edit: { key: 'body', label: 'Message', value: fill(String(args.body ?? ''), c) } };
+    return { text: `Send this ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)} (${to}). It is sent as soon as you say yes (or tap Send it).`, edit: { key: 'body', label: 'Message', value: fill(String(args.body ?? ''), c) } };
   }
   return { text: name };
 }
@@ -129,7 +129,7 @@ export async function runActionTool(
   run: (action: string, input: unknown) => Promise<{ status: string; message?: string }>,
   name: string,
   args: Record<string, unknown>,
-  extra: { refs: Refs; asPerson: (action: string, input: unknown) => Promise<{ status: string; message?: string }> },
+  extra: { refs: Refs; asPerson: (action: string, input: unknown) => Promise<{ status: string; message?: string; output?: unknown }>; deliver?: (messageId: string) => Promise<{ status: 'sent' | 'failed' | 'already_sent'; error?: string }> },
 ): Promise<string> {
   if (name === 'assign_job') {
     const facts = await loadTimeFacts(ctx.companyId);
@@ -152,13 +152,24 @@ export async function runActionTool(
     const c = await customerFor(ctx, args, extra.refs);
     const channel = args.channel === 'email' ? 'email' : 'sms';
     if (!where(c, channel)) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
+    const kind = channel === 'email' ? 'email' : 'text';
     const result = await extra.asPerson(sendMessageAction.name, { customer_id: c.id, channel, body: fill(String(args.body ?? ''), c) });
-    return outcome(result, `Saved the ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)}'s messages. It has NOT been delivered yet: it is waiting on the Messages page, and the person taps Send there.`);
+    outcome(result, '');
+    const id = (result.output as { id?: string } | undefined)?.id;
+    if (!extra.deliver || !id) return `Saved the ${kind} to ${customerLabel(c)}'s messages. It has NOT been sent: the person sends it from the Messages page.`;
+    // the person said yes to "send it", so it goes out now; what happens is reported exactly
+    try {
+      const sent = await extra.deliver(id);
+      if (sent.status === 'failed') return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${sent.error ?? 'the service refused it'}. It is on the Messages page to try again.`;
+      return `Sent the ${kind} to ${customerLabel(c)}.`;
+    } catch (err) {
+      return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${err instanceof Error ? err.message : 'it could not be sent'}. It is on the Messages page.`;
+    }
   }
   throw new Error(`I can't do ${name}.`);
 }
 
-function outcome(r: { status: string; message?: string }, done: string): string {
+function outcome(r: { status: string; message?: string; output?: unknown }, done: string): string {
   if (r.status === 'ok') return done;
   if (r.status === 'pending_approval') return 'That needs an owner or admin to approve it first. It is waiting in the approvals list. Nothing has changed yet.';
   throw new Error(r.message ?? (r.status === 'denied' ? 'That is not allowed for you.' : 'It did not work.'));

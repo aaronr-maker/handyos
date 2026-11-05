@@ -361,7 +361,7 @@ Handy is just another caller of the action registry, so he can do anything a per
   every old value and new value and is saved by the person who approved it (the same change by Handy alone would wait for approval). Searches tell Handy only whether someone can be texted or
   emailed, never the number or address. Not yet: changing owners, managers and tenants, merging and deleting customers.
 - **Customer messages** (`send_message`): Handy drafts a text or email (with `{first_name}` filled in by the app, never an ID), and a card shows the person where it goes and the words, which they can
-  edit; only their click saves it, and it is saved **by the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
+  edit; only their click (or a spoken "yes" to "Should I send it?") sends it, and it is saved and sent **as the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
   (`messages`, migration `20261127000000_messages.sql`) with a status: `queued` until a sending service is connected, then `sent` or `failed`. Nothing is shown as sent that was not delivered, and Handy is
   told so. The Messages page lists them, with a **Send** button on each waiting message. Sending (`api/messages/send.ts`, `api/_lib/messageSend.ts`) happens only when a person taps it: the server reads
   the message and the customer's phone or email from the database itself, delivers it by email (Resend: `RESEND_API_KEY`, `RESEND_FROM`) or text (Twilio: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
