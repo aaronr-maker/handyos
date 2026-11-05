@@ -281,3 +281,27 @@ details summary { cursor: pointer; font-weight: 600; }
 .pb-title { padding: 6px 10px; font-weight: 700; background: #f1f5f9; border-radius: 8px 8px 0 0; }
 .pb-sum { padding: 6px 10px; color: #475569; }
 .pb-port { position: relative; padding: 4px 22px 4px 10px; text-align: right; border-top: 1px solid #f1f5f9; }
+
+/* the visual week */
+.wk-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+.wk { display: flex; min-width: max-content; }
+.wk-axis { width: 46px; flex: none; border-right: 1px solid var(--border); position: sticky; left: 0; background: #fff; z-index: 2; }
+.wk-hour { font-size: 0.7rem; color: #64748b; text-align: right; padding-right: 4px; border-top: 1px solid #f1f5f9; box-sizing: border-box; }
+.wk-day { border-right: 2px solid #cbd5e1; }
+.wk-today .wk-dayname { background: var(--brand); color: #fff; }
+.wk-dayname { text-align: center; font-weight: 700; font-size: 0.85rem; padding: 4px; background: #f1f5f9; }
+.wk-cols { display: flex; }
+.wk-col { width: 118px; border-right: 1px solid #e2e8f0; }
+.wk-head { height: 58px; box-sizing: border-box; padding: 4px 6px; font-size: 0.78rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.wk-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+.wk-fill { height: 100%; background: #16a34a; }
+.wk-fill.warn { background: #f59e0b; }
+.wk-fill.over { background: #dc2626; }
+.wk-cap { font-size: 0.72rem; color: #475569; }
+.wk-body { position: relative; background-image: linear-gradient(#f1f5f9 1px, transparent 1px); background-size: 100% 44px; }
+.wk-over { background-color: #ecfdf5; }
+.wk-job { position: absolute; box-sizing: border-box; overflow: hidden; padding: 2px 5px; font-size: 0.72rem; line-height: 1.2; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; cursor: grab; display: flex; flex-direction: column; }
+.wk-job.wk-open { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand); }
+.wk-job .muted { font-size: 0.68rem; }
+.wk-trayrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wk-job.wk-tray { position: static; width: 170px; padding: 6px 8px; background: #fef9c3; border-color: #fde047; }
