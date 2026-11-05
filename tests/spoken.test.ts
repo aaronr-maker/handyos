@@ -90,6 +90,31 @@ describe('judging a tool request from the conversation', () => {
     expect(await money.sc.judge('delete_everything', args)).toEqual({ kind: 'unknown' });
   });
 
+  it("counts the yes even when Handy says something short right after it (\"sending it now\") before asking the app to act", async () => {
+    const w = world();
+    w.sc.handySaid(readBack);
+    w.tick();
+    w.sc.userSaid('Yes, go ahead');
+    w.tick();
+    w.sc.handySaid('Sure, sending it now.'); // this must not replace the read-back
+    expect(await w.sc.judge('update_customer', args)).toEqual({ kind: 'yes' });
+  });
+
+  it('still refuses a yes that was given before any read-back, or to a read-back that left out a value', async () => {
+    const w = world();
+    w.sc.handySaid('Hello, how can I help?');
+    w.tick();
+    w.sc.userSaid('Yes');
+    expect(await w.sc.judge('update_customer', args)).toEqual({ kind: 'unknown' });
+    const x = world();
+    x.sc.handySaid("I'll change Pat's name. Is that right?"); // never read the new email
+    x.tick();
+    x.sc.userSaid('Yes');
+    x.tick();
+    x.sc.handySaid('Sending it now.');
+    expect(await x.sc.judge('update_customer', args)).toEqual({ kind: 'unknown' });
+  });
+
   it('uses a yes only once: a later change needs its own read-back and its own answer', async () => {
     const w = world();
     w.sc.handySaid(readBack);

@@ -160,14 +160,17 @@ export async function runActionTool(
     // the person said yes to "send it", so it goes out now; what happens is reported exactly
     try {
       const sent = await extra.deliver(id);
-      if (sent.status === 'failed') return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${sent.error ?? 'the service refused it'}. It is on the Messages page to try again.`;
+      if (sent.status === 'failed') return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${stop(sent.error ?? 'the service refused it')}. It is on the Messages page to try again.`;
       return `Sent the ${kind} to ${customerLabel(c)}.`;
     } catch (err) {
-      return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${err instanceof Error ? err.message : 'it could not be sent'}. It is on the Messages page.`;
+      return `The ${kind} to ${customerLabel(c)} was saved but NOT sent: ${stop(err instanceof Error ? err.message : 'it could not be sent')}. It is on the Messages page.`;
     }
   }
   throw new Error(`I can't do ${name}.`);
 }
+
+/** A message without its final full stop, so a sentence can carry on after it. */
+const stop = (m: string) => m.replace(/[.\s]+$/, '');
 
 function outcome(r: { status: string; message?: string; output?: unknown }, done: string): string {
   if (r.status === 'ok') return done;

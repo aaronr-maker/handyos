@@ -39,6 +39,10 @@ export interface TurnDeps {
   isAction(name: string): boolean;
   /** Asks the person to confirm what Handy wants to do. Nothing runs until they say yes. */
   confirm(name: string, args: Record<string, unknown>, refs: Refs): Promise<Confirmation>;
+  /** Says so when this exact action was just done, so a stray phrase cannot make Handy offer it a second time. */
+  isDuplicate?(name: string, args: Record<string, unknown>): string | null;
+  /** Remembers that an action was done. */
+  recordDone?(name: string, args: Record<string, unknown>): void;
   /** Does it (as Handy, for the person); returns what happened in words. */
   runAction(name: string, args: Record<string, unknown>, refs: Refs): Promise<string>;
 }
@@ -51,6 +55,24 @@ export interface TurnResult {
 }
 
 export const MAX_STEPS = 6;
+
+/** The same action with the same details, for spotting a repeat. */
+export const actionSignature = (name: string, args: Record<string, unknown>) =>
+  `${name}:${JSON.stringify(Object.keys(args).sort().map((k) => [k, args[k]]))}`;
+
+/** Remembers recent actions so an identical one within a few minutes is refused (a repeated phrase, a retried tool call). */
+export function createRepeatGuard(now: () => number = Date.now, windowMs = 3 * 60_000): Pick<TurnDeps, 'isDuplicate' | 'recordDone'> {
+  const done = new Map<string, number>();
+  return {
+    isDuplicate(name, args) {
+      const at = done.get(actionSignature(name, args));
+      return at !== undefined && now() - at < windowMs ? 'That exact action was already done a moment ago, so I did not do it again. Nothing new was changed. Tell the person it is already done, and only do it again if they clearly ask for it again.' : null;
+    },
+    recordDone(name, args) {
+      done.set(actionSignature(name, args), now());
+    },
+  };
+}
 const HISTORY = 30;
 
 const parse = (raw: string): Record<string, unknown> => {
@@ -74,6 +96,8 @@ export async function executeToolCall(name: string, rawArgs: string, d: TurnDeps
   let args = parse(d.masker.unmask(rawArgs));
   try {
     if (!d.isAction(name)) return { result: d.masker.mask(JSON.stringify(await d.runRead(name, args, refs))) };
+    const dup = d.isDuplicate?.(name, args);
+    if (dup) return { result: dup };
     const ok = await d.confirm(name, args, refs);
     if (ok === false) return { result: 'The person said not now. Nothing was changed.', action: `Declined: ${name}` };
     // the person answered out loud with something other than yes or no: that is feedback to act on, and nothing was changed
@@ -81,6 +105,7 @@ export async function executeToolCall(name: string, rawArgs: string, d: TurnDeps
     // the person may have changed Handy's wording before saying yes
     if (typeof ok === 'object' && 'overrides' in ok) args = { ...args, ...ok.overrides };
     const done = await d.runAction(name, args, refs);
+    d.recordDone?.(name, args);
     return { result: d.masker.mask(done), action: done };
   } catch (err) {
     return { result: `That did not work: ${err instanceof Error ? err.message : 'unknown error'}` };

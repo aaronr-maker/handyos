@@ -87,26 +87,40 @@ export interface SpokenConfirm {
 }
 
 export function createSpokenConfirm(now: () => number = Date.now, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): SpokenConfirm {
-  let handy: { text: string; at: number } | null = null;
+  // what Handy said recently (newest last), and the person's latest answer; a yes is used once
+  const handy: { text: string; at: number }[] = [];
   let user: { text: string; at: number } | null = null;
+  let usedAt = -1;
   return {
     handySaid(text) {
-      handy = { text, at: now() };
+      handy.push({ text, at: now() });
+      if (handy.length > 6) handy.shift();
     },
     userSaid(text) {
       user = { text, at: now() };
     },
     async judge(name, args, waitMs = 2500) {
-      if (!VOICE_CONFIRMABLE.has(name) || !handy) return { kind: 'unknown' };
-      const readBack = handy;
+      if (!VOICE_CONFIRMABLE.has(name) || handy.length === 0) return { kind: 'unknown' };
       // the answer is transcribed separately from the audio, so give it a moment to arrive
       const deadline = now() + waitMs;
-      while ((!user || user.at < readBack.at) && now() < deadline) await sleep(100);
-      if (!user || user.at < readBack.at) return { kind: 'unknown' };
-      const said = user.text;
-      if (isNo(said)) return { kind: 'no' };
-      if (isYes(said)) return spokenCovers(args, readBack.text) ? { kind: 'yes' } : { kind: 'unknown' };
-      return { kind: 'feedback', said };
+      const oldest = handy[0].at;
+      while ((!user || user.at <= usedAt || user.at < oldest) && now() < deadline) await sleep(100);
+      if (!user || user.at <= usedAt) return { kind: 'unknown' };
+      const answer = user;
+      if (isNo(answer.text)) {
+        usedAt = answer.at;
+        return { kind: 'no' };
+      }
+      if (isYes(answer.text)) {
+        // the yes counts when it answers a read-back that contained everything to be saved. Handy often says something short
+        // right after the yes ("sending it now"), so any recent read-back that came before the answer will do.
+        const readBack = [...handy].reverse().find((h) => h.at <= answer.at && spokenCovers(args, h.text));
+        if (!readBack) return { kind: 'unknown' };
+        usedAt = answer.at;
+        return { kind: 'yes' };
+      }
+      usedAt = answer.at;
+      return { kind: 'feedback', said: answer.text };
     },
   };
 }

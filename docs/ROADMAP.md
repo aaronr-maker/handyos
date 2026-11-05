@@ -13,6 +13,17 @@ Notes for when it is built:
 - Limits to decide: file size, allowed types, how long to keep them, and a storage cost estimate.
 - Handy could answer "show me the photos from the Oak Street job" and attach a document to a customer message.
 
+### Updating the app in the field, with testing first
+Techs have the app installed on their phones. They must not have to uninstall or reinstall: the app tells them an update is ready, downloads it quietly in the background, and they tap **Restart** when it suits them. Aaron must be able to **test any update before it goes out to the field**.
+What exists today: the installed app (a web app) already updates itself, but silently (`registerType: 'autoUpdate'` in `vite.config.ts`), with no prompt, and every merge to `main` goes live to everyone at once.
+What to build:
+- **The prompt:** switch to prompt mode; a banner "A new version is ready: Restart now / Later". The new version downloads in the background first; Restart applies it. Check for updates when the app is opened and every few minutes.
+- **A version file** (`/version.json`, built each release) so the app can also notice a newer version without waiting on the browser, and a **"must update" switch** for the rare change an old copy can't work with (a blocking screen: "Update required").
+- **Testing before the field:** a staging copy of the app on its own web address that the team tests first, and a deliberate "release" step to send it to the field. Setup in Vercel: make a `release` branch the production one, let `main` build the staging address, and release by merging `main` into `release`. Ideally staging also gets its **own Supabase database** so tests never touch real jobs.
+- **Database changes and old copies:** a phone running an old version must keep working while the database moves forward, so changes are made in two steps (add first, remove later). Record this rule in the reviewer guide.
+- The automated checks already run on every change (lint, tests, build); add a short checklist of things to try by hand on staging before each release.
+- If the app is later put in the app stores (Capacitor), updates to the store apps need a different path (store releases, or a live-update service). Decide when that happens.
+
 ### Job notes and photos (a place on every job)
 Every job has a notes area. Each **note** can have an image or no image, and each **image** can have a note or no note: some notes describe the photo uploaded with them, some notes have no photo, some photos need no words.
 - **Photo editor:** crop; draw on the image (squares, circles, arrows, straight lines, freehand); different colors; add text, with a choice of text background. Edit before posting; the original is kept next to the edited version.
