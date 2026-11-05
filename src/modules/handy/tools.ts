@@ -1,10 +1,11 @@
 import type { Id } from '@/core';
 import { assignJobAction } from '@/modules/jobs';
 import { sendMessageAction } from '@/modules/messaging';
-import { customerLabel, getCustomer, listAllProperties, listCustomers } from '@/modules/customers';
+import { customerLabel, listAllProperties, listCustomers } from '@/modules/customers';
 import { closeAlertAction, listAlerts } from '@/modules/desk';
 import { efficiencyFor, loadTimeFacts, upcomingJobsFor, weekReport } from '@/modules/timesheets';
 import type { Refs, WireTool } from './chat';
+import { CUSTOMER_ACTIONS, CUSTOMER_ACTION_TOOLS, CUSTOMER_READ_TOOLS, customerFor, describeCustomerAction, readCustomerTool, runCustomerAction } from './customerTools';
 
 /** What a tool needs to look things up for the person Handy is working for. */
 export interface ToolContext {
@@ -16,8 +17,8 @@ const person = { type: 'string', description: 'The first or full name of a team 
 const tool = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []): WireTool => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } } });
 
 export const HANDY_TOOLS: WireTool[] = [
+  ...CUSTOMER_READ_TOOLS,
   tool('team', 'List the team members and their roles.'),
-  tool('find_customer', "Find a customer by name, company, email address or phone number, and get the customer's ID. Use this whenever you need a customer's ID and do not already have it; never make an ID up.", { query: { type: 'string', description: 'What to search for.' } }, ['query']),
   tool('week_hours', "A team member's week: hours clocked, scheduled time still ahead, efficiency rate and projected total.", { person }, ['person']),
   tool('upcoming_jobs', 'Jobs still to be worked that are assigned to a team member (or to anyone, if no name is given), with times and job ids.', { person }),
   tool('unassigned_jobs', 'Scheduled jobs that nobody is assigned to yet.'),
@@ -30,9 +31,10 @@ export const HANDY_TOOLS: WireTool[] = [
     { customer: { type: 'string', description: "The customer's ID (C-...) as written in the conversation." }, channel: { type: 'string', enum: ['sms', 'email'] }, body: { type: 'string' } },
     ['customer', 'channel', 'body'],
   ),
+  ...CUSTOMER_ACTION_TOOLS,
 ];
 
-const ACTIONS = new Set(['assign_job', 'close_alert', 'send_message']);
+const ACTIONS = new Set(['assign_job', 'close_alert', 'send_message', ...CUSTOMER_ACTIONS]);
 export const isActionTool = (name: string) => ACTIONS.has(name);
 
 const nameOf = (m: ToolContext['team'][number]) => m.full_name || m.email || 'Team member';
@@ -65,20 +67,11 @@ const mins = (m: number) => `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** Looks things up. Only what is listed here ever goes back to Handy: no phones, emails, pay rates or payment details. */
-export async function runReadTool(ctx: ToolContext, name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function runReadTool(ctx: ToolContext, name: string, args: Record<string, unknown>, refs: Refs = () => null): Promise<unknown> {
   const now = Date.now();
   if (name === 'team') return ctx.team.map((m) => ({ name: nameOf(m), role: m.role }));
   if (name === 'open_alerts') return (await listAlerts(ctx.companyId)).filter((a) => a.status === 'open').map((a) => ({ alert_id: a.id, title: a.title, detail: a.detail, severity: a.severity }));
-  if (name === 'find_customer') {
-    const q = String(args.query ?? '').trim().toLowerCase();
-    if (q.length < 2) throw new Error('What should I search for?');
-    const digits = q.replace(/\D/g, '');
-    const found = (await listCustomers(ctx.companyId)).filter((c) =>
-      [c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' '), c.email].some((v) => (v ?? '').toLowerCase().includes(q)) || (digits.length >= 7 && (c.phone ?? '').replace(/\D/g, '').includes(digits)),
-    );
-    // only the name (sent as an ID) and whether they can be texted or emailed; never the phone number or address themselves
-    return found.slice(0, 8).map((c) => ({ customer: customerLabel(c), can_text: !!c.phone, can_email: !!c.email }));
-  }
+  if (name === 'find_customer' || name === 'customer_details' || name === 'find_property') return readCustomerTool(ctx, name, args, refs);
   const facts = await loadTimeFacts(ctx.companyId);
   if (name === 'week_hours') {
     const p = findPerson(ctx.team, args.person);
@@ -103,20 +96,7 @@ export interface Described {
   edit?: { key: string; label: string; value: string };
 }
 
-type Customer = NonNullable<Awaited<ReturnType<typeof getCustomer>>>;
-
-/** The customer Handy means: by the ID he used, else by an exact name. */
-async function customerFor(ctx: ToolContext, args: Record<string, unknown>, refs: Refs): Promise<Customer> {
-  const ref = refs('customer');
-  if (ref?.kind === 'customer') {
-    const c = await getCustomer(ctx.companyId, ref.id);
-    if (c) return c;
-  }
-  const said = String(args.customer ?? '').trim().toLowerCase();
-  const all = (await listCustomers(ctx.companyId)).filter((c) => customerLabel(c).toLowerCase() === said || c.name.toLowerCase() === said);
-  if (all.length === 1) return all[0];
-  throw new Error(all.length > 1 ? 'More than one customer has that name. Use the customer ID.' : 'I could not tell which customer that is.');
-}
+type Customer = Awaited<ReturnType<typeof customerFor>>;
 
 const firstNameOf = (c: Customer) => c.first_name?.trim() || customerLabel(c).split(/\s+/)[0];
 const fill = (body: string, c: Customer) => body.replaceAll('{first_name}', firstNameOf(c));
@@ -132,12 +112,13 @@ export async function describeAction(ctx: ToolContext, name: string, args: Recor
     return { text: from ? `Move "${job?.title ?? 'this job'}" from ${from} to ${to}.` : `Put ${to} on "${job?.title ?? 'this job'}".` };
   }
   if (name === 'close_alert') return { text: `Mark this to-do item handled${args.note ? `: ${String(args.note)}` : ''}.` };
+  if (CUSTOMER_ACTIONS.has(name)) return { text: await describeCustomerAction(ctx, name, args, refs) };
   if (name === 'send_message') {
     const c = await customerFor(ctx, args, refs);
     const channel = args.channel === 'email' ? 'email' : 'sms';
     const to = where(c, channel);
     if (!to) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
-    return { text: `Save this ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)} (${to}). It will wait to go out until sending is connected.`, edit: { key: 'body', label: 'Message', value: fill(String(args.body ?? ''), c) } };
+    return { text: `Save this ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)} (${to}). It stays on the Messages page until you tap Send.`, edit: { key: 'body', label: 'Message', value: fill(String(args.body ?? ''), c) } };
   }
   return { text: name };
 }
@@ -165,13 +146,14 @@ export async function runActionTool(
     const result = await run(closeAlertAction.name, { alert_id: String(args.alert_id ?? ''), status: 'resolved', resolution: args.note ? String(args.note) : 'Handled with Handy' });
     return outcome(result, 'Marked the to-do item handled.');
   }
+  if (CUSTOMER_ACTIONS.has(name)) return runCustomerAction(ctx, name, args, extra.refs, extra.asPerson);
   if (name === 'send_message') {
     // customer-facing words are saved by the person who approved them, not by Handy
     const c = await customerFor(ctx, args, extra.refs);
     const channel = args.channel === 'email' ? 'email' : 'sms';
     if (!where(c, channel)) throw new Error(`There is no ${channel === 'email' ? 'email address' : 'phone number'} on file for ${customerLabel(c)}.`);
     const result = await extra.asPerson(sendMessageAction.name, { customer_id: c.id, channel, body: fill(String(args.body ?? ''), c) });
-    return outcome(result, `Saved the ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)}'s messages. It is waiting to go out: sending is not connected yet, so it has NOT been delivered.`);
+    return outcome(result, `Saved the ${channel === 'email' ? 'email' : 'text'} to ${customerLabel(c)}'s messages. It has NOT been delivered yet: it is waiting on the Messages page, and the person taps Send there.`);
   }
   throw new Error(`I can't do ${name}.`);
 }

@@ -356,6 +356,10 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **A last check on the server** refuses to send anything that still looks like an email, phone number, Social Security number or card number.
 - OpenAI is called with `store: false`; apply for zero data retention on the OpenAI account as well, and mention the AI provider in the privacy policy.
 - **Confirmation:** Handy says what he will change; a card asks the person; nothing runs until they click *Do it*. Anything beyond Handy's "auto" level also waits in the approval queue.
+- **Customer records** (`customerTools.ts`): Handy is the office assistant for customer information. He can look customers (`find_customer`, `customer_details`) and properties (`find_property`) up,
+  create a customer, change any of a customer's details (names, company, display name, email, phone, notes, property-manager flag), add and change contacts, and correct an address. Each change shows a card with
+  every old value and new value and is saved by the person who approved it (the same change by Handy alone would wait for approval). Searches tell Handy only whether someone can be texted or
+  emailed, never the number or address. Not yet: changing owners, managers and tenants, merging and deleting customers.
 - **Customer messages** (`send_message`): Handy drafts a text or email (with `{first_name}` filled in by the app, never an ID), and a card shows the person where it goes and the words, which they can
   edit; only their click saves it, and it is saved **by the person**, not by Handy (as an AI agent, `messaging.send` always waits for approval). Messages are now stored in the database
   (`messages`, migration `20261127000000_messages.sql`) with a status: `queued` until a sending service is connected, then `sent` or `failed`. Nothing is shown as sent that was not delivered, and Handy is
@@ -366,7 +370,10 @@ Handy is just another caller of the action registry, so he can do anything a per
 - **Voice** (`voice.ts`, `api/handy/voice.ts`): the mic button starts a live call with OpenAI's voice model. The server only hands out a short-lived pass (`/v1/realtime/client_secrets`); the audio
   goes straight from the phone to OpenAI and never through our server. Handy's look-ups and changes during a call use the same tools, permissions and "Do it" card as the text chat,
   and the call's words are written into the conversation. In a call customers are "Customer 1", "Property 2" (a spoken ID would be unusable) and mapped back on screen; **what a person says out
-  loud reaches OpenAI as audio, so spoken names are not masked** (the app says so during a call). A call ends by itself after 10 minutes. The voice is `cedar` (set `HANDY_VOICE` on the server to change it; there is no picker). Optional settings: `HANDY_VOICE_MODEL` (default
+  loud reaches OpenAI as audio, so spoken names are not masked** (the app says so during a call). **Confirming by voice** (`spoken.ts`): Handy says what he will do including the new values, asks "Is that right?" and waits; the person says "yes" and he does it, with no tapping. The rules for whether a spoken answer counts are plain code, not
+  the AI's judgment: only a short, clear yes counts ("yes", "yeah, do it", "that's right", "sounds good"), anything with a no, a change, a question or a long answer does not; the yes has to come after Handy's read-back; every value he is about to
+  save (the new email, the name, the message words) must appear in what he read aloud; and only some kinds of change can be confirmed by voice. Any other answer ("make it the other email") is passed back to him as feedback and nothing is saved;
+  an unclear or missing answer falls back to the confirmation card, where the person taps. A call ends by itself after 10 minutes. The voice is `cedar` (set `HANDY_VOICE` on the server to change it; there is no picker). Optional settings: `HANDY_VOICE_MODEL` (default
   `gpt-realtime`). The browser connection (`connectVoice`) follows OpenAI's published WebRTC flow but has not yet been tried against the live service.
 - Set `OPENAI_API_KEY` (and optionally `HANDY_MODEL`, default `gpt-4.1`) in Vercel. Never put the key in the repository or in a chat.
 
