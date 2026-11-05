@@ -7,7 +7,7 @@ export const realDeps = (): Deps => {
   try {
     return { env, store: supabaseStore(env), fetch, now: () => Date.now() };
   } catch {
-    throw new ApiError(503, 'QuickBooks is not set up on the server yet (the Supabase server key is missing).');
+    throw new ApiError(503, "The server can't reach the database yet: SUPABASE_SERVICE_ROLE_KEY (and the Supabase address, SUPABASE_URL or VITE_SUPABASE_URL) must be set in Vercel for Production. QuickBooks, Handy and messages all need it.");
   }
 };
 
