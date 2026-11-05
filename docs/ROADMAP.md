@@ -13,6 +13,13 @@ Notes for when it is built:
 - Limits to decide: file size, allowed types, how long to keep them, and a storage cost estimate.
 - Handy could answer "show me the photos from the Oak Street job" and attach a document to a customer message.
 
+### Job notes and photos (a place on every job)
+Every job has a notes area. Each **note** can have an image or no image, and each **image** can have a note or no note: some notes describe the photo uploaded with them, some notes have no photo, some photos need no words.
+- **Photo editor:** crop; draw on the image (squares, circles, arrows, straight lines, freehand); different colors; add text, with a choice of text background. Edit before posting; the original is kept next to the edited version.
+- **Tagging:** type `@` in a note and team names appear as you type, or pick one from the list. Tagged people are **alerted** (a popup and a badge in the app, for techs too, not only managers).
+- Photos also show up in the **documents hub** (below), filtered by that job.
+- Notes for when it is built: Supabase Storage for the files (company-separated), notes in their own table, a notification table for tags, signed links for viewing, a tech's phone camera as an upload source, the editor as a canvas that works with touch, and a link to "Notes and photos" from the job screen. Decide: who may edit or delete a note (the author, and admins?) and whether tagged people also get a text or email later.
+
 ### Phone system: call tree and AI receptionist
 Drag-and-drop call tree (greeting, "press 1 for…", ring a person, forward to Aaron if a tech doesn't answer, business hours, voicemail with transcription, call log), then an AI receptionist that takes down information and books estimates in time slots Aaron sets aside, with overrides sent to him.
 Open questions: the current business phone number and its provider (forwarding or porting to Twilio), who is on the menu, the after-hours plan, whether an extra always-on server is acceptable for the AI receptionist, and the state's rules on recording and AI disclosure.
