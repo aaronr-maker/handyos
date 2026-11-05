@@ -5,11 +5,11 @@ import { createSpokenConfirm, isNo, isYes, spokenCovers } from '../src/modules/h
 
 describe('what counts as a spoken yes or no', () => {
   it('accepts short, clear yeses', () => {
-    for (const t of ['Yes', 'yes.', 'Yeah', 'Yep, do it', "That's right", 'Yes please', 'Go ahead', 'Sounds good', 'Okay', 'Correct', 'Yes, save it', 'Absolutely']) expect(isYes(t), t).toBe(true);
+    for (const t of ['Yes', 'yes.', 'Yeah', 'Yep, do it', "That's right", 'Yes please', 'Go ahead', 'Sounds good', 'Okay', 'Correct', 'Yes, save it', 'Absolutely', 'Send it', 'Send it.', 'Send', 'Do it', 'Please send it', 'I said yes, send it', 'Yes, send the email', 'Save it']) expect(isYes(t), t).toBe(true);
   });
 
   it('does not accept anything with a no, a change, a question, or a long answer', () => {
-    for (const t of ['No', 'Yes but change the phone number', 'Actually make it Thursday', 'Yeah wait', "Don't", 'What was that again', 'Yes and also text him', 'Maybe', 'Hmm', '', 'Yes yes yes yes yes yes yes', 'Is that right', 'Not yet, yes later']) expect(isYes(t), t).toBe(false);
+    for (const t of ['No', 'Yes but change the phone number', 'Actually make it Thursday', 'Yeah wait', "Don't", "Don't send it", 'What was that again', 'Yes and also text him', 'Maybe', 'Hmm', '', 'Test Customer', 'Is that right', 'Not yet, yes later', 'Send it to Sam instead']) expect(isYes(t), t).toBe(false);
   });
 
   it('recognizes a clear no, and not a yes as a no', () => {

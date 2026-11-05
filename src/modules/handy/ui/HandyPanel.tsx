@@ -3,7 +3,7 @@ import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSess
 import { createRepeatGuard, MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
 import { createMasker, createSpokenMasker, type Masker } from '../mask';
 import { createSpokenConfirm, type SpokenConfirm } from '../spoken';
-import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceStatus } from '../voice';
+import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceHandler, type VoiceStatus } from '../voice';
 import { addMessage, createThread, knownEntities, listMessages, recordUsage, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
 import { addUsage, noUsage, type Usage } from '../usage';
 import { setHandyOpen, useHandyOpen } from '../store';
@@ -108,6 +108,7 @@ export function HandyOverlay() {
       const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS) });
       callUsage.current = { used: noUsage(), startedAt: Date.now() };
       let send: (e: unknown) => void = () => undefined;
+      const handlerRef: { current: VoiceHandler | null } = { current: null };
       const base = toolDeps(masker, team);
       const handle = createVoiceHandler({
         turn: {
@@ -122,7 +123,7 @@ export function HandyOverlay() {
             if (v.kind === 'no') return false;
             if (v.kind === 'feedback') return { feedback: v.said };
             // the spoken yes could not be counted: say so out loud, and the card on screen waits for a tap
-            send({ type: 'response.create', response: { instructions: 'Say only: "I could not be sure I heard your yes, so please tap the green button on the screen." Do not say anything was done or sent.' } });
+            handlerRef.current?.say('Say only: "I could not be sure I heard your yes, so please tap the green button on the screen." Do not say anything was done or sent.');
             return base.confirm(name, args, refs);
           },
         },
@@ -142,6 +143,7 @@ export function HandyOverlay() {
         },
         onError: (m) => setError(m),
       });
+      handlerRef.current = handle;
       const conn = await connectVoice({ secret: pass.secret, model: pass.model, onEvent: (e) => void handle(e), onClosed: hangUp });
       send = conn.send;
       call.current = conn;

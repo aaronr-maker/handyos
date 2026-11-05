@@ -20,19 +20,19 @@ const norm = (s: string) =>
     .trim();
 const words = (s: string) => norm(s).replace(/[@.]/g, ' ').split(' ').filter(Boolean);
 
-const YES_ANCHOR = new Set(['yes', 'yeah', 'yep', 'yup', 'correct', 'sure', 'ok', 'okay', 'exactly', 'absolutely', 'affirmative', 'confirm', 'confirmed']);
-const YES_FILLER = new Set(['that', 'thats', 'is', 'it', 'do', 'go', 'ahead', 'please', 'sounds', 'looks', 'good', 'great', 'perfect', 'fine', 'save', 'send', 'and', 'yes', 'thanks', 'thank', 'you']);
+const YES_ANCHOR = new Set(['yes', 'yeah', 'yep', 'yup', 'correct', 'sure', 'ok', 'okay', 'exactly', 'absolutely', 'affirmative', 'confirm', 'confirmed', 'send', 'save', 'proceed', 'approved', 'approve', 'definitely', 'please']);
+const YES_FILLER = new Set(['that', 'thats', 'is', 'it', 'do', 'go', 'ahead', 'please', 'sounds', 'looks', 'good', 'great', 'perfect', 'fine', 'save', 'send', 'and', 'yes', 'thanks', 'thank', 'you', 'i', 'said', 'so', 'now', 'just', 'then', 'sir', 'the', 'email', 'text', 'message', 'one']);
 const NO_WORDS = new Set(['no', 'nope', 'not', 'dont', 'stop', 'cancel', 'wait', 'wrong', 'never', 'nah', 'hold', 'hang']);
 const BLOCKERS = new Set(['but', 'change', 'actually', 'instead', 'except', 'however', 'maybe', 'what', 'who', 'why', 'how', 'when', 'which', 'different', 'rather']);
 
 /** True only for a short, clear yes ("yes", "yeah, do it", "that's right", "sounds good"). */
 export function isYes(text: string): boolean {
   const w = words(text);
-  if (w.length === 0 || w.length > 6) return false;
+  if (w.length === 0 || w.length > 8) return false;
   if (w.some((x) => NO_WORDS.has(x) || BLOCKERS.has(x))) return false;
   // "that's right" and "right" count; "is that right" (a question, or Handy's own words echoed back) does not
   if (/^(yes |yeah |yep )?((thats|that is) )?right$/.test(norm(text))) return true;
-  return w.some((x) => YES_ANCHOR.has(x) || (x === 'good' && w.includes('sounds')) || (x === 'ahead' && w.includes('go'))) && w.every((x) => YES_ANCHOR.has(x) || YES_FILLER.has(x));
+  return w.some((x) => YES_ANCHOR.has(x) || (x === 'good' && w.includes('sounds')) || (x === 'ahead' && w.includes('go')) || (x === 'it' && w.includes('do'))) && w.every((x) => YES_ANCHOR.has(x) || YES_FILLER.has(x));
 }
 
 /** True for a short, clear no ("no", "wait", "don't", "cancel that"). */
