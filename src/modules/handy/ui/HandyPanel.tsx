@@ -44,7 +44,7 @@ export function HandyOverlay() {
     const asHandy = (name: string, input: unknown) => actions.executeByName(name, input, { companyId, actor: { kind: 'agent', id: 'handy' }, onBehalfOf: { userId: user.id, role } });
     return {
       masker,
-      runRead: (name, args) => runReadTool(ctx, name, args),
+      runRead: (name, args, refs) => runReadTool(ctx, name, args, refs),
       isAction: isActionTool,
       confirm: async (name, args, refs) => {
         const d = await describeAction(ctx, name, args, refs);
