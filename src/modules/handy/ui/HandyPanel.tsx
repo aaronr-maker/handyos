@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiCall, Icon, listTeamMembers, onAssistantRequest, useRuntime, useSession } from '@/core';
 import { MAX_STEPS, runTurn, SYSTEM_PROMPT, type StoredMessage, type TurnDeps, type WireMessage, type WireTool } from '../chat';
 import { createMasker, createSpokenMasker, type Masker } from '../mask';
+import { createSpokenConfirm, type SpokenConfirm } from '../spoken';
 import { connectVoice, createVoiceHandler, VOICE_RULES, voiceTools, type VoiceStatus } from '../voice';
 import { addMessage, createThread, knownEntities, listMessages, recordUsage, saveMaskMap, type HandyMessage, type HandyThread } from '../service';
 import { addUsage, noUsage, type Usage } from '../usage';
@@ -95,6 +96,7 @@ export function HandyOverlay() {
       const t = thread ?? (await createThread(companyId, user.id, 'Voice chat'));
       setThread(t);
       const masker = createSpokenMasker(known, t.mask_map);
+      const spoken: SpokenConfirm = createSpokenConfirm();
       const save = async (role: HandyMessage['role'], content: string) => {
         const row = await addMessage(companyId, t.id, user.id, role, content);
         setShown((cur) => [...cur, { id: row.id, role, content }]);
@@ -103,11 +105,31 @@ export function HandyOverlay() {
       const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS) });
       callUsage.current = { used: noUsage(), startedAt: Date.now() };
       let send: (e: unknown) => void = () => undefined;
+      const base = toolDeps(masker, team);
       const handle = createVoiceHandler({
-        turn: { ...toolDeps(masker, team), system: '', tools: [], callModel: async () => ({ role: 'assistant', content: null }) },
+        turn: {
+          ...base,
+          system: '',
+          tools: [],
+          callModel: async () => ({ role: 'assistant', content: null }),
+          // the spoken yes counts when the app can be sure of it (see spoken.ts); otherwise the card on screen is the backup
+          confirm: async (name, args, refs) => {
+            const v = await spoken.judge(name, args);
+            if (v.kind === 'yes') return true;
+            if (v.kind === 'no') return false;
+            if (v.kind === 'feedback') return { feedback: v.said };
+            return base.confirm(name, args, refs);
+          },
+        },
         send: (e) => send(e),
-        onUser: (text) => void save('user', text),
-        onHandy: (text) => void save('assistant', text),
+        onUser: (text) => {
+          spoken.userSaid(text);
+          void save('user', text);
+        },
+        onHandy: (text) => {
+          spoken.handySaid(text);
+          void save('assistant', text);
+        },
         onAction: (line) => void save('action', line),
         onStatus: (s) => setVoice(s),
         onUsage: (u) => {

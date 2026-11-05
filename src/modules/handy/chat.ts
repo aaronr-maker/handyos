@@ -27,7 +27,7 @@ export interface StoredMessage {
 export type Refs = (argument: string) => { kind: 'customer' | 'contact' | 'property'; id: string } | null;
 
 /** The person's answer to "Handy wants to...": no, or yes (possibly with their own wording in place of Handy's draft). */
-export type Confirmation = false | true | { overrides: Record<string, unknown> };
+export type Confirmation = false | true | { overrides: Record<string, unknown> } | { feedback: string };
 
 export interface TurnDeps {
   masker: Masker;
@@ -76,8 +76,10 @@ export async function executeToolCall(name: string, rawArgs: string, d: TurnDeps
     if (!d.isAction(name)) return { result: d.masker.mask(JSON.stringify(await d.runRead(name, args, refs))) };
     const ok = await d.confirm(name, args, refs);
     if (ok === false) return { result: 'The person said not now. Nothing was changed.', action: `Declined: ${name}` };
+    // the person answered out loud with something other than yes or no: that is feedback to act on, and nothing was changed
+    if (typeof ok === 'object' && 'feedback' in ok) return { result: `The person did not say yes. They said: "${ok.feedback}". Nothing was changed. Take what they said into account and, if needed, say the new version and ask again.` };
     // the person may have changed Handy's wording before saying yes
-    if (typeof ok === 'object') args = { ...args, ...ok.overrides };
+    if (typeof ok === 'object' && 'overrides' in ok) args = { ...args, ...ok.overrides };
     const done = await d.runAction(name, args, refs);
     return { result: d.masker.mask(done), action: done };
   } catch (err) {
