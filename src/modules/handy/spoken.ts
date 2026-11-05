@@ -61,8 +61,8 @@ function covers(spoken: string, value: string): boolean {
   return first.length < 2 || said.includes(first);
 }
 
-/** Keys that point at a record or choose a mode: nothing Handy would read out. */
-const REFERENCE = new Set(['customer', 'contact', 'property', 'job_id', 'alert_id', 'channel', 'display_name_source', 'is_property_manager', 'status']);
+/** Keys that point at a record or choose a mode: nothing Handy would read out. (The customer and contact are not here: Handy must say who it is for.) */
+const REFERENCE = new Set(['property', 'job_id', 'alert_id', 'channel', 'display_name_source', 'is_property_manager', 'status']);
 
 /** Every value Handy is about to save must appear in what he read aloud. False when there is nothing to check (he must read something). */
 export function spokenCovers(args: Record<string, unknown>, spoken: string): boolean {
