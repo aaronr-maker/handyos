@@ -22,7 +22,7 @@ async function setup() {
   ]);
   const asPerson = async (action: string, input: unknown) => {
     const r = await rt.actions.executeByName(action, input, owner);
-    return { status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : undefined };
+    return { status: r.status, output: r.status === 'ok' ? r.output : undefined, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : undefined };
   };
   const asAgent = (action: string, input: unknown) => rt.actions.executeByName(action, input, { companyId: co, actor: { kind: 'agent', id: 'handy' }, onBehalfOf: { userId: 'boss', role: 'owner' } });
   return { rt, pat, noPhone, ctx, masker, asPerson, asAgent };
@@ -39,12 +39,24 @@ describe('Handy drafting a customer message', () => {
     expect(await listMessages(co, w.pat.id)).toHaveLength(0); // nothing is saved by drafting
   });
 
-  it('saves it with the person as the sender, queued and honestly not delivered, using the words they approved', async () => {
+  it('saves it with the person as the sender, using the words they approved, and says honestly it was not sent when it cannot be delivered', async () => {
     const w = await setup();
     const out = await runActionTool(w.ctx, async (a, i) => ({ status: (await w.asAgent(a, i)).status }), 'send_message', { customer: 'Pat Miller', channel: 'sms', body: 'Hi Pat, running late (edited).' }, { refs: () => ({ kind: 'customer', id: w.pat.id }), asPerson: w.asPerson });
-    expect(out).toMatch(/NOT been delivered/);
+    expect(out).toMatch(/NOT been sent/); // no way to deliver was given, so it waits on the Messages page
     const saved = await listMessages(co, w.pat.id);
     expect(saved).toMatchObject([{ body: 'Hi Pat, running late (edited).', channel: 'sms', direction: 'outbound', status: 'queued', created_by: 'boss' }]);
+  });
+
+  it('sends it right after the person says yes, and reports exactly what happened', async () => {
+    const w = await setup();
+    const run = (deliver: (id: string) => Promise<{ status: 'sent' | 'failed' | 'already_sent'; error?: string }>) =>
+      runActionTool(w.ctx, async () => ({ status: 'ok' }), 'send_message', { customer: 'Pat Miller', channel: 'email', body: 'Hi {first_name}, we are on our way.' }, { refs: () => ({ kind: 'customer', id: w.pat.id }), asPerson: w.asPerson, deliver });
+    const delivered: string[] = [];
+    expect(await run(async (id) => (delivered.push(id), { status: 'sent' }))).toBe('Sent the email to Pat Miller.');
+    expect(delivered).toHaveLength(1);
+    expect(await run(async () => ({ status: 'failed', error: 'domain not verified' }))).toMatch(/saved but NOT sent: domain not verified/);
+    expect(await run(async () => { throw new Error('Email sending is not set up yet'); })).toMatch(/saved but NOT sent: Email sending is not set up yet/);
+    expect((await listMessages(co, w.pat.id)).length).toBe(3); // every try was kept, so a failed one can be tried again from the Messages page
   });
 
   it('refuses when the customer has no phone or email for that channel, or cannot be told apart', async () => {

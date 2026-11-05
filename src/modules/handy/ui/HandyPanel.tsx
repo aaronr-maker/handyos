@@ -64,10 +64,10 @@ export function HandyOverlay() {
         );
       },
       runAction: (name, args, refs) => {
-        const outcome = (r: Awaited<ReturnType<typeof asHandy>>) => ({ status: r.status, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined });
+        const outcome = (r: Awaited<ReturnType<typeof asHandy>>) => ({ status: r.status, output: r.status === 'ok' ? r.output : undefined, message: r.status === 'error' ? r.message : r.status === 'denied' ? r.reason : r.status === 'invalid' ? r.issues.join('; ') : undefined });
         // customer-facing words are saved by the person who approved them, not by Handy
         const asPerson = async (action: string, input: unknown) => outcome(await actions.executeByName(action, input, { companyId, actor: user, role }));
-        return runActionTool(ctx, async (action, body) => outcome(await asHandy(action, body)), name, args, { refs, asPerson });
+        return runActionTool(ctx, async (action, body) => outcome(await asHandy(action, body)), name, args, { refs, asPerson, deliver: (messageId) => apiCall('/api/messages/send', { message_id: messageId }) });
       },
     };
   };
@@ -260,7 +260,7 @@ export function HandyOverlay() {
                 )}
                 <div className="row">
                   <button type="button" onClick={() => confirm.answer(true, confirm.edit ? editing : undefined)}>
-                    {confirm.edit ? 'Save it' : 'Do it'}
+                    {confirm.edit ? 'Send it' : 'Do it'}
                   </button>
                   <button type="button" className="secondary" onClick={() => confirm.answer(false)}>
                     Not now
