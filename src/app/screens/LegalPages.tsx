@@ -28,6 +28,12 @@ export function PrivacyPage() {
       <p>Only people in your company, according to the roles you assign. Each company's data is kept separate from every other company's. Our hosting providers (Supabase and Vercel) store data on our behalf.</p>
       <h2>Keeping and deleting data</h2>
       <p>You can ask us to delete your company's data at any time by emailing {CONTACT}.</p>
+      <h2>Text messages</h2>
+      <p>
+        If you give That Handyman Van LLC your mobile number and agree to receive texts, we use it to send messages about your service: appointment confirmations and reminders, "on the way" notices, estimates, invoices and replies to your questions.
+        Agreeing to texts is not a condition of buying anything. Message frequency varies with your jobs. Message and data rates may apply. Reply STOP at any time to stop receiving texts, or HELP for help.
+      </p>
+      <p>No mobile information, including phone numbers and text-messaging consent, is shared with third parties or affiliates for marketing or promotional purposes. We use a messaging service provider only to deliver your messages.</p>
       <h2>Security</h2>
       <p>Data is sent over HTTPS and stored in access-controlled databases with per-company row-level security.</p>
     </Shell>
@@ -45,6 +51,11 @@ export function TermsPage() {
       <p>If you connect QuickBooks Online, your use of QuickBooks is also governed by Intuit's terms. HandyOS only reads reports from it.</p>
       <h2>No warranty</h2>
       <p>The service is provided "as is". Figures such as hourly rates are aids to your decisions; check them against your own books and advisers. To the extent allowed by law, we are not liable for indirect losses.</p>
+      <h2>Text message terms</h2>
+      <p>
+        Customers who opt in receive service texts from That Handyman Van LLC (appointment confirmations and reminders, on-the-way notices, estimates, invoices and replies). Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply.
+        Reply STOP to cancel and HELP for help. Carriers are not liable for delayed or undelivered messages. See our <a href="/privacy">Privacy Policy</a> for how phone numbers are used and protected.
+      </p>
       <h2>Ending use</h2>
       <p>You may stop using HandyOS at any time and ask us to delete your data. We may suspend accounts that misuse the service.</p>
     </Shell>

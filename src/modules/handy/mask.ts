@@ -16,6 +16,9 @@ export interface KnownEntity {
   label: string;
   /** Everything it can be called in text (names, company name, street address...). */
   aliases: string[];
+  /** Emails and phone numbers on file, so typing one of them points to this record instead of becoming "Email 1". */
+  emails?: string[];
+  phones?: string[];
 }
 
 export type MaskMap = Record<string, string>; // placeholder -> real value (emails, phones, numbers)
@@ -61,12 +64,24 @@ export function createMasker(known: KnownEntity[], existing: MaskMap = {}): Mask
   const aliases = [...byAlias.keys()].sort((a, b) => b.length - a.length);
   const names = aliases.length ? new RegExp(`(?<![\\w])(${aliases.map(escape).join('|')})(?![\\w])`, 'gi') : null;
   const byToken = new Map(known.map((e) => [maskId(e.kind, e.id), e]));
+  const byEmail = new Map<string, KnownEntity>();
+  const byPhone = new Map<string, KnownEntity>();
+  for (const e of known) {
+    for (const m of e.emails ?? []) if (m.trim()) byEmail.set(m.trim().toLowerCase(), e);
+    for (const p of e.phones ?? []) if (p.replace(/\D/g, '').length >= 10) byPhone.set(p.replace(/\D/g, '').slice(-10), e);
+  }
 
   return {
     mask(text) {
       // emails, phone numbers and long numbers first (a known name can sit inside an email address), then known names and addresses
-      let out = text.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, (m) => genericToken('Email', m));
-      out = out.replace(/(?<![\w-])(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g, (m) => genericToken('Phone', m));
+      let out = text.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, (m) => {
+        const e = byEmail.get(m.toLowerCase());
+        return e ? maskId(e.kind, e.id) : genericToken('Email', m);
+      });
+      out = out.replace(/(?<![\w-])(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g, (m) => {
+        const e = byPhone.get(m.replace(/\D/g, '').slice(-10));
+        return e ? maskId(e.kind, e.id) : genericToken('Phone', m);
+      });
       out = out.replace(/(?<![\w-])\d{9,}(?![\w-])/g, (m) => genericToken('Number', m));
       if (names) out = out.replace(names, (m) => {
         const e = byAlias.get(m.toLowerCase());

@@ -17,6 +17,7 @@ const tool = (name: string, description: string, properties: Record<string, unkn
 
 export const HANDY_TOOLS: WireTool[] = [
   tool('team', 'List the team members and their roles.'),
+  tool('find_customer', "Find a customer by name, company, email address or phone number, and get the customer's ID. Use this whenever you need a customer's ID and do not already have it; never make an ID up.", { query: { type: 'string', description: 'What to search for.' } }, ['query']),
   tool('week_hours', "A team member's week: hours clocked, scheduled time still ahead, efficiency rate and projected total.", { person }, ['person']),
   tool('upcoming_jobs', 'Jobs still to be worked that are assigned to a team member (or to anyone, if no name is given), with times and job ids.', { person }),
   tool('unassigned_jobs', 'Scheduled jobs that nobody is assigned to yet.'),
@@ -68,6 +69,16 @@ export async function runReadTool(ctx: ToolContext, name: string, args: Record<s
   const now = Date.now();
   if (name === 'team') return ctx.team.map((m) => ({ name: nameOf(m), role: m.role }));
   if (name === 'open_alerts') return (await listAlerts(ctx.companyId)).filter((a) => a.status === 'open').map((a) => ({ alert_id: a.id, title: a.title, detail: a.detail, severity: a.severity }));
+  if (name === 'find_customer') {
+    const q = String(args.query ?? '').trim().toLowerCase();
+    if (q.length < 2) throw new Error('What should I search for?');
+    const digits = q.replace(/\D/g, '');
+    const found = (await listCustomers(ctx.companyId)).filter((c) =>
+      [c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' '), c.email].some((v) => (v ?? '').toLowerCase().includes(q)) || (digits.length >= 7 && (c.phone ?? '').replace(/\D/g, '').includes(digits)),
+    );
+    // only the name (sent as an ID) and whether they can be texted or emailed; never the phone number or address themselves
+    return found.slice(0, 8).map((c) => ({ customer: customerLabel(c), can_text: !!c.phone, can_email: !!c.email }));
+  }
   const facts = await loadTimeFacts(ctx.companyId);
   if (name === 'week_hours') {
     const p = findPerson(ctx.team, args.person);
