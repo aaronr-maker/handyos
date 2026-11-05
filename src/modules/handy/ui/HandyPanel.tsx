@@ -268,11 +268,6 @@ export function HandyOverlay() {
                 </div>
               </div>
             )}
-            {voice && (
-              <p className="notice">
-                {voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? '● Handy is talking…' : voice === 'thinking' ? '● Handy is thinking…' : '● Listening. Just talk.'} Your spoken words go to OpenAI as audio, so names you say are not masked. The call ends by itself after 10 minutes.
-              </p>
-            )}
             {busy && !confirm && <p className="muted">Handy is thinking…</p>}
             {error && <p className="err">{error}</p>}
             <div ref={endRef} />
@@ -284,14 +279,13 @@ export function HandyOverlay() {
             }}
           >
             <button type="button" className={voice ? '' : 'secondary'} onClick={() => void startVoice()} aria-label={voice ? 'End the voice call' : 'Talk to Handy'} title={voice ? 'End the call' : 'Talk to Handy'}>
-              {voice ? 'End' : <Icon name="mic" />}
+              {voice ? (voice === 'connecting' ? 'Connecting…' : '● End') : <Icon name="mic" />}
             </button>
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask Handy…" aria-label="Message Handy" disabled={busy} />
             <button type="submit" disabled={busy || !input.trim()}>
               Send
             </button>
           </form>
-          <p className="muted small-note handy-foot">Handy can make mistakes. Customer names, addresses, phones and emails are swapped for IDs before anything leaves the app.</p>
         </section>
       )}
     </>
