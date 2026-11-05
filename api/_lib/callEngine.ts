@@ -1,0 +1,353 @@
+/**
+ * The phone tree engine. One piece of code that follows a company's call tree, used for the in-app "test call" and for real
+ * calls, so what you test is what callers get. It has no imports and does no network work: give it the tree, the business
+ * hours, the team's phone numbers and what just happened (a key pressed, a ring that was not answered), and it says what to
+ * do next. A second function turns that into the instructions Twilio understands (TwiML).
+ */
+export type NodeKind = 'start' | 'hours' | 'say' | 'menu' | 'ring' | 'voicemail' | 'ai' | 'forward' | 'hangup';
+
+export interface MenuOption {
+  digit: string;
+  label: string;
+}
+
+export interface NodeData {
+  /** say: what to say */
+  text?: string;
+  /** menu, voicemail: what to say first */
+  prompt?: string;
+  /** menu: "Press 1 for ..." choices */
+  options?: MenuOption[];
+  /** ring: team members to ring (their phone numbers come from the team list), and any extra numbers */
+  people?: string[];
+  numbers?: string[];
+  /** ring: everyone at once, or one after another */
+  mode?: 'all' | 'in_order';
+  /** ring, forward: how long to ring before giving up */
+  seconds?: number;
+  /** voicemail: who to tell about a new message */
+  notify?: string[];
+  /** forward: the number to send the call to */
+  number?: string;
+  /** a name for the block, shown on the canvas */
+  label?: string;
+}
+
+export interface FlowNode {
+  id: string;
+  kind: NodeKind;
+  x: number;
+  y: number;
+  data: NodeData;
+}
+/** `handle` is the exit the line leaves from (see `portsOf`). */
+export interface FlowEdge {
+  id: string;
+  source: string;
+  handle: string;
+  target: string;
+}
+export interface Flow {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+export type Day = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export const DAYS: Day[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+export interface Hours {
+  timezone: string;
+  /** Open stretches per weekday, "HH:MM" to "HH:MM" (24-hour). No stretch = closed all day. */
+  week: Record<Day, { open: string; close: string }[]>;
+}
+
+export interface Env {
+  /** Now, in ms. */
+  now: number;
+  hours: Hours;
+  /** Team member id -> phone number. */
+  phones: Record<string, string>;
+  /** Team member id -> name (for the test call). */
+  names?: Record<string, string>;
+  /** True once the AI receptionist is connected; until then the AI block's "unavailable" exit is used. */
+  aiReady?: boolean;
+}
+
+export const DEFAULT_HOURS: Hours = {
+  timezone: 'America/Chicago',
+  week: { mon: [{ open: '08:00', close: '17:00' }], tue: [{ open: '08:00', close: '17:00' }], wed: [{ open: '08:00', close: '17:00' }], thu: [{ open: '08:00', close: '17:00' }], fri: [{ open: '08:00', close: '17:00' }], sat: [], sun: [] },
+};
+
+// ---- the exits each kind of block has ----
+export interface Port {
+  id: string;
+  label: string;
+}
+export function portsOf(node: Pick<FlowNode, 'kind' | 'data'>): Port[] {
+  switch (node.kind) {
+    case 'start':
+    case 'say':
+      return [{ id: 'next', label: 'then' }];
+    case 'hours':
+      return [
+        { id: 'open', label: 'Open' },
+        { id: 'closed', label: 'Closed' },
+      ];
+    case 'menu':
+      return [...(node.data.options ?? []).map((o) => ({ id: o.digit, label: `Press ${o.digit}${o.label ? `: ${o.label}` : ''}` })), { id: 'none', label: 'No answer / wrong key' }];
+    case 'ring':
+    case 'forward':
+      return [{ id: 'noanswer', label: "If they don't answer" }];
+    case 'ai':
+      return [{ id: 'unavailable', label: 'If the assistant is not available' }];
+    default:
+      return [];
+  }
+}
+
+const target = (flow: Flow, nodeId: string, handle: string) => flow.edges.find((e) => e.source === nodeId && e.handle === handle)?.target ?? null;
+const nodeOf = (flow: Flow, id: string) => flow.nodes.find((n) => n.id === id);
+
+// ---- business hours ----
+const toMinutes = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + (m || 0);
+};
+
+/** Is the business open at this moment, in the business's own time zone? */
+export function isOpen(hours: Hours, now: number): boolean {
+  let weekday: string;
+  let minutes: number;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: hours.timezone, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now));
+    weekday = (parts.find((p) => p.type === 'weekday')?.value ?? 'Mon').slice(0, 3).toLowerCase();
+    minutes = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  } catch {
+    return false;
+  }
+  return (hours.week[weekday as Day] ?? []).some((r) => minutes >= toMinutes(r.open) && minutes < toMinutes(r.close));
+}
+
+// ---- walking the tree ----
+export type Pause =
+  | { type: 'menu'; node: string; prompt: string; options: MenuOption[]; attempt: number }
+  | { type: 'dial'; node: string; numbers: string[]; who: string[]; seconds: number; index: number; total: number }
+  | { type: 'record'; node: string; prompt: string; notify: string[] }
+  | { type: 'ai'; node: string }
+  | { type: 'hangup'; node: string | null };
+
+export interface Step {
+  /** Things to say before the pause. */
+  say: string[];
+  pause: Pause;
+  /** The blocks passed through, for the call log. */
+  trail: string[];
+}
+
+const SORRY = "Sorry, we can't take your call right now. Goodbye.";
+const MAX_STEPS = 30;
+
+/** The words spoken for a menu: the prompt, then "Press 1 for ..." for each choice. */
+export function menuSpeech(prompt: string, options: MenuOption[]): string {
+  return [prompt.trim(), ...options.filter((o) => o.digit).map((o) => `Press ${o.digit}${o.label ? ` for ${o.label}` : ''}.`)].filter(Boolean).join(' ');
+}
+
+function ringStep(node: FlowNode, env: Env, index: number): Pause {
+  const people = (node.data.people ?? []).filter((id) => env.phones[id]);
+  const entries = [...people.map((id) => ({ number: env.phones[id], who: env.names?.[id] ?? 'a team member' })), ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ number: n, who: n }))];
+  const seconds = Math.min(60, Math.max(8, node.data.seconds ?? 20));
+  if (node.data.mode === 'in_order') {
+    const one = entries[index];
+    return { type: 'dial', node: node.id, numbers: one ? [one.number] : [], who: one ? [one.who] : [], seconds, index, total: entries.length };
+  }
+  return { type: 'dial', node: node.id, numbers: entries.map((e) => e.number), who: entries.map((e) => e.who), seconds, index: 0, total: 1 };
+}
+
+/** Follows the tree from a block until something has to happen (a menu, a ring, a recording, a hang-up). */
+export function walk(flow: Flow, from: string | null, env: Env, say: string[] = [], trail: string[] = []): Step {
+  let current = from;
+  for (let i = 0; i < MAX_STEPS; i++) {
+    const node = current ? nodeOf(flow, current) : undefined;
+    if (!node) return { say: [...say, SORRY], pause: { type: 'hangup', node: current }, trail };
+    trail.push(node.id);
+    const go = (handle: string) => target(flow, node.id, handle);
+    switch (node.kind) {
+      case 'start':
+        current = go('next');
+        break;
+      case 'hours':
+        current = go(isOpen(env.hours, env.now) ? 'open' : 'closed');
+        break;
+      case 'say':
+        if (node.data.text?.trim()) say = [...say, node.data.text.trim()];
+        current = go('next');
+        break;
+      case 'menu':
+        return { say, pause: { type: 'menu', node: node.id, prompt: menuSpeech(node.data.prompt ?? '', node.data.options ?? []), options: node.data.options ?? [], attempt: 1 }, trail };
+      case 'ring':
+        return { say, pause: ringStep(node, env, 0), trail };
+      case 'forward':
+        return { say, pause: { type: 'dial', node: node.id, numbers: node.data.number ? [node.data.number] : [], who: [node.data.number ?? ''], seconds: Math.min(60, Math.max(8, node.data.seconds ?? 25)), index: 0, total: 1 }, trail };
+      case 'voicemail':
+        return { say, pause: { type: 'record', node: node.id, prompt: node.data.prompt?.trim() || 'Please leave a message after the beep and we will call you back.', notify: node.data.notify ?? [] }, trail };
+      case 'ai':
+        if (env.aiReady) return { say, pause: { type: 'ai', node: node.id }, trail };
+        current = go('unavailable');
+        if (!current) return { say, pause: { type: 'record', node: node.id, prompt: 'Please leave a message after the beep and we will call you back.', notify: [] }, trail };
+        break;
+      case 'hangup':
+        return { say, pause: { type: 'hangup', node: node.id }, trail };
+    }
+  }
+  return { say: [...say, SORRY], pause: { type: 'hangup', node: null }, trail };
+}
+
+/** A key was pressed (or none): follow that choice, or ask again, or take the "wrong key" exit. */
+export function afterMenu(flow: Flow, nodeId: string, digit: string | null, env: Env, attempt = 1): Step {
+  const node = nodeOf(flow, nodeId);
+  if (!node || node.kind !== 'menu') return walk(flow, null, env);
+  const options = node.data.options ?? [];
+  if (digit && options.some((o) => o.digit === digit) && target(flow, nodeId, digit)) return walk(flow, target(flow, nodeId, digit), env, [], [nodeId]);
+  const none = target(flow, nodeId, 'none');
+  if (none) return walk(flow, none, env, [digit ? "Sorry, that isn't one of the choices." : "Sorry, I didn't get that."], [nodeId]);
+  if (attempt < 3) return { say: [digit ? "Sorry, that isn't one of the choices." : "Sorry, I didn't get that."], pause: { type: 'menu', node: nodeId, prompt: menuSpeech(node.data.prompt ?? '', options), options, attempt: attempt + 1 }, trail: [nodeId] };
+  return { say: [SORRY], pause: { type: 'hangup', node: nodeId }, trail: [nodeId] };
+}
+
+/** A ring ended. If someone picked up, the call is done; otherwise try the next person, or take the "don't answer" exit. */
+export function afterDial(flow: Flow, nodeId: string, answered: boolean, env: Env, index = 0): Step {
+  const node = nodeOf(flow, nodeId);
+  if (!node) return walk(flow, null, env);
+  if (answered) return { say: [], pause: { type: 'hangup', node: nodeId }, trail: [nodeId] };
+  if (node.kind === 'ring' && node.data.mode === 'in_order') {
+    const next = ringStep(node, env, index + 1);
+    if (next.type === 'dial' && next.numbers.length > 0) return { say: [], pause: next, trail: [nodeId] };
+  }
+  return walk(flow, target(flow, nodeId, 'noanswer'), env, [], [nodeId]);
+}
+
+// ---- checking a tree before it is used ----
+export interface Problem {
+  node: string | null;
+  text: string;
+  /** 'error' stops the tree from being used; 'warning' is worth a look. */
+  level: 'error' | 'warning';
+}
+
+export function validateFlow(flow: Flow): Problem[] {
+  const out: Problem[] = [];
+  const starts = flow.nodes.filter((n) => n.kind === 'start');
+  if (starts.length !== 1) out.push({ node: null, level: 'error', text: starts.length === 0 ? 'The tree needs a starting point.' : 'The tree has more than one starting point.' });
+  const named = (n: FlowNode) => n.data.label || ({ start: 'Call comes in', hours: 'Business hours', say: 'Greeting', menu: 'Menu', ring: 'Ring', voicemail: 'Voicemail', ai: 'AI receptionist', forward: 'Forward', hangup: 'Hang up' } as const)[n.kind];
+  for (const n of flow.nodes) {
+    for (const p of portsOf(n)) {
+      if (p.id === 'none' || p.id === 'unavailable') continue; // these have a built-in way to carry on
+      if (!target(flow, n.id, p.id)) out.push({ node: n.id, level: n.kind === 'ring' || n.kind === 'forward' ? 'warning' : 'error', text: `${named(n)}: "${p.label}" doesn't go anywhere yet.` });
+    }
+    if (n.kind === 'menu' && (n.data.options ?? []).length === 0) out.push({ node: n.id, level: 'error', text: `${named(n)} has no choices.` });
+    if (n.kind === 'menu') {
+      const digits = (n.data.options ?? []).map((o) => o.digit);
+      if (new Set(digits).size !== digits.length) out.push({ node: n.id, level: 'error', text: `${named(n)} uses the same key twice.` });
+    }
+    if (n.kind === 'ring' && (n.data.people ?? []).length + (n.data.numbers ?? []).length === 0) out.push({ node: n.id, level: 'error', text: `${named(n)} has nobody to ring.` });
+    if (n.kind === 'forward' && !n.data.number) out.push({ node: n.id, level: 'error', text: `${named(n)} has no number.` });
+  }
+  // blocks nothing leads to
+  if (starts.length === 1) {
+    const seen = new Set<string>();
+    const stack = [starts[0].id];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const e of flow.edges) if (e.source === id) stack.push(e.target);
+    }
+    for (const n of flow.nodes) if (!seen.has(n.id)) out.push({ node: n.id, level: 'warning', text: `${named(n)} can't be reached from the start.` });
+  }
+  // a loop of blocks that never waits for anything would spin forever
+  const quiet = new Set(['start', 'hours', 'say']);
+  for (const n of flow.nodes.filter((x) => quiet.has(x.kind))) {
+    let cur: FlowNode | undefined = n;
+    for (let i = 0; i < flow.nodes.length + 1 && cur && quiet.has(cur.kind); i++) {
+      const handles = portsOf(cur).map((p) => target(flow, cur!.id, p.id)).filter(Boolean) as string[];
+      if (handles.length === 0) break;
+      cur = nodeOf(flow, handles[0]);
+      if (cur?.id === n.id) {
+        out.push({ node: n.id, level: 'error', text: `${named(n)} loops back to itself without ever waiting for the caller.` });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// ---- Twilio instructions ----
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+export interface TwimlOptions {
+  /** The address Twilio comes back to after each step, e.g. https://app.example.com/api/voice/step */
+  stepUrl: string;
+  /** The caller's number, so the person who answers sees who is calling. */
+  callerId?: string;
+  /** A voice Twilio offers, like Polly.Joanna. */
+  voice: string;
+  /** Where Twilio reports a finished recording. */
+  recordingUrl: string;
+}
+
+/** Turns a step into the instructions Twilio understands. */
+export function toTwiml(step: Step, o: TwimlOptions): string {
+  const say = (t: string) => `<Say voice="${esc(o.voice)}">${esc(t)}</Say>`;
+  const link = (q: Record<string, string | number>) => `${o.stepUrl}?${Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&amp;')}`;
+  const out: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', '<Response>', ...step.say.map(say)];
+  const p = step.pause;
+  switch (p.type) {
+    case 'menu':
+      out.push(`<Gather input="dtmf" numDigits="1" timeout="6" action="${link({ node: p.node, ev: 'menu', attempt: p.attempt })}">${say(p.prompt)}</Gather>`);
+      out.push(`<Redirect method="POST">${link({ node: p.node, ev: 'menu', attempt: p.attempt })}</Redirect>`); // nothing pressed
+      break;
+    case 'dial':
+      if (p.numbers.length === 0) out.push(`<Redirect method="POST">${link({ node: p.node, ev: 'dial', idx: p.index, answered: 0 })}</Redirect>`);
+      else out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => `<Number>${esc(n)}</Number>`).join('')}</Dial>`);
+      break;
+    case 'record':
+      out.push(say(p.prompt));
+      out.push(`<Record maxLength="120" playBeep="true" finishOnKey="#" action="${link({ node: p.node, ev: 'record' })}" recordingStatusCallback="${esc(o.recordingUrl)}" recordingStatusCallbackMethod="POST"/>`);
+      out.push(say('Thank you. Goodbye.'), '<Hangup/>');
+      break;
+    case 'ai':
+      out.push(say('One moment.'), '<Hangup/>'); // the AI receptionist connects here once it exists
+      break;
+    case 'hangup':
+      out.push('<Hangup/>');
+      break;
+  }
+  out.push('</Response>');
+  return out.join('');
+}
+
+/** A starter tree: open hours greet and offer a menu; closed hours take a voicemail. */
+export function starterFlow(): Flow {
+  return {
+    nodes: [
+      { id: 'start', kind: 'start', x: 0, y: 140, data: {} },
+      { id: 'hours', kind: 'hours', x: 220, y: 140, data: {} },
+      { id: 'greet', kind: 'say', x: 470, y: 20, data: { text: 'Thank you for calling That Handyman Van.' } },
+      { id: 'menu', kind: 'menu', x: 720, y: 20, data: { prompt: '', options: [{ digit: '1', label: 'Aaron' }, { digit: '2', label: 'our service team' }] } },
+      { id: 'ring1', kind: 'ring', x: 1000, y: 0, data: { people: [], numbers: [], mode: 'all', seconds: 20 } },
+      { id: 'ring2', kind: 'ring', x: 1000, y: 200, data: { people: [], numbers: [], mode: 'all', seconds: 20 } },
+      { id: 'closed', kind: 'say', x: 470, y: 330, data: { text: "Thank you for calling That Handyman Van. We're closed right now." } },
+      { id: 'vm', kind: 'voicemail', x: 720, y: 330, data: { prompt: 'Please leave your name, number and what you need, and we will call you back.', notify: [] } },
+    ],
+    edges: [
+      { id: 'e1', source: 'start', handle: 'next', target: 'hours' },
+      { id: 'e2', source: 'hours', handle: 'open', target: 'greet' },
+      { id: 'e3', source: 'hours', handle: 'closed', target: 'closed' },
+      { id: 'e4', source: 'greet', handle: 'next', target: 'menu' },
+      { id: 'e5', source: 'menu', handle: '1', target: 'ring1' },
+      { id: 'e6', source: 'menu', handle: '2', target: 'ring2' },
+      { id: 'e7', source: 'ring1', handle: 'noanswer', target: 'vm' },
+      { id: 'e8', source: 'ring2', handle: 'noanswer', target: 'vm' },
+      { id: 'e9', source: 'closed', handle: 'next', target: 'vm' },
+    ],
+  };
+}
