@@ -53,3 +53,14 @@ describe('masking private details', () => {
     expect(second.unmask('Email 1')).toBe('a@b.com');
   });
 });
+
+describe('customers found by email or phone', () => {
+  const pat = { kind: 'customer' as const, id: PAT, label: 'Pat Miller', aliases: ['Pat Miller'], emails: ['Pat@Example.com'], phones: ['5125550147'] };
+
+  it('points a typed email or phone number at the customer it belongs to, however it is written, and masks unknown ones as before', () => {
+    const m = createMasker([pat]);
+    expect(m.mask('email pat@example.com or call (512) 555-0147 or +1 512.555.0147')).toBe('email C-4F2A1C3E or call C-4F2A1C3E or C-4F2A1C3E');
+    expect(m.mask('someone else: sue@x.com, 713-555-0100')).toBe('someone else: Email 1, Phone 1');
+    expect(findPrivateDetail(m.mask('pat@example.com and (512) 555-0147'))).toBeNull();
+  });
+});

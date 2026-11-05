@@ -35,8 +35,8 @@ export async function knownEntities(companyId: Id): Promise<KnownEntity[]> {
   const [customers, contacts, properties] = await Promise.all([listCustomers(companyId), listAllContacts(companyId), listAllProperties(companyId)]);
   const clean = (list: (string | null | undefined)[]) => [...new Set(list.map((v) => (v ?? '').trim()).filter(Boolean))];
   return [
-    ...customers.map((c) => ({ kind: 'customer' as const, id: c.id, label: customerLabel(c), aliases: clean([c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) })),
-    ...contacts.map((c) => ({ kind: 'contact' as const, id: c.id, label: c.name, aliases: clean([c.name, [c.first_name, c.last_name].filter(Boolean).join(' ')]) })),
+    ...customers.map((c) => ({ kind: 'customer' as const, id: c.id, label: customerLabel(c), aliases: clean([c.name, c.display_name, c.company_name, [c.first_name, c.last_name].filter(Boolean).join(' ')]), emails: clean([c.email]), phones: clean([c.phone]) })),
+    ...contacts.map((c) => ({ kind: 'contact' as const, id: c.id, label: c.name, aliases: clean([c.name, [c.first_name, c.last_name].filter(Boolean).join(' ')]), emails: clean([c.email]), phones: clean([c.phone]) })),
     ...properties.map((p) => ({ kind: 'property' as const, id: p.id, label: p.address_line1, aliases: clean([p.address_line1]) })),
   ];
 }
