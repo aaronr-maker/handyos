@@ -8,8 +8,6 @@ import { addUsage, noUsage, type Usage } from '../usage';
 import { setHandyOpen, useHandyOpen } from '../store';
 import { describeAction, HANDY_TOOLS, isActionTool, runActionTool, runReadTool, type ToolContext } from '../tools';
 
-const VOICE_NAMES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
-
 interface Confirm {
   text: string;
   /** For a message: the words, which the person can change before saying yes. */
@@ -31,13 +29,6 @@ export function HandyOverlay() {
   const [editing, setEditing] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
-  const [voiceName, setVoiceName] = useState(() => {
-    try {
-      return localStorage.getItem('handy.voice') ?? '';
-    } catch {
-      return '';
-    }
-  });
   const typed = useRef<Usage>(noUsage());
   const callUsage = useRef<{ used: Usage; startedAt: number }>({ used: noUsage(), startedAt: 0 });
   const call = useRef<{ close(): void } | null>(null);
@@ -109,7 +100,7 @@ export function HandyOverlay() {
         setShown((cur) => [...cur, { id: row.id, role, content }]);
       };
       const instructions = `${SYSTEM_PROMPT(companyName, me?.full_name || me?.email || 'a team member')}\n${VOICE_RULES}`;
-      const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS), ...(voiceName ? { voice: voiceName } : {}) });
+      const pass = await apiCall<{ secret: string; model: string }>('/api/handy/voice', { instructions, tools: voiceTools(HANDY_TOOLS) });
       callUsage.current = { used: noUsage(), startedAt: Date.now() };
       let send: (e: unknown) => void = () => undefined;
       const handle = createVoiceHandler({
@@ -270,23 +261,6 @@ export function HandyOverlay() {
               void send(input, thread);
             }}
           >
-            {!voice && (
-              <select aria-label="Handy's voice" value={voiceName} onChange={(e) => {
-                setVoiceName(e.target.value);
-                try {
-                  localStorage.setItem('handy.voice', e.target.value);
-                } catch {
-                  // the choice just is not remembered
-                }
-              }} style={{ maxWidth: 92 }}>
-                <option value="">Voice</option>
-                {VOICE_NAMES.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            )}
             <button type="button" className={voice ? '' : 'secondary'} onClick={() => void startVoice()} aria-label={voice ? 'End the voice call' : 'Talk to Handy'} title={voice ? 'End the call' : 'Talk to Handy'}>
               {voice ? 'End' : <Icon name="mic" />}
             </button>
