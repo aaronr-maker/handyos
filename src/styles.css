@@ -275,7 +275,7 @@ details summary { cursor: pointer; font-weight: 600; }
 .handy-panel form button svg { width: 20px; height: 20px; }
 
 /* the call tree builder */
-.call-canvas { height: 560px; border: 1px solid var(--border); border-radius: var(--radius); background: #f8fafc; }
+.call-canvas { height: 640px; border: 1px solid var(--border); border-radius: var(--radius); background: #f8fafc; }
 .pb { background: #fff; border: 2px solid #cbd5e1; border-radius: 10px; min-width: 190px; max-width: 240px; font-size: 0.85rem; box-shadow: 0 1px 3px rgb(15 23 42 / 0.1); }
 .pb-selected { border-color: var(--brand); }
 .pb-title { padding: 6px 10px; font-weight: 700; background: #f1f5f9; border-radius: 8px 8px 0 0; }
@@ -314,3 +314,13 @@ details summary { cursor: pointer; font-weight: 600; }
 .pipe-stage { padding: 6px 12px; border-radius: 999px; background: #f1f5f9; border: 2px solid #e2e8f0; font-weight: 600; font-size: 0.85rem; }
 .pipe-hit { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
 .pipe-arrow { color: #94a3b8; }
+.call-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 4px; min-height: 44px; }
+button.danger { background: #dc2626; color: #fff; }
+.call-work { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+@media (min-width: 1000px) { .call-work { grid-template-columns: 1fr 300px; } .call-side { position: sticky; top: 8px; max-height: 80vh; overflow-y: auto; } }
+.react-flow__edge.selected .react-flow__edge-path { stroke: #dc2626; stroke-width: 3; }
+.react-flow__handle { width: 14px; height: 14px; background: #0f766e; border: 2px solid #fff; }
+.react-flow__edge-path { stroke: #0f766e; stroke-width: 2.5; }
+.react-flow__edge-textbg { fill: #fff; }
+.react-flow__edge-text { font-size: 11px; font-weight: 600; fill: #0f172a; }
+.pb { border-width: 2px; }
