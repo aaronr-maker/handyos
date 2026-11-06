@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { serverEnv } from '../_lib/store.js';
-import { handleIncoming, supabaseVoiceStore, VoiceError } from '../_lib/voiceCalls.js';
-import { formBody, voiceDeps } from '../_lib/voiceHttp.js';
+import { serverEnv } from '../store.js';
+import { handleIncoming, supabaseVoiceStore, VoiceError } from '../voiceCalls.js';
+import { formBody, voiceDeps } from '../voiceHttp.js';
 
 /** Twilio calls this when a customer rings the company's number. Answers with instructions for the call. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

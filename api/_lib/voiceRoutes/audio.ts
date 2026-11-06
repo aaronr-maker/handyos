@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { bearer, realDeps } from '../_lib/handler.js';
-import { serverEnv } from '../_lib/store.js';
+import { bearer, realDeps } from '../handler.js';
+import { serverEnv } from '../store.js';
 
 /**
  * GET ?id=<voicemail id>: plays one voicemail for a signed-in owner, admin or office person. Twilio keeps recordings behind the

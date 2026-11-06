@@ -1,12 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { serverEnv } from '../_lib/store.js';
-import { handleStep, supabaseVoiceStore, VoiceError } from '../_lib/voiceCalls.js';
-import { formBody, voiceDeps } from '../_lib/voiceHttp.js';
+import { serverEnv } from '../store.js';
+import { handleStep, supabaseVoiceStore, VoiceError } from '../voiceCalls.js';
+import { formBody, voiceDeps } from '../voiceHttp.js';
 
 /** Twilio comes back here after each step of a call (a key pressed, a ring that ended, a recording). */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const raw = (req.url ?? '').split('?')[1] ?? '';
+    // the router adds its own `action` field; Twilio signed the address without it
+    const params = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+    params.delete('action');
+    const raw = params.toString();
     const query = Object.fromEntries(new URLSearchParams(raw)) as Record<string, string>;
     const xml = await handleStep(voiceDeps(supabaseVoiceStore(serverEnv())), query, raw, formBody(req), req.headers['x-twilio-signature'] as string | undefined);
     res.status(200).setHeader('Content-Type', 'text/xml').send(xml);

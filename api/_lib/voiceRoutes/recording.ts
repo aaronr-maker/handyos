@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { serverEnv } from '../_lib/store.js';
-import { handleRecording, supabaseVoiceStore, VoiceError } from '../_lib/voiceCalls.js';
-import { formBody, voiceDeps } from '../_lib/voiceHttp.js';
+import { serverEnv } from '../store.js';
+import { handleRecording, supabaseVoiceStore, VoiceError } from '../voiceCalls.js';
+import { formBody, voiceDeps } from '../voiceHttp.js';
 
 /** Twilio tells us a voicemail recording is ready. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
