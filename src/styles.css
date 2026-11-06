@@ -364,3 +364,13 @@ button.danger { background: #dc2626; color: #fff; }
 .mo-bars { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-top: auto; }
 .mo-bar { display: block; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
 @media (max-width: 700px) { .mo-day { min-height: 76px; padding: 5px; } .mo-info { display: none; } }
+
+/* sales leaderboards */
+.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.board-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.board-list li { display: grid; grid-template-columns: 28px minmax(70px, 1fr) minmax(50px, 1fr) auto; align-items: center; gap: 8px; font-size: 0.9rem; }
+.board-first { font-size: 1rem; font-weight: 800; }
+.board-medal { font-size: 1.2rem; text-align: center; }
+.board-bar { display: block; background: #eef2ea; border-radius: 6px; height: 10px; overflow: hidden; }
+.board-bar span { display: block; height: 100%; background: var(--brand); border-radius: 6px; }
+.board-first .board-bar span { background: var(--accent); }

@@ -7,6 +7,7 @@ export const MODULE_IDS = [
   'invoicing',
   'payments',
   'jobcosting',
+  'sales',
   'cashplan',
   'revenue',
   'qbsync',
