@@ -49,3 +49,10 @@ Code is ready (`api/_lib/messageSend.ts`). Needs the Twilio account, a number, c
 - Native phone app (Capacitor) for background arrival reminders.
 - Stripe card payments and customer-facing links to approve an estimate or pay an invoice.
 - A launch checklist for January 1.
+
+## Ring inside the HandyOS phone app (later, after the phone system is proven)
+Goal: calls to the company number ring in the HandyOS app on a tech's or office person's phone, even when the app is closed or the phone is locked.
+- A web app (PWA) cannot do this on phones: it cannot wake up and show a call screen. It needs a real installed app.
+- Plan: wrap HandyOS in a native shell (Capacitor) and add Twilio Voice for iOS/Android: iPhone uses CallKit with a VoIP push, Android uses a push notification with a call screen.
+- Needs: Apple Developer account ($99/yr), Google Play account ($25 once), a cloud build service for iOS (no Mac in the cloud session), TestFlight for testing, a Twilio API key and TwiML app, and a server endpoint that gives each signed-in person a calling token.
+- The call tree would get a "ring the app" option beside "ring a cell number". Cell numbers stay as the backup so calls are never missed.
