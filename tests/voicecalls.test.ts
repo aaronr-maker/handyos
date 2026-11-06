@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_HOURS, starterFlow, type Flow } from '../api/_lib/callEngine';
+import { streamToken, validStreamToken } from '../api/_lib/streamToken';
 import { handleIncoming, handleRecording, handleStep, twilioSignature, verifyTwilio, VoiceError, type VoiceDeps, type VoiceStore } from '../api/_lib/voiceCalls';
 
 const TOKEN = 'twilio-auth-token-for-tests';
@@ -53,6 +54,24 @@ describe('only Twilio can make the phone addresses act', () => {
     await expect(handleIncoming(w.deps, params, 'forged')).rejects.toThrow(/did not come from Twilio/);
     await expect(handleIncoming({ ...w.deps, env: {} }, params, 'x')).rejects.toBeInstanceOf(VoiceError);
     expect(w.logs).toHaveLength(0);
+  });
+});
+
+describe('the live transcript', () => {
+  const params = { CallSid: 'CA7', From: '+15125559999', To: '+15125550000' };
+  it('starts only when the server address and secret are both set, and the stream carries a token only HandyOS can make', async () => {
+    const off = world();
+    expect(await handleStep(off.deps, { node: 'menu', ev: 'menu', attempt: '1' }, 'node=menu&ev=menu&attempt=1', { ...params, Digits: '1' }, off.sign('/api/voice/step', { ...params, Digits: '1' }, 'node=menu&ev=menu&attempt=1'))).not.toContain('<Stream');
+    const on = world();
+    on.deps.env.VOICE_STREAM_URL = 'wss://voice.example.com/stream';
+    on.deps.env.STREAM_SECRET = 'shared-secret';
+    const p = { ...params, Digits: '1' };
+    const xml = await handleStep(on.deps, { node: 'menu', ev: 'menu', attempt: '1' }, 'node=menu&ev=menu&attempt=1', p, on.sign('/api/voice/step', p, 'node=menu&ev=menu&attempt=1'));
+    expect(xml).toContain('<Start><Stream url="wss://voice.example.com/stream" track="both_tracks">');
+    expect(xml).toContain(`name="token" value="${streamToken('shared-secret', 'CA7', 'co1')}"`);
+    expect(xml.indexOf('<Stream')).toBeLessThan(xml.indexOf('<Dial'));
+    expect(validStreamToken('shared-secret', 'CA7', 'co1', streamToken('shared-secret', 'CA7', 'co1'))).toBe(true);
+    expect(validStreamToken('shared-secret', 'CA8', 'co1', streamToken('shared-secret', 'CA7', 'co1'))).toBe(false);
   });
 });
 

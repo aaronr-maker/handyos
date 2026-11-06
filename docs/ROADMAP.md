@@ -64,3 +64,6 @@ Build order:
 2. **Live transcript:** Twilio `<Start><Stream>` sends the call audio to a small always-on server (also the home of the AI receptionist later), which transcribes it as the call happens and pushes lines to the call screen. Saved on the call and the customer.
 3. **After-call AI summary:** when the call ends, AI writes a short summary (who, what they need, next steps), saved with the transcript on the customer record. Handy can use it.
 4. **Native phone app** (see the section above) so calls ring when the app is closed, with the same call screen as the dialer and the prompt on it.
+
+## Pace-based pricing and labor budgeting (spec from Aaron, 2026-11-06)
+Full specification: [docs/specs/PACE_PRICING.md](specs/PACE_PRICING.md). Builds on what already exists: the standard-times learning (jobcosting), per-task timers, efficiency rate (timesheets), the dashboard and the P4P module. First phase: historical pace tracking, the 20% allowance, job budget snapshots and proposed prices (never auto-published); P4P and close-rate pricing later.

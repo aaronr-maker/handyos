@@ -7,6 +7,7 @@ export interface CallSettings extends BaseRecord {
   hours: Partial<Hours['week']>;
   voice: string;
   notice: string;
+  script: string;
 }
 export interface TeamPhone extends BaseRecord {
   user_id: Id;
@@ -23,6 +24,12 @@ export interface CallLogRow extends BaseRecord {
   to_number: string | null;
   trail: string[];
   outcome: string;
+  summary: string | null;
+}
+export interface TranscriptLine extends BaseRecord {
+  call_sid: string;
+  speaker: 'caller' | 'team';
+  body: string;
 }
 export interface Voicemail extends BaseRecord {
   call_sid: string;

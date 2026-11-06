@@ -1,14 +1,17 @@
 import { createRepo, type Id } from '@/core';
 import { DAYS, DEFAULT_HOURS, starterFlow, type Flow, type Hours } from '../../../api/_lib/callEngine';
-import type { CallFlow, CallLogRow, CallSettings, TeamPhone, Voicemail } from './types';
+import type { CallFlow, CallLogRow, CallSettings, TeamPhone, TranscriptLine, Voicemail } from './types';
 
 const settingsRepo = createRepo<CallSettings>('call_settings');
 const phonesRepo = createRepo<TeamPhone>('team_phones');
 const flowsRepo = createRepo<CallFlow>('call_flows');
 const logRepo = createRepo<CallLogRow>('call_log');
 const mailRepo = createRepo<Voicemail>('voicemails');
+const lineRepo = createRepo<TranscriptLine>('call_transcripts');
 
 export const DEFAULT_NOTICE = 'Thanks for calling That Handyman Van. Calls are recorded for note taking purposes. Please wait while you are connected.';
+
+export const DEFAULT_SCRIPT = ['Greet them: "That Handyman Van, this is ___."', 'Get their name and the best number to reach them.', 'Get the service address.', 'What is the problem or the job? Anything urgent or unsafe?', 'When do they need it done?', 'Repeat the details back and say when we will follow up.'].join('\n');
 
 export interface PhoneSettings {
   number: string;
@@ -16,6 +19,8 @@ export interface PhoneSettings {
   voice: string;
   /** Said to every caller first. */
   notice: string;
+  /** The prompt shown to whoever answers, on the call screen. */
+  script: string;
 }
 
 /** The company's phone settings, with the usual hours when none are saved yet. */
@@ -23,11 +28,11 @@ export async function getSettings(companyId: Id): Promise<PhoneSettings> {
   const row = (await settingsRepo.list(companyId))[0];
   const week = { ...DEFAULT_HOURS.week };
   for (const d of DAYS) if (row?.hours && Array.isArray(row.hours[d])) week[d] = row.hours[d] as Hours['week'][typeof d];
-  return { number: row?.number ?? '', hours: { timezone: row?.timezone ?? DEFAULT_HOURS.timezone, week }, voice: row?.voice ?? 'Polly.Joanna', notice: row?.notice ?? DEFAULT_NOTICE };
+  return { number: row?.number ?? '', hours: { timezone: row?.timezone ?? DEFAULT_HOURS.timezone, week }, voice: row?.voice ?? 'Polly.Joanna', notice: row?.notice ?? DEFAULT_NOTICE, script: row?.script ?? DEFAULT_SCRIPT };
 }
 
 export async function saveSettings(companyId: Id, s: PhoneSettings): Promise<void> {
-  const data = { number: s.number.trim() || null, timezone: s.hours.timezone, hours: s.hours.week, voice: s.voice, notice: s.notice.trim() };
+  const data = { number: s.number.trim() || null, timezone: s.hours.timezone, hours: s.hours.week, voice: s.voice, notice: s.notice.trim(), script: s.script.trim() };
   const row = (await settingsRepo.list(companyId))[0];
   if (row) await settingsRepo.update(companyId, row.id, data);
   else await settingsRepo.insert(companyId, data);
@@ -61,3 +66,6 @@ export async function saveFlow(companyId: Id, graph: Flow): Promise<void> {
 export const listCalls = async (companyId: Id) => (await logRepo.list(companyId)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 100);
 export const listVoicemails = async (companyId: Id) => (await mailRepo.list(companyId)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 100);
 export const markHeard = (companyId: Id, id: Id) => mailRepo.update(companyId, id, { status: 'heard' });
+
+/** What was said on one call so far, oldest first. */
+export const listTranscript = async (companyId: Id, callSid: string) => (await lineRepo.list(companyId, { where: { call_sid: callSid } })).sort((a, b) => a.created_at.localeCompare(b.created_at));

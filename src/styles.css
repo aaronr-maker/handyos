@@ -324,3 +324,15 @@ button.danger { background: #dc2626; color: #fff; }
 .react-flow__edge-textbg { fill: #fff; }
 .react-flow__edge-text { font-size: 11px; font-weight: 600; fill: #0f172a; }
 .pb { border-width: 2px; }
+
+/* the call screen */
+.call-screen { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .call-screen { grid-template-columns: 320px 1fr; align-items: start; } }
+.call-script { font-size: 1.1rem; line-height: 1.5; padding-left: 20px; }
+.call-script li { margin: 8px 0; }
+.call-summary { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+.call-summary pre { white-space: pre-wrap; font-family: inherit; margin: 6px 0 0; }
+.call-lines { max-height: 55vh; overflow-y: auto; margin: 8px 0; }
+.call-lines p { margin: 4px 0; padding: 6px 10px; border-radius: 8px; }
+.call-lines .caller { background: #f1f5f9; }
+.call-lines .team { background: #dbeafe; }

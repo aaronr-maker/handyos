@@ -26,7 +26,7 @@ export function HoursPeople({ settings, people, onSaved }: { settings: PhoneSett
 
   const save = async () => {
     setNote(null);
-    const err = resultError(await saveSettings({ number: s.number, timezone: s.hours.timezone, voice: s.voice, notice: s.notice, week: s.hours.week }));
+    const err = resultError(await saveSettings({ number: s.number, timezone: s.hours.timezone, voice: s.voice, notice: s.notice, script: s.script, week: s.hours.week }));
     if (err) return setNote({ ok: false, text: err });
     for (const p of people) {
       if ((phones[p.id] ?? '') === p.phone) continue;
@@ -51,6 +51,10 @@ export function HoursPeople({ settings, people, onSaved }: { settings: PhoneSett
         <label>
           What every caller hears first (leave empty for none)
           <textarea rows={3} value={s.notice} onChange={(e) => setS({ ...s, notice: e.target.value })} />
+        </label>
+        <label>
+          Prompt for whoever answers (shown on the call screen; one point per line)
+          <textarea rows={6} value={s.script} onChange={(e) => setS({ ...s, script: e.target.value })} />
         </label>
         <label>
           Greeting voice
