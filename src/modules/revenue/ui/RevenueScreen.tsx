@@ -152,7 +152,7 @@ export default function RevenueScreen() {
                   <strong>{formatMoney(r.cents)}</strong>
                 </div>
                 <div style={{ height: 8, borderRadius: 4, background: 'var(--border, #e5e7eb)' }}>
-                  <div style={{ height: 8, borderRadius: 4, width: `${Math.round((Math.max(0, r.cents) / max) * 100)}%`, background: 'var(--accent, #0f766e)' }} />
+                  <div style={{ height: 8, borderRadius: 4, width: `${Math.round((Math.max(0, r.cents) / max) * 100)}%`, background: 'var(--accent, #15803d)' }} />
                 </div>
               </div>
             ))}

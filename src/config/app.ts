@@ -13,6 +13,6 @@ export const appConfig = {
   ownerCompany: 'That Handyman Van LLC',
   /** Reverse-DNS id used by Capacitor / the App Store / Google Play. */
   bundleId: 'com.thathandymanvan.handyos',
-  themeColor: '#0f766e',
+  themeColor: '#15803d',
   backgroundColor: '#f8fafc',
 } as const;
