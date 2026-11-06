@@ -178,7 +178,7 @@ export function computeDashboard(d: DashInput): Dashboard {
 function findConstraint(i: { cur: Window; prev: Window; backlogWeeks: number | null; overdueShare: number | null; targetMargin: number; perHourMargin: number | null }): Constraint {
   const { cur, backlogWeeks } = i;
   const enough = cur.decided >= 3 || backlogWeeks !== null || cur.margin !== null;
-  if (!enough) return { id: 'unknown', label: 'Not enough data yet', why: ['The dashboard needs a few weeks of estimates, scheduled jobs, hours and payments in HandyOS to see where the business is held back.'], tries: ['Keep using HandyOS for estimates, scheduling, the clocks and payments.'] };
+  if (!enough) return { id: 'unknown', label: 'Not enough data yet', why: ['The dashboard needs a few weeks of estimates, scheduled jobs, hours and payments in the app to see where the business is held back.'], tries: ['Keep using the app for estimates, scheduling, the clocks and payments.'] };
 
   if (backlogWeeks !== null && backlogWeeks > TARGETS.backlogMaxWeeks) {
     return {

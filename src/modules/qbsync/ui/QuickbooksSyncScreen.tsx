@@ -106,7 +106,7 @@ export default function QuickbooksSyncScreen() {
       <header className="page-header">
         <div>
           <h1>QuickBooks sync</h1>
-          <p className="muted">Sends the invoices and payments made in HandyOS into QuickBooks, so your books stay current. Nothing is sent until you turn sending on below.</p>
+          <p className="muted">Sends the invoices and payments made in the app into QuickBooks, so your books stay current. Nothing is sent until you turn sending on below.</p>
         </div>
       </header>
       {error && <p className="err">{error}</p>}

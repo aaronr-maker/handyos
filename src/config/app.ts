@@ -5,8 +5,8 @@
  */
 export const appConfig = {
   /** Product name shown everywhere. */
-  name: 'HandyOS',
-  shortName: 'HandyOS',
+  name: 'That Handyman Van',
+  shortName: 'Handyman Van',
   tagline: 'Run the whole handyman business from your pocket.',
   description: 'Field-service management: quotes, jobs, scheduling, invoicing and job costing.',
   /** Company that owns this deployment (becomes per-tenant data once onboarding exists). */

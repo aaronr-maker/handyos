@@ -96,7 +96,7 @@ export default function HandyScreen() {
         {isAdmin && (
           <>
             <h3>Prices (dollars per million tokens)</h3>
-            <p className="muted small-note">Copy these from OpenAI's pricing page for the models Handy uses. HandyOS multiplies them by the tokens used. It is an estimate: OpenAI's own usage page is the real bill.</p>
+            <p className="muted small-note">Copy these from OpenAI's pricing page for the models Handy uses. The app multiplies them by the tokens used. It is an estimate: OpenAI's own usage page is the real bill.</p>
             <div className="row">
               {RATE_FIELDS.map((f) => (
                 <label key={f.key} className="grow">

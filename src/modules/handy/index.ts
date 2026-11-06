@@ -14,6 +14,7 @@ export const handyModule: ModuleManifest = {
   path: '/handy',
   icon: 'handy',
   hiddenFromRoles: ['tech'],
+  hiddenFromNav: true, // reached from the floating button, and from Settings for usage and options
   Overlay: HandyOverlay,
   Screen: lazy(() => import('./ui/HandyScreen')),
   register() {

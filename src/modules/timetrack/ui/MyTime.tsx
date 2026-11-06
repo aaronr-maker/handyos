@@ -162,8 +162,8 @@ export default function MyTime() {
       <div className="card">
         <h2>Arrival reminders</h2>
         <p className="muted">
-          If you agree, HandyOS uses your phone's location to remind you to start job time when you arrive at a job you are assigned to. It does not look at your location any other time, and it only uses jobs that have a location set. You can turn it off whenever you like.
-          Reminders while the app is closed need the HandyOS phone app, set up on your phone.
+          If you agree, the app uses your phone's location to remind you to start job time when you arrive at a job you are assigned to. It does not look at your location any other time, and it only uses jobs that have a location set. You can turn it off whenever you like.
+          Reminders while the app is closed need the phone app, set up on your phone.
         </p>
         <label className="row" style={{ alignItems: 'center', gap: 8 }}>
           <input

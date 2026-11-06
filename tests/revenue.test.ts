@@ -117,7 +117,7 @@ describe('loading past invoices', () => {
       quickbooks: [{ month: '2026-09', income_cents: 1_600_000 }, { month: '2026-08', income_cents: 900_000 }],
       launch: '2027-01',
     });
-    expect(built.entries.map((e) => [e.date, e.amount_cents, e.source])).toEqual([['2026-09-10', 40_000, 'old'], ['2027-01-05', 100_000, 'HandyOS']]);
+    expect(built.entries.map((e) => [e.date, e.amount_cents, e.source])).toEqual([['2026-09-10', 40_000, 'old'], ['2027-01-05', 100_000, 'App']]);
     expect(built.monthlyOnly.map((e) => [e.date, e.amount_cents])).toEqual([['2026-08-01', 900_000]]); // September has rows, so its P&L total is not added
     expect(groupRevenue(built, 'month').map((r) => [r.key, r.cents])).toEqual([['2027-01', 100_000], ['2026-09', 40_000], ['2026-08', 900_000]]);
     expect(groupRevenue(built, 'customer').map((r) => r.key)).not.toContain('');

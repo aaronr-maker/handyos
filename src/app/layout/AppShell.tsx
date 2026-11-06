@@ -1,7 +1,6 @@
 import { Suspense, type ComponentType } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Icon, isSupabaseConfigured, signOut, useSession, type IconName, type UserRole } from '@/core';
-import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
 interface NavItem {
@@ -15,7 +14,7 @@ interface NavItem {
 const home: NavItem = { to: '/', label: 'Home', icon: 'home', end: true };
 /** Menu items for a role: sections hidden from the role are left out. */
 const itemsFor = (role: UserRole) => {
-  const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role));
+  const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role) && !m.hiddenFromNav);
   return {
     all: [
       home,
@@ -44,7 +43,6 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="brand">
           <img src="/logo-small.png" alt={companyName} />
-          <span>{appConfig.name}</span>
         </div>
         <nav aria-label="Main">
           {all.map((i) => (

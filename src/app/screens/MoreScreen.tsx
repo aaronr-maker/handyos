@@ -5,7 +5,7 @@ import { modules } from '../modules';
 /** Mobile overflow: every area that does not fit in the bottom tab bar. */
 export function MoreScreen() {
   const { role } = useSession();
-  const rest = modules.filter((m) => !m.mobileTab && !m.hiddenFromRoles?.includes(role));
+  const rest = modules.filter((m) => !m.mobileTab && !m.hiddenFromNav && !m.hiddenFromRoles?.includes(role));
   return (
     <section className="page">
       <header className="page-header">

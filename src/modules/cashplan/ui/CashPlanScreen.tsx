@@ -130,7 +130,7 @@ export default function CashPlanScreen() {
               </dl>
             )}
             {moveError && <p className="err">{moveError}</p>}
-            {groups.length > 0 && <p className="muted small-note">Tick each one once you have moved the money. The tick is only a note for you; HandyOS never moves money.</p>}
+            {groups.length > 0 && <p className="muted small-note">Tick each one once you have moved the money. The tick is only a note for you; this app never moves money.</p>}
           </div>
 
           {groups.map((g) => {
