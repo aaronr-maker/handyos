@@ -14,6 +14,7 @@ const node = z.object({
     options: z.array(z.object({ digit, label: z.string().max(80) })).max(10).optional(),
     people: z.array(z.string().max(60)).max(30).optional(),
     numbers: z.array(z.string().max(30)).max(10).optional(),
+    app: z.boolean().optional(),
     mode: z.enum(['all', 'in_order']).optional(),
     seconds: z.number().int().min(5).max(120).optional(),
     notify: z.array(z.string().max(60)).max(30).optional(),

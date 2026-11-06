@@ -265,6 +265,10 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
               }
             />
           </label>
+          <label className="check">
+            <input type="checkbox" checked={!!d.app} onChange={(e) => set({ app: e.target.checked })} />
+            Also ring their phone app (once it is installed on their phone)
+          </label>
           <label>
             How to ring them
             <select value={d.mode ?? 'all'} onChange={(e) => set({ mode: e.target.value as 'all' | 'in_order' })}>
