@@ -78,7 +78,7 @@ export function buildEntries(i: EntryInputs): { entries: RevenueEntry[]; monthly
   const launchDay = `${i.launch}-01`;
   const entries: RevenueEntry[] = [
     ...i.history.filter((h) => h.received_on < launchDay).map((h) => ({ date: h.received_on, amount_cents: h.amount_cents, customer: h.customer, job: h.job, source: h.source })),
-    ...i.payments.filter((p) => p.received_on >= launchDay).map((p) => ({ date: p.received_on, amount_cents: paymentRevenue(p), customer: p.customer, job: p.job, source: 'HandyOS' })),
+    ...i.payments.filter((p) => p.received_on >= launchDay).map((p) => ({ date: p.received_on, amount_cents: paymentRevenue(p), customer: p.customer, job: p.job, source: 'App' })),
   ];
   const have = new Set(entries.map((e) => e.date.slice(0, 7)));
   const monthlyOnly = i.quickbooks

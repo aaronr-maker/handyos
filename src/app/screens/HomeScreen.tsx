@@ -9,7 +9,7 @@ export function HomeScreen() {
   const { data: team } = useAsync(() => listTeamMembers(), []);
   const me = team?.find((m) => m.id === user.id);
   const first = (me?.full_name || '').trim().split(' ')[0];
-  const mine = modules.filter((m) => !m.hiddenFromRoles?.includes(role));
+  const mine = modules.filter((m) => !m.hiddenFromRoles?.includes(role) && !m.hiddenFromNav);
   return (
     <section className="page">
       <header className="hero">

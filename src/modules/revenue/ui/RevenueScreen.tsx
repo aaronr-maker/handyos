@@ -111,7 +111,7 @@ export default function RevenueScreen() {
       <header className="page-header">
         <div>
           <h1>Revenue</h1>
-          <p className="muted">History from your old systems up to the launch, then HandyOS from {monthName(LAUNCH_MONTH)}. Sales tax is left out of HandyOS payments.</p>
+          <p className="muted">History from your old systems up to the launch, then this app from {monthName(LAUNCH_MONTH)}. Sales tax is left out of payments recorded here.</p>
         </div>
       </header>
       {error && <p className="err">{error}</p>}
@@ -142,7 +142,7 @@ export default function RevenueScreen() {
               <strong>{formatMoney(total)}</strong> <span className="muted">in {rows.length} {GROUP_LABELS[by].toLowerCase()}
               {rows.length === 1 ? '' : by === 'customer' ? 's' : by === 'quarter' ? 's' : 's'}</span>
             </p>
-            {rows.length === 0 && <p className="muted">Nothing to show yet. Load your past invoices below, or record payments in HandyOS.</p>}
+            {rows.length === 0 && <p className="muted">Nothing to show yet. Load your past invoices below, or record payments in the app.</p>}
             {rows.map((r) => (
               <div key={r.key} style={{ margin: '8px 0' }}>
                 <div className="row" style={{ justifyContent: 'space-between' }}>

@@ -4,7 +4,7 @@ import { runtime } from './runtime';
 import { AuthGate } from './auth/AuthGate';
 import { AppShell } from './layout/AppShell';
 import { modules } from './modules';
-import { HomeScreen } from './screens/HomeScreen';
+import { Landing } from './screens/Landing';
 import { MoreScreen } from './screens/MoreScreen';
 import { SystemScreen } from './screens/SystemScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -32,7 +32,7 @@ function Private() {
       <RuntimeProvider runtime={runtime}>
         <Routes>
           <Route element={<AppShell />}>
-            <Route index element={<HomeScreen />} />
+            <Route index element={<Landing />} />
             {modules.map((m) => (
               <Route key={m.id} path={`${m.path}/*`} element={<m.Screen />} />
             ))}
@@ -41,7 +41,7 @@ function Private() {
             <Route path="/earnings" element={<EarningsScreen />} />
             <Route path="/team" element={<TeamScreen />} />
             <Route path="/system" element={<SystemScreen />} />
-            <Route path="*" element={<HomeScreen />} />
+            <Route path="*" element={<Landing />} />
           </Route>
         </Routes>
       </RuntimeProvider>

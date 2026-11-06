@@ -83,7 +83,7 @@ export default function DeskScreen() {
       <h2>Needs you</h2>
       {open.length === 0 && (
         <div className="card">
-          <p className="muted">No open alerts. HandyOS checks everyone's week while the app is open and pops up anything new.</p>
+          <p className="muted">No open alerts. The app checks everyone's week while the app is open and pops up anything new.</p>
         </div>
       )}
       {open.map((a) => {

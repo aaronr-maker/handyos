@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import { signIn, signUp } from '@/core';
-import { appConfig } from '@/config/app';
 
 export function LoginScreen() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -32,7 +31,6 @@ export function LoginScreen() {
     <main className="auth">
       <form className="card auth-card" onSubmit={submit}>
         <img src="/logo.png" alt="That Handyman Van" style={{ width: 240, maxWidth: '100%', height: 'auto' }} />
-        <h1>{appConfig.name}</h1>
         <p className="muted">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
         <label>
           Email

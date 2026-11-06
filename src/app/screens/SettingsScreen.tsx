@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSession } from '@/core';
 import { P4PSettings } from '@/modules/jobcosting';
 
@@ -28,6 +29,9 @@ export function SettingsScreen() {
         <button className={section === 'p4p' ? '' : 'secondary'} onClick={() => setSection('p4p')}>
           Pay-for-performance
         </button>
+        <Link to="/handy" className="button secondary">
+          Handy usage &amp; options
+        </Link>
       </div>
       {section === 'p4p' && <P4PSettings />}
     </section>

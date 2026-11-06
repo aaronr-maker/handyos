@@ -1,7 +1,6 @@
 import { Suspense, type ComponentType } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Icon, isSupabaseConfigured, signOut, useSession, type IconName, type UserRole } from '@/core';
-import { appConfig } from '@/config/app';
 import { modules } from '../modules';
 
 interface NavItem {
@@ -15,10 +14,12 @@ interface NavItem {
 const home: NavItem = { to: '/', label: 'Home', icon: 'home', end: true };
 /** Menu items for a role: sections hidden from the role are left out. */
 const itemsFor = (role: UserRole) => {
-  const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role));
+  // the owner and admins open straight onto the dashboard, so they have no separate Home
+  const boss = role === 'owner' || role === 'admin';
+  const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role) && !m.hiddenFromNav);
   return {
     all: [
-      home,
+      ...(boss ? [] : [home]),
       ...visible.map((m) => ({ to: m.path, label: m.label, icon: m.icon, Badge: m.Badge })),
       { to: '/earnings', label: 'My earnings', icon: 'jobcosting' as IconName },
       { to: '/team', label: 'Team', icon: 'customers' as IconName },
@@ -26,7 +27,7 @@ const itemsFor = (role: UserRole) => {
       { to: '/system', label: 'System', icon: 'system' as IconName },
     ] as NavItem[],
     tabs: [
-      home,
+      ...(boss ? [] : [home]),
       ...visible.filter((m) => m.mobileTab).map((m) => ({ to: m.path, label: m.label, icon: m.icon })),
       { to: '/more', label: 'More', icon: 'more' as IconName },
     ] as NavItem[],
@@ -44,7 +45,6 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="brand">
           <img src="/logo-small.png" alt={companyName} />
-          <span>{appConfig.name}</span>
         </div>
         <nav aria-label="Main">
           {all.map((i) => (
