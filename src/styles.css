@@ -314,3 +314,9 @@ details summary { cursor: pointer; font-weight: 600; }
 .pipe-stage { padding: 6px 12px; border-radius: 999px; background: #f1f5f9; border: 2px solid #e2e8f0; font-weight: 600; font-size: 0.85rem; }
 .pipe-hit { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
 .pipe-arrow { color: #94a3b8; }
+.call-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 4px; min-height: 44px; }
+button.danger { background: #dc2626; color: #fff; }
+.call-work { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+@media (min-width: 1000px) { .call-work { grid-template-columns: 1fr 340px; } .call-side { position: sticky; top: 8px; max-height: 80vh; overflow-y: auto; } }
+.react-flow__edge.selected .react-flow__edge-path { stroke: #dc2626; stroke-width: 3; }
+.react-flow__handle { width: 14px; height: 14px; background: #0f766e; border: 2px solid #fff; }
