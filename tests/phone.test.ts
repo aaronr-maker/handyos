@@ -13,7 +13,7 @@ describe('phone settings and call tree', () => {
 
   it('saves the number, hours and tree, and keeps companies apart', async () => {
     const week = { ...(await getSettings('p-co-2')).hours.week, sat: [{ open: '09:00', close: '12:00' }] };
-    await saveSettings('p-co-2', { number: ' +15125550000 ', hours: { timezone: 'America/Chicago', week }, voice: 'Polly.Matthew' });
+    await saveSettings('p-co-2', { number: ' +15125550000 ', hours: { timezone: 'America/Chicago', week }, voice: 'Polly.Matthew', notice: 'Hi.' });
     const s = await getSettings('p-co-2');
     expect(s.number).toBe('+15125550000');
     expect(s.hours.week.sat).toEqual([{ open: '09:00', close: '12:00' }]);

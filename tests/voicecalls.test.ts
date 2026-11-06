@@ -17,7 +17,7 @@ function world(over: { flow?: Flow | null; now?: number; known?: boolean } = {})
   const logs: { callSid: string; patch: { from?: string; to?: string; trail?: string[]; outcome?: string } }[] = [];
   const mails: { callSid: string; from: string | null; recordingUrl: string; seconds: number }[] = [];
   const store: VoiceStore = {
-    findCompany: async (to) => (over.known === false || to !== '+15125550000' ? null : { companyId: 'co1', hours: DEFAULT_HOURS, voice: 'Polly.Joanna' }),
+    findCompany: async (to) => (over.known === false || to !== '+15125550000' ? null : { companyId: 'co1', hours: DEFAULT_HOURS, voice: 'Polly.Joanna', notice: 'Calls are recorded for note taking purposes.' }),
     activeFlow: async () => (over.flow === undefined ? tree() : over.flow),
     team: async () => ({ phones: { aaron: '+15125550001', sam: '+15125550002' }, names: { aaron: 'Aaron', sam: 'Sam' } }),
     logCall: async (_c, callSid, patch) => void logs.push({ callSid, patch }),
@@ -55,6 +55,9 @@ describe('a customer calls', () => {
     const w = world();
     const xml = await handleIncoming(w.deps, params, w.sign('/api/voice/incoming', params));
     expect(xml).toContain('Thank you for calling That Handyman Van.');
+    // the recording notice is the very first thing said
+    expect(xml.indexOf('Calls are recorded for note taking purposes.')).toBeGreaterThan(-1);
+    expect(xml.indexOf('Calls are recorded')).toBeLessThan(xml.indexOf('Thank you for calling'));
     expect(xml).toContain('Press 1 for Aaron. Press 2 for our service team.');
     expect(w.logs[0]).toMatchObject({ callSid: 'CA1', patch: { from: '+15125559999', to: '+15125550000', outcome: 'started' } });
     expect(w.logs[0].patch.trail).toEqual(['start', 'hours', 'greet', 'menu']);

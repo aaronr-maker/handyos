@@ -11,6 +11,8 @@ export interface CompanyPhone {
   companyId: string;
   hours: Hours;
   voice: string;
+  /** Said to every caller first (a recording notice). Empty or missing plays nothing. */
+  notice?: string;
 }
 
 export interface VoiceStore {
@@ -78,7 +80,9 @@ export async function handleIncoming(deps: VoiceDeps, params: Record<string, str
   if (!flow) return hangupWith(FALLBACK_SAY);
   const team = await deps.store.team(company.companyId);
   const start = flow.nodes.find((n) => n.kind === 'start');
-  const step = walk(flow, start?.id ?? null, env(deps, company, team));
+  const first = walk(flow, start?.id ?? null, env(deps, company, team));
+  // the recording notice comes before anything else the tree says
+  const step: Step = company.notice?.trim() ? { ...first, say: [company.notice.trim(), ...first.say] } : first;
   await deps.store.logCall(company.companyId, params.CallSid ?? '', { from: params.From, to: params.To, trail: step.trail, outcome: 'started' });
   return render(step, base, company, params.From);
 }
@@ -128,12 +132,12 @@ export function supabaseVoiceStore(env: { SUPABASE_URL?: string; SUPABASE_SERVIC
   const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   return {
     async findCompany(to) {
-      const { data } = await db.from('call_settings').select('company_id, number, timezone, hours, voice');
+      const { data } = await db.from('call_settings').select('company_id, number, timezone, hours, voice, notice');
       const row = (data ?? []).find((r) => r.number && norm(String(r.number)) === norm(to));
       if (!row) return null;
       const week = { ...DEFAULT_HOURS.week };
       for (const d of DAYS) if (row.hours && Array.isArray((row.hours as Record<string, unknown>)[d])) week[d] = (row.hours as Record<string, { open: string; close: string }[]>)[d];
-      return { companyId: row.company_id as string, hours: { timezone: (row.timezone as string) || DEFAULT_HOURS.timezone, week }, voice: (row.voice as string) || 'Polly.Joanna' };
+      return { companyId: row.company_id as string, hours: { timezone: (row.timezone as string) || DEFAULT_HOURS.timezone, week }, voice: (row.voice as string) || 'Polly.Joanna', notice: (row.notice as string | null) ?? '' };
     },
     async activeFlow(companyId) {
       const { data } = await db.from('call_flows').select('graph').eq('company_id', companyId).eq('active', true).maybeSingle();
