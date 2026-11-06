@@ -6,6 +6,7 @@ export interface CallSettings extends BaseRecord {
   timezone: string;
   hours: Partial<Hours['week']>;
   voice: string;
+  notice: string;
 }
 export interface TeamPhone extends BaseRecord {
   user_id: Id;

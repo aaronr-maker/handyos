@@ -43,13 +43,13 @@ export const savePhoneSettingsAction = defineAction({
   name: 'phone.save_settings',
   module: 'phone',
   description: 'Save the business phone number, time zone, opening hours and the voice that reads greetings.',
-  input: z.object({ number: z.string().trim().max(30), timezone: z.string().trim().min(3).max(60), voice: z.string().trim().min(3).max(40), week: z.object({ mon: hoursDay, tue: hoursDay, wed: hoursDay, thu: hoursDay, fri: hoursDay, sat: hoursDay, sun: hoursDay }) }),
+  input: z.object({ number: z.string().trim().max(30), timezone: z.string().trim().min(3).max(60), voice: z.string().trim().min(3).max(40), notice: z.string().trim().max(400), week: z.object({ mon: hoursDay, tue: hoursDay, wed: hoursDay, thu: hoursDay, fri: hoursDay, sat: hoursDay, sun: hoursDay }) }),
   risk: 'high',
   roles: ['owner', 'admin'],
   requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
-  example: { number: '+15125550000', timezone: 'America/Chicago', voice: 'Polly.Joanna', week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } },
-  async handler({ number, timezone, voice, week }, ctx) {
-    await saveSettings(ctx.companyId, { number, hours: { timezone, week }, voice });
+  example: { number: '+15125550000', timezone: 'America/Chicago', voice: 'Polly.Joanna', notice: 'This call may be recorded.', week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } },
+  async handler({ number, timezone, voice, notice, week }, ctx) {
+    await saveSettings(ctx.companyId, { number, hours: { timezone, week }, voice, notice });
     return { saved: true };
   },
 });

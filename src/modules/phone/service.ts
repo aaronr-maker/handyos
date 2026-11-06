@@ -8,10 +8,14 @@ const flowsRepo = createRepo<CallFlow>('call_flows');
 const logRepo = createRepo<CallLogRow>('call_log');
 const mailRepo = createRepo<Voicemail>('voicemails');
 
+export const DEFAULT_NOTICE = 'Thanks for calling That Handyman Van. Calls are recorded for note taking purposes. Please wait while you are connected.';
+
 export interface PhoneSettings {
   number: string;
   hours: Hours;
   voice: string;
+  /** Said to every caller first. */
+  notice: string;
 }
 
 /** The company's phone settings, with the usual hours when none are saved yet. */
@@ -19,11 +23,11 @@ export async function getSettings(companyId: Id): Promise<PhoneSettings> {
   const row = (await settingsRepo.list(companyId))[0];
   const week = { ...DEFAULT_HOURS.week };
   for (const d of DAYS) if (row?.hours && Array.isArray(row.hours[d])) week[d] = row.hours[d] as Hours['week'][typeof d];
-  return { number: row?.number ?? '', hours: { timezone: row?.timezone ?? DEFAULT_HOURS.timezone, week }, voice: row?.voice ?? 'Polly.Joanna' };
+  return { number: row?.number ?? '', hours: { timezone: row?.timezone ?? DEFAULT_HOURS.timezone, week }, voice: row?.voice ?? 'Polly.Joanna', notice: row?.notice ?? DEFAULT_NOTICE };
 }
 
 export async function saveSettings(companyId: Id, s: PhoneSettings): Promise<void> {
-  const data = { number: s.number.trim() || null, timezone: s.hours.timezone, hours: s.hours.week, voice: s.voice };
+  const data = { number: s.number.trim() || null, timezone: s.hours.timezone, hours: s.hours.week, voice: s.voice, notice: s.notice.trim() };
   const row = (await settingsRepo.list(companyId))[0];
   if (row) await settingsRepo.update(companyId, row.id, data);
   else await settingsRepo.insert(companyId, data);

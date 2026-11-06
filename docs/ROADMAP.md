@@ -56,3 +56,11 @@ Goal: calls to the company number ring in the HandyOS app on a tech's or office 
 - Plan: wrap HandyOS in a native shell (Capacitor) and add Twilio Voice for iOS/Android: iPhone uses CallKit with a VoIP push, Android uses a push notification with a call screen.
 - Needs: Apple Developer account ($99/yr), Google Play account ($25 once), a cloud build service for iOS (no Mac in the cloud session), TestFlight for testing, a Twilio API key and TwiML app, and a server endpoint that gives each signed-in person a calling token.
 - The call tree would get a "ring the app" option beside "ring a cell number". Cell numbers stay as the backup so calls are never missed.
+
+## Calls: live transcript, AI summary, on-screen prompt, ring in the phone app (decided with Aaron)
+Done: every call starts with the recording notice ("Thanks for calling That Handyman Van. Calls are recorded for note taking purposes. Please wait while you are connected."), editable on the Phone page.
+Build order:
+1. **Call screen** in HandyOS that opens when a call comes in: the prompt the answerer should follow (written once in the call tree) next to the live transcript.
+2. **Live transcript:** Twilio `<Start><Stream>` sends the call audio to a small always-on server (also the home of the AI receptionist later), which transcribes it as the call happens and pushes lines to the call screen. Saved on the call and the customer.
+3. **After-call AI summary:** when the call ends, AI writes a short summary (who, what they need, next steps), saved with the transcript on the customer record. Handy can use it.
+4. **Native phone app** (see the section above) so calls ring when the app is closed, with the same call screen as the dialer and the prompt on it.
