@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     params.delete('action');
     const raw = params.toString();
     const query = Object.fromEntries(new URLSearchParams(raw)) as Record<string, string>;
-    const xml = await handleStep(voiceDeps(supabaseVoiceStore(serverEnv())), query, raw, formBody(req), req.headers['x-twilio-signature'] as string | undefined);
+    const xml = await handleStep(voiceDeps(supabaseVoiceStore(serverEnv()), req), query, raw, formBody(req), req.headers['x-twilio-signature'] as string | undefined);
     res.status(200).setHeader('Content-Type', 'text/xml').send(xml);
   } catch (err) {
     if (err instanceof VoiceError) return void res.status(err.status).send(err.message);

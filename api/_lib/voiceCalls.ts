@@ -28,6 +28,8 @@ export interface VoiceStore {
 
 export interface VoiceDeps {
   store: VoiceStore;
+  /** The public address this request arrived at (like https://app.example.com), read from the request itself. */
+  origin?: string;
   env: { TWILIO_AUTH_TOKEN?: string; APP_URL?: string; VOICE_AI_READY?: string };
   now: () => number;
 }
@@ -57,12 +59,16 @@ export function verifyTwilio(authToken: string, url: string, params: Record<stri
 const FALLBACK_SAY = 'Thank you for calling. We are not able to take your call right now. Please try again later.';
 
 function check(deps: VoiceDeps, path: string, query: string, params: Record<string, string>, signature: string | undefined): string {
-  const token = deps.env.TWILIO_AUTH_TOKEN;
-  const base = deps.env.APP_URL;
-  if (!token || !base) throw new VoiceError(503, 'The phone system is not set up on the server yet (TWILIO_AUTH_TOKEN and APP_URL).');
-  const url = `${base.replace(/\/$/, '')}${path}${query ? `?${query}` : ''}`;
-  if (!verifyTwilio(token, url, params, signature)) throw new VoiceError(403, 'This request did not come from Twilio.');
-  return base.replace(/\/$/, '');
+  const token = deps.env.TWILIO_AUTH_TOKEN?.trim();
+  if (!token) throw new VoiceError(503, 'The phone system is not set up on the server yet (TWILIO_AUTH_TOKEN).');
+  // Twilio signed the address it called. Try the address this request arrived at first, then the APP_URL setting, so a wrong APP_URL cannot break calls.
+  const tidy = (u: string | undefined) => (u ?? '').trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+  const candidates = [...new Set([tidy(deps.origin), tidy(deps.env.APP_URL)].filter(Boolean))];
+  if (candidates.length === 0) throw new VoiceError(503, 'The phone system is not set up on the server yet (APP_URL).');
+  for (const base of candidates) {
+    if (verifyTwilio(token, `${base}${path}${query ? `?${query}` : ''}`, params, signature)) return base;
+  }
+  throw new VoiceError(403, 'This request did not come from Twilio (the signature did not match: check that TWILIO_AUTH_TOKEN is the Primary auth token).');
 }
 
 const env = (deps: VoiceDeps, c: CompanyPhone, team: { phones: Record<string, string>; names: Record<string, string> }): Env => ({ now: deps.now(), hours: c.hours, phones: team.phones, names: team.names, aiReady: deps.env.VOICE_AI_READY === '1' });

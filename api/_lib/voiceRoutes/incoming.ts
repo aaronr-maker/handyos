@@ -6,7 +6,7 @@ import { formBody, voiceDeps } from '../voiceHttp.js';
 /** Twilio calls this when a customer rings the company's number. Answers with instructions for the call. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const xml = await handleIncoming(voiceDeps(supabaseVoiceStore(serverEnv())), formBody(req), req.headers['x-twilio-signature'] as string | undefined);
+    const xml = await handleIncoming(voiceDeps(supabaseVoiceStore(serverEnv()), req), formBody(req), req.headers['x-twilio-signature'] as string | undefined);
     res.status(200).setHeader('Content-Type', 'text/xml').send(xml);
   } catch (err) {
     if (err instanceof VoiceError) return void res.status(err.status).send(err.message);

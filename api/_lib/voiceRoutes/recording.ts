@@ -6,7 +6,7 @@ import { formBody, voiceDeps } from '../voiceHttp.js';
 /** Twilio tells us a voicemail recording is ready. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    await handleRecording(voiceDeps(supabaseVoiceStore(serverEnv())), formBody(req), req.headers['x-twilio-signature'] as string | undefined);
+    await handleRecording(voiceDeps(supabaseVoiceStore(serverEnv()), req), formBody(req), req.headers['x-twilio-signature'] as string | undefined);
     res.status(200).send('ok');
   } catch (err) {
     if (err instanceof VoiceError) return void res.status(err.status).send(err.message);
