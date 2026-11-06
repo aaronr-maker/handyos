@@ -39,6 +39,13 @@ describe('only Twilio can make the phone addresses act', () => {
     expect(verifyTwilio(TOKEN, `${BASE}/api/voice/incoming`, params, undefined)).toBe(false);
   });
 
+  it('still accepts a real Twilio call when APP_URL is set wrong, using the address the request came in on', async () => {
+    const w = world();
+    const wrongSetting = { ...w.deps, env: { ...w.deps.env, APP_URL: 'https://old.example.com ' }, origin: BASE };
+    const params = { CallSid: 'CA9', From: '+15125559999', To: '+15125550000' };
+    expect(await handleIncoming(wrongSetting, params, w.sign('/api/voice/incoming', params))).toContain('<Response>');
+  });
+
   it('refuses a call without the right signature, and says so plainly when the phone system is not set up', async () => {
     const w = world();
     const params = { CallSid: 'CA1', From: '+15125559999', To: '+15125550000' };
