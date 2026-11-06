@@ -374,3 +374,9 @@ button.danger { background: #dc2626; color: #fff; }
 .board-bar { display: block; background: #eef2ea; border-radius: 6px; height: 10px; overflow: hidden; }
 .board-bar span { display: block; height: 100%; background: var(--brand); border-radius: 6px; }
 .board-first .board-bar span { background: var(--accent); }
+
+/* the answer screen inside the phone app */
+.phone-call { position: fixed; inset: 0; z-index: 100; background: #fff; padding: calc(24px + env(safe-area-inset-top)) 20px 24px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.phone-from { font-size: 1.6rem; font-weight: 800; margin: 0; }
+.phone-buttons { margin-top: auto; justify-content: space-between; }
+.phone-buttons button { flex: 1; min-height: 56px; font-size: 1.1rem; }

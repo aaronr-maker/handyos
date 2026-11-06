@@ -27,6 +27,8 @@ export interface ModuleManifest {
   hiddenFromRoles?: readonly UserRole[];
   /** Keep the section out of the menu and home tiles (its page still works at its path). */
   hiddenFromNav?: boolean;
+  /** Show the Overlay to every role, even those the section's page is hidden from. */
+  overlayForAll?: boolean;
   /** Shown next to the menu label (e.g. a count of open items). */
   Badge?: ComponentType;
   /** Rendered once on every screen while signed in (e.g. popups), for roles that see this section. */

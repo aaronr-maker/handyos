@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
     "@capacitor/core": "^8.6.0",
     "@supabase/supabase-js": "^2.118.0",
     "@xyflow/react": "^12.12.1",

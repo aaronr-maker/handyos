@@ -25,7 +25,7 @@ describe('ringing the phone app', () => {
   const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, phones: { u1: '+15125550001' } };
   it('dials the app and the cell together when asked, and only the cell otherwise', () => {
     const xml = (app: boolean) => toTwiml(walk(flow(app), 'start', env), { stepUrl: 'https://x/step', voice: 'v', recordingUrl: 'https://x/rec' });
-    expect(xml(true)).toContain('<Client>u1</Client><Number>+15125550001</Number>');
+    expect(xml(true)).toContain('<Client><Identity>u1</Identity></Client><Number>+15125550001</Number>');
     expect(xml(false)).not.toContain('<Client>');
   });
   it('rings someone with an app but no cell number', () => {

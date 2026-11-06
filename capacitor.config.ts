@@ -10,6 +10,8 @@ const config: CapacitorConfig = {
   appId: appConfig.bundleId,
   appName: appConfig.name,
   webDir: 'dist',
+  // the phone app shows the live app, so it is always the latest version and needs no reinstall for updates
+  server: { url: 'https://app.thathandymanvan.com', androidScheme: 'https' },
 };
 
 export default config;

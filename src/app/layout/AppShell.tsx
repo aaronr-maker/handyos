@@ -39,7 +39,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' 
 export function AppShell() {
   const { companyName, role } = useSession();
   const { all, tabs } = itemsFor(role);
-  const overlays = modules.filter((m) => m.Overlay && !m.hiddenFromRoles?.includes(role));
+  const overlays = modules.filter((m) => m.Overlay && (m.overlayForAll || !m.hiddenFromRoles?.includes(role)));
   return (
     <div className="shell">
       <aside className="sidebar">

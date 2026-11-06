@@ -302,6 +302,8 @@ export interface TwimlOptions {
   recordingUrl: string;
   /** When set, the audio of a connected call is also sent here to be typed out (a live transcript). Nothing is stored. */
   stream?: { url: string; params: Record<string, string> };
+  /** This call's id, passed along to a ringing phone app so it can show this call's transcript. */
+  callSid?: string;
 }
 
 /** Turns a step into the instructions Twilio understands. */
@@ -320,7 +322,7 @@ export function toTwiml(step: Step, o: TwimlOptions): string {
       else {
         // the live transcript starts when the first ring starts and follows the call to its end
         if (o.stream && p.index === 0) out.push(`<Start><Stream url="${esc(o.stream.url)}" track="both_tracks">${Object.entries(o.stream.params).map(([k, v]) => `<Parameter name="${esc(k)}" value="${esc(v)}"/>`).join('')}</Stream></Start>`);
-        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => (n.startsWith('client:') ? `<Client>${esc(n.slice(7))}</Client>` : `<Number>${esc(n)}</Number>`)).join('')}</Dial>`);
+        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => (n.startsWith('client:') ? `<Client><Identity>${esc(n.slice(7))}</Identity>${o.callSid ? `<Parameter name="parent" value="${esc(o.callSid)}"/>` : ''}</Client>` : `<Number>${esc(n)}</Number>`)).join('')}</Dial>`);
       }
       break;
     case 'record':

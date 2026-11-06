@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">That Handyman Van</string>
+    <string name="title_activity_main">That Handyman Van</string>
+    <string name="package_name">com.thathandymanvan.handyos</string>
+    <string name="custom_url_scheme">com.thathandymanvan.handyos</string>
+</resources>
