@@ -18,7 +18,10 @@ const need = (k: string) => {
 };
 const OPENAI_KEY = need('OPENAI_API_KEY');
 const STREAM_SECRET = need('STREAM_SECRET');
-const db = createClient(need('SUPABASE_URL'), need('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+// settings pasted with spaces, quotes, a trailing slash or a /rest/v1 tail are cleaned up
+const tidyUrl = (u: string) => u.trim().replace(/^["']|["']$/g, '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const db = createClient(tidyUrl(need('SUPABASE_URL')), need('SUPABASE_SERVICE_ROLE_KEY').replace(/\s|^["']|["']$/g, ''), { auth: { persistSession: false } });
+const why = (e: { message?: string; code?: string; details?: string; hint?: string }) => JSON.stringify({ message: e.message, code: e.code, details: e.details, hint: e.hint });
 const TRANSCRIBE_MODEL = env.TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const SUMMARY_MODEL = env.SUMMARY_MODEL || 'gpt-4o-mini';
 
@@ -74,7 +77,7 @@ async function summarize(companyId: string, callSid: string, lines: Line[]) {
   const summary = json.choices?.[0]?.message?.content?.trim();
   if (!summary) return;
   const { error } = await db.from('call_log').update({ summary }).eq('company_id', companyId).eq('call_sid', callSid);
-  if (error) console.error('Saving the summary failed:', error.message);
+  if (error) console.error('Saving the summary failed:', why(error));
 }
 
 wss.on('connection', (twilio) => {
@@ -86,7 +89,7 @@ wss.on('connection', (twilio) => {
   const hear = (speaker: 'caller' | 'team') => (body: string) => {
     lines.push({ speaker, body, at: Date.now() });
     void db.from('call_transcripts').insert({ company_id: companyId, call_sid: callSid, speaker, body }).then(({ error }) => {
-      if (error) console.error('Saving a transcript line failed:', error.message);
+      if (error) console.error('Saving a transcript line failed:', why(error));
     });
   };
 
