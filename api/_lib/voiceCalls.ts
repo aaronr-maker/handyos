@@ -23,6 +23,8 @@ export interface VoiceStore {
   /** Team member id -> phone, and id -> name. */
   team(companyId: string): Promise<{ phones: Record<string, string>; names: Record<string, string> }>;
   logCall(companyId: string, callSid: string, patch: { from?: string; to?: string; trail?: string[]; outcome?: string }): Promise<void>;
+  /** The numbers of a call we logged earlier (Twilio's recording message does not repeat them). */
+  callInfo(callSid: string): Promise<{ from: string | null; to: string | null } | null>;
   saveVoicemail(companyId: string, v: { callSid: string; from: string | null; recordingUrl: string; seconds: number }): Promise<void>;
 }
 
@@ -125,9 +127,12 @@ export async function handleStep(deps: VoiceDeps, query: Record<string, string>,
 /** Twilio says a voicemail recording is ready. */
 export async function handleRecording(deps: VoiceDeps, params: Record<string, string>, signature: string | undefined): Promise<void> {
   check(deps, '/api/voice/recording', '', params, signature);
-  const company = await deps.store.findCompany(params.To ?? params.Called ?? '');
-  if (!company || !params.RecordingUrl) return;
-  await deps.store.saveVoicemail(company.companyId, { callSid: params.CallSid ?? '', from: params.From ?? null, recordingUrl: `${params.RecordingUrl}.mp3`, seconds: Number(params.RecordingDuration) || 0 });
+  if (!params.RecordingUrl) return;
+  // the recording message carries no phone numbers, so find them from the call we logged when it came in
+  const info = params.CallSid ? await deps.store.callInfo(params.CallSid) : null;
+  const company = await deps.store.findCompany(params.To ?? params.Called ?? info?.to ?? '');
+  if (!company) return;
+  await deps.store.saveVoicemail(company.companyId, { callSid: params.CallSid ?? '', from: params.From ?? info?.from ?? null, recordingUrl: `${params.RecordingUrl}.mp3`, seconds: Number(params.RecordingDuration) || 0 });
 }
 
 // ---- the real database side (server key) ----
@@ -163,6 +168,10 @@ export function supabaseVoiceStore(env: { SUPABASE_URL?: string; SUPABASE_SERVIC
       const row = { company_id: companyId, call_sid: callSid, trail, ...(patch.from ? { from_number: patch.from } : {}), ...(patch.to ? { to_number: patch.to } : {}), ...(patch.outcome ? { outcome: patch.outcome } : {}) };
       const { error } = await db.from('call_log').upsert(row, { onConflict: 'company_id,call_sid' });
       if (error) console.error('Saving the call log failed:', error.message);
+    },
+    async callInfo(callSid) {
+      const { data } = await db.from('call_log').select('from_number, to_number').eq('call_sid', callSid).maybeSingle();
+      return data ? { from: (data.from_number as string | null) ?? null, to: (data.to_number as string | null) ?? null } : null;
     },
     async saveVoicemail(companyId, v) {
       const { error } = await db.from('voicemails').upsert({ company_id: companyId, call_sid: v.callSid, from_number: v.from, recording_url: v.recordingUrl, duration_seconds: v.seconds }, { onConflict: 'company_id,call_sid' });
