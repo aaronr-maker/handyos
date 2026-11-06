@@ -1,0 +1,85 @@
+import { z } from 'zod';
+import { defineAction } from '@/core';
+import { markHeard, saveFlow, saveSettings, setTeamPhone } from './service';
+
+const digit = z.string().regex(/^[0-9]$/);
+const node = z.object({
+  id: z.string().min(1).max(60),
+  kind: z.enum(['start', 'hours', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup']),
+  x: z.number(),
+  y: z.number(),
+  data: z.object({
+    text: z.string().max(1000).optional(),
+    prompt: z.string().max(1000).optional(),
+    options: z.array(z.object({ digit, label: z.string().max(80) })).max(10).optional(),
+    people: z.array(z.string().max(60)).max(30).optional(),
+    numbers: z.array(z.string().max(30)).max(10).optional(),
+    mode: z.enum(['all', 'in_order']).optional(),
+    seconds: z.number().int().min(5).max(120).optional(),
+    notify: z.array(z.string().max(60)).max(30).optional(),
+    number: z.string().max(30).optional(),
+    label: z.string().max(60).optional(),
+  }),
+});
+
+export const saveCallFlowAction = defineAction({
+  name: 'phone.save_flow',
+  module: 'phone',
+  description: 'Save the call tree that answers the company phone. It takes effect for the next call.',
+  input: z.object({ nodes: z.array(node).max(80), edges: z.array(z.object({ id: z.string().max(80), source: z.string().max(60), handle: z.string().max(10), target: z.string().max(60) })).max(300) }),
+  risk: 'high',
+  roles: ['owner', 'admin'],
+  // this decides what every caller hears, so an AI agent can only propose a change
+  requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
+  example: { nodes: [{ id: 'start', kind: 'start' as const, x: 0, y: 0, data: {} }], edges: [] },
+  async handler(input, ctx) {
+    await saveFlow(ctx.companyId, input);
+    return { saved: true };
+  },
+});
+
+const hoursDay = z.array(z.object({ open: z.string().regex(/^\d{2}:\d{2}$/), close: z.string().regex(/^\d{2}:\d{2}$/) })).max(3);
+export const savePhoneSettingsAction = defineAction({
+  name: 'phone.save_settings',
+  module: 'phone',
+  description: 'Save the business phone number, time zone, opening hours and the voice that reads greetings.',
+  input: z.object({ number: z.string().trim().max(30), timezone: z.string().trim().min(3).max(60), voice: z.string().trim().min(3).max(40), week: z.object({ mon: hoursDay, tue: hoursDay, wed: hoursDay, thu: hoursDay, fri: hoursDay, sat: hoursDay, sun: hoursDay }) }),
+  risk: 'high',
+  roles: ['owner', 'admin'],
+  requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
+  example: { number: '+15125550000', timezone: 'America/Chicago', voice: 'Polly.Joanna', week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } },
+  async handler({ number, timezone, voice, week }, ctx) {
+    await saveSettings(ctx.companyId, { number, hours: { timezone, week }, voice });
+    return { saved: true };
+  },
+});
+
+export const setTeamPhoneAction = defineAction({
+  name: 'phone.set_team_phone',
+  module: 'phone',
+  description: "Set the number to ring for a team member (an empty number removes it).",
+  input: z.object({ user_id: z.string().min(1), phone: z.string().trim().max(30) }),
+  risk: 'medium',
+  roles: ['owner', 'admin'],
+  requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
+  example: { user_id: 'user-id', phone: '+15125550001' },
+  async handler({ user_id, phone }, ctx) {
+    await setTeamPhone(ctx.companyId, user_id, phone);
+    return { saved: true };
+  },
+});
+
+export const markVoicemailHeardAction = defineAction({
+  name: 'phone.mark_voicemail_heard',
+  module: 'phone',
+  description: 'Mark a voicemail as listened to.',
+  input: z.object({ voicemail_id: z.string().min(1) }),
+  risk: 'low',
+  roles: ['owner', 'admin', 'office'],
+  requiresApproval: false,
+  example: { voicemail_id: 'voicemail-id' },
+  async handler({ voicemail_id }, ctx) {
+    await markHeard(ctx.companyId, voicemail_id);
+    return { ok: true };
+  },
+});

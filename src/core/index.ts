@@ -2,7 +2,7 @@
 export * from './types';
 export * from './format';
 export { parseCsv } from './csv';
-export { apiCall } from './integrations';
+export { apiCall, apiBlob } from './integrations';
 export { fileToCsvText, rowsToCsv } from './xlsx';
 export * from './events';
 export * from './actions';
