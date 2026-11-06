@@ -5,6 +5,7 @@ import { customerLabel, listAllProperties, listCustomers } from '@/modules/custo
 import { closeAlertAction, listAlerts } from '@/modules/desk';
 import { efficiencyFor, loadTimeFacts, upcomingJobsFor, weekReport } from '@/modules/timesheets';
 import type { Refs, WireTool } from './chat';
+import { priceInteriorPainting } from './pricing';
 import { CUSTOMER_ACTIONS, CUSTOMER_ACTION_TOOLS, CUSTOMER_READ_TOOLS, customerFor, describeCustomerAction, readCustomerTool, runCustomerAction } from './customerTools';
 
 /** What a tool needs to look things up for the person Handy is working for. */
@@ -19,6 +20,7 @@ const tool = (name: string, description: string, properties: Record<string, unkn
 export const HANDY_TOOLS: WireTool[] = [
   ...CUSTOMER_READ_TOOLS,
   tool('team', 'List the team members and their roles.'),
+  tool('price_painting', "The company's labor price for interior painting from the painted surface area and number of coats: the company's own pace, the 20% budget allowance and the $120 labor rate. Materials and prep are separate. Use this for any painting price question.", { area_sqft: { type: 'number', description: 'Square feet of painted surface.' }, coats: { type: 'integer', description: 'Number of coats (1 to 3).' } }, ['area_sqft', 'coats']),
   tool('week_hours', "A team member's week: hours clocked, scheduled time still ahead, efficiency rate and projected total.", { person }, ['person']),
   tool('upcoming_jobs', 'Jobs still to be worked that are assigned to a team member (or to anyone, if no name is given), with times and job ids.', { person }),
   tool('unassigned_jobs', 'Scheduled jobs that nobody is assigned to yet.'),
@@ -69,6 +71,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: '
 /** Looks things up. Only what is listed here ever goes back to Handy: no phones, emails, pay rates or payment details. */
 export async function runReadTool(ctx: ToolContext, name: string, args: Record<string, unknown>, refs: Refs = () => null): Promise<unknown> {
   const now = Date.now();
+  if (name === 'price_painting') return priceInteriorPainting(Number(args.area_sqft), Number(args.coats));
   if (name === 'team') return ctx.team.map((m) => ({ name: nameOf(m), role: m.role }));
   if (name === 'open_alerts') return (await listAlerts(ctx.companyId)).filter((a) => a.status === 'open').map((a) => ({ alert_id: a.id, title: a.title, detail: a.detail, severity: a.severity }));
   if (name === 'find_customer' || name === 'customer_details' || name === 'find_property') return readCustomerTool(ctx, name, args, refs);
