@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { streamToken } from './streamToken.js';
 import { afterDial, afterMenu, DAYS, DEFAULT_HOURS, toTwiml, walk, type Env, type Flow, type Hours, type Step } from './callEngine.js';
 
 /**
@@ -32,7 +33,7 @@ export interface VoiceDeps {
   store: VoiceStore;
   /** The public address this request arrived at (like https://app.example.com), read from the request itself. */
   origin?: string;
-  env: { TWILIO_AUTH_TOKEN?: string; APP_URL?: string; VOICE_AI_READY?: string };
+  env: { TWILIO_AUTH_TOKEN?: string; APP_URL?: string; VOICE_AI_READY?: string; /** wss:// address of the transcription server; empty means no live transcript */ VOICE_STREAM_URL?: string; /** secret shared with that server */ STREAM_SECRET?: string };
   now: () => number;
 }
 
@@ -75,7 +76,14 @@ function check(deps: VoiceDeps, path: string, query: string, params: Record<stri
 
 const env = (deps: VoiceDeps, c: CompanyPhone, team: { phones: Record<string, string>; names: Record<string, string> }): Env => ({ now: deps.now(), hours: c.hours, phones: team.phones, names: team.names, aiReady: deps.env.VOICE_AI_READY === '1' });
 
-const render = (step: Step, base: string, c: CompanyPhone, callerId?: string) => toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId });
+const render = (step: Step, base: string, c: CompanyPhone, deps: VoiceDeps, params: Record<string, string>) => {
+  const url = deps.env.VOICE_STREAM_URL?.trim();
+  const secret = deps.env.STREAM_SECRET?.trim();
+  const sid = params.CallSid ?? '';
+  // a live transcript is only started when the server address and the shared secret are both set
+  const stream = url && secret && sid ? { url, params: { callSid: sid, companyId: c.companyId, token: streamToken(secret, sid, c.companyId) } } : undefined;
+  return toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId: params.From, stream });
+};
 
 const hangupWith = (text: string) => `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${text}</Say><Hangup/></Response>`;
 
@@ -92,7 +100,7 @@ export async function handleIncoming(deps: VoiceDeps, params: Record<string, str
   // the recording notice comes before anything else the tree says
   const step: Step = company.notice?.trim() ? { ...first, say: [company.notice.trim(), ...first.say] } : first;
   await deps.store.logCall(company.companyId, params.CallSid ?? '', { from: params.From, to: params.To, trail: step.trail, outcome: 'started' });
-  return render(step, base, company, params.From);
+  return render(step, base, company, deps, params);
 }
 
 /** Twilio comes back after a step: `query` says which block and what happened. */
@@ -121,7 +129,7 @@ export async function handleStep(deps: VoiceDeps, query: Record<string, string>,
     step = { say: [], pause: { type: 'hangup', node: null }, trail: [] };
   }
   await deps.store.logCall(company.companyId, params.CallSid ?? '', { trail: step.trail, outcome });
-  return render(step, base, company, params.From);
+  return render(step, base, company, deps, params);
 }
 
 /** Twilio says a voicemail recording is ready. */

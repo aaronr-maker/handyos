@@ -15,4 +15,4 @@ export function originOf(req: VercelRequest): string | undefined {
   return host ? `${pick(req.headers['x-forwarded-proto']) || 'https'}://${host}` : undefined;
 }
 
-export const voiceDeps = (store: VoiceStore, req?: VercelRequest): VoiceDeps => ({ store, origin: req ? originOf(req) : undefined, env: { TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN, APP_URL: process.env.APP_URL, VOICE_AI_READY: process.env.VOICE_AI_READY }, now: () => Date.now() });
+export const voiceDeps = (store: VoiceStore, req?: VercelRequest): VoiceDeps => ({ store, origin: req ? originOf(req) : undefined, env: { TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN, APP_URL: process.env.APP_URL, VOICE_AI_READY: process.env.VOICE_AI_READY, VOICE_STREAM_URL: process.env.VOICE_STREAM_URL, STREAM_SECRET: process.env.STREAM_SECRET }, now: () => Date.now() });
