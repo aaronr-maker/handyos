@@ -33,7 +33,7 @@ const TYPICAL: { reserve: string; levels: Omit<LevelRow, 'id'>[] } = {
   ],
 };
 
-const COLORS = ['#0f766e', '#2563eb', '#9333ea', '#d97706', '#db2777', '#4d7c0f', '#0891b2', '#b45309'];
+const COLORS = ['#15803d', '#2563eb', '#9333ea', '#d97706', '#db2777', '#4d7c0f', '#0891b2', '#b45309'];
 
 /** Settings for pay-for-performance: what the pool is, what the company keeps, who gets what, and who reports to whom. */
 export default function P4PSettings() {

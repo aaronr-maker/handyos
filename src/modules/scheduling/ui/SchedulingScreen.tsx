@@ -12,6 +12,7 @@ const FIRST_HOUR = 6;
 const LAST_HOUR = 20;
 const HOUR_PX = 44;
 const DEFAULT_MIN = 120;
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const startOfWeek = (d: Date) => {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Monday
@@ -51,7 +52,8 @@ export default function SchedulingScreen() {
   const reschedule = useAction(rescheduleJobAction);
   const assign = useAction(assignJobAction);
   const { data, loading, error, reload } = useAsync(async () => ({ facts: await loadTimeFacts(companyId), customers: await listCustomers(companyId), team: await listTeamMembers() }), [companyId]);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [view, setView] = useState<'day' | 'week' | 'month'>('week');
+  const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [problem, setProblem] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -70,18 +72,21 @@ export default function SchedulingScreen() {
     return c ? customerLabel(c) : '';
   };
 
-  const days = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * DAY));
+  // the days on screen: one day, a week, or the six weeks that make up a month grid
+  const monthFirst = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const rangeStart = view === 'day' ? anchor : view === 'week' ? startOfWeek(anchor) : startOfWeek(monthFirst);
+  const rangeDays = view === 'day' ? 1 : view === 'week' ? 7 : 42;
+  const days = Array.from({ length: rangeDays }, (_, i) => new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate() + i));
   const scheduled = jobs.filter((j) => j.scheduled_start);
   const unscheduled = jobs.filter((j) => !j.scheduled_start);
-  const weekJobs = scheduled.filter((j) => Date.parse(j.scheduled_start!) >= weekStart.getTime() && Date.parse(j.scheduled_start!) < weekStart.getTime() + 7 * DAY);
+  const weekJobs = scheduled.filter((j) => Date.parse(j.scheduled_start!) >= days[0].getTime() && Date.parse(j.scheduled_start!) < days[days.length - 1].getTime() + DAY);
   // columns: every technician, plus anybody who has work this week
   const people = (data?.team ?? []).filter((m) => m.role === 'tech' || weekJobs.some((j) => crewOf(j.id).includes(m.id)));
   const columns = [UNASSIGNED, ...people.map((p) => p.id)];
   const rates = Object.fromEntries(people.map((p) => [p.id, data ? efficiencyFor(data.facts, p.id, now) : { rate: 1, jobs: 0, defaulted: true }]));
   const today = new Date(now);
 
-  const inColumn = (col: string, d: Date) =>
-    scheduled.filter((j) => sameDay(new Date(j.scheduled_start!), d) && (col === UNASSIGNED ? crewOf(j.id).length === 0 : crewOf(j.id).includes(col)));
+  const inColumn = (col: string, d: Date) => scheduled.filter((j) => sameDay(new Date(j.scheduled_start!), d) && (col === UNASSIGNED ? crewOf(j.id).length === 0 : crewOf(j.id).includes(col)));
 
   const durationMin = (j: Job) => (j.scheduled_start && j.scheduled_end ? Math.max(15, Math.round((Date.parse(j.scheduled_end) - Date.parse(j.scheduled_start)) / 60000)) : DEFAULT_MIN);
 
@@ -127,14 +132,15 @@ export default function SchedulingScreen() {
   };
 
   const card = (j: Job, col: string | null, lane?: { lane: number; of: number }) => {
-    const style = lane && j.scheduled_start
-      ? (() => {
-          const s = new Date(j.scheduled_start);
-          const top = Math.max(0, ((s.getHours() * 60 + s.getMinutes() - FIRST_HOUR * 60) / 60) * HOUR_PX);
-          const height = Math.max(26, (durationMin(j) / 60) * HOUR_PX - 2);
-          return { top, height, left: `${(lane.lane / lane.of) * 100}%`, width: `${100 / lane.of}%` };
-        })()
-      : undefined;
+    const style =
+      lane && j.scheduled_start
+        ? (() => {
+            const s = new Date(j.scheduled_start);
+            const top = Math.max(0, ((s.getHours() * 60 + s.getMinutes() - FIRST_HOUR * 60) / 60) * HOUR_PX);
+            const height = Math.max(26, (durationMin(j) / 60) * HOUR_PX - 2);
+            return { top, height, left: `${(lane.lane / lane.of) * 100}%`, width: `${100 / lane.of}%` };
+          })()
+        : undefined;
     return (
       <div
         key={`${j.id}-${col}`}
@@ -162,6 +168,20 @@ export default function SchedulingScreen() {
     );
   };
 
+  const step = (n: number) =>
+    setAnchor(
+      view === 'day'
+        ? new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + n)
+        : view === 'week'
+          ? new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * n)
+          : new Date(anchor.getFullYear(), anchor.getMonth() + n, 1),
+    );
+  const title =
+    view === 'day'
+      ? anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+      : view === 'week'
+        ? `Week of ${startOfWeek(anchor).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
+        : anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const hours = Array.from({ length: LAST_HOUR - FIRST_HOUR }, (_, i) => FIRST_HOUR + i);
   const selected = jobs.find((j) => j.id === openJob);
 
@@ -170,21 +190,30 @@ export default function SchedulingScreen() {
       <header className="page-header">
         <div>
           <h1>Schedule</h1>
-          <p className="muted">Week of {weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}. Drag a job onto a technician to assign it.</p>
+          <p className="muted">
+            {title}. {view === 'month' ? 'Click a day to open it.' : 'Drag a job onto a technician to assign it.'}
+          </p>
         </div>
         <Link to="/jobs/new" className="button push-right">
           New job
         </Link>
       </header>
 
-      <div className="row">
-        <button className="secondary" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * DAY))}>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <div className="seg" role="group" aria-label="View">
+          {(['day', 'week', 'month'] as const).map((v) => (
+            <button key={v} className={view === v ? '' : 'secondary'} onClick={() => setView(v)}>
+              {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Month'}
+            </button>
+          ))}
+        </div>
+        <button className="secondary" onClick={() => step(-1)}>
           ← Previous
         </button>
-        <button className="secondary" onClick={() => setWeekStart(startOfWeek(new Date()))}>
-          This week
+        <button className="secondary" onClick={() => setAnchor(startOfDay(new Date()))}>
+          Today
         </button>
-        <button className="secondary" onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * DAY))}>
+        <button className="secondary" onClick={() => step(1)}>
           Next →
         </button>
       </div>
@@ -225,60 +254,123 @@ export default function SchedulingScreen() {
         </div>
       )}
 
-      <div className="wk-scroll">
-        <div className="wk">
-          <div className="wk-axis">
-            <div className="wk-dayname">&nbsp;</div>
-            <div className="wk-head" />
-            {hours.map((h) => (
-              <div key={h} className="wk-hour" style={{ height: HOUR_PX }}>
-                {new Date(2000, 0, 1, h).toLocaleTimeString('en-US', { hour: 'numeric' })}
+      {view === 'month' && (
+        <div className="mo">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+            <div key={d} className="mo-head">
+              {d}
+            </div>
+          ))}
+          {days.map((d) => {
+            const list = scheduled.filter((j) => sameDay(new Date(j.scheduled_start!), d));
+            const unassigned = list.filter((j) => crewOf(j.id).length === 0).length;
+            const bookedMin = list.reduce((n, j) => n + durationMin(j), 0);
+            return (
+              <button
+                key={d.toISOString()}
+                className={`mo-day ${d.getMonth() !== anchor.getMonth() ? 'mo-out' : ''} ${sameDay(d, today) ? 'mo-today' : ''}`}
+                onClick={() => {
+                  setAnchor(startOfDay(d));
+                  setView('day');
+                }}
+              >
+                <span className="mo-num">{d.getDate()}</span>
+                {list.length > 0 && (
+                  <span className="mo-info">
+                    {list.length} job{list.length === 1 ? '' : 's'} · {hoursText(bookedMin)}
+                  </span>
+                )}
+                {unassigned > 0 && <span className="pill medium">{unassigned} unassigned</span>}
+                <span className="mo-bars">
+                  {people.map((p) => {
+                    const cap = dayCapacity(
+                      list.filter((j) => crewOf(j.id).includes(p.id)).map((j) => ({ start: j.scheduled_start!, end: j.scheduled_end })),
+                      rates[p.id]?.rate ?? 1,
+                    );
+                    const pct = Math.min(100, Math.round((cap.expectedMin / WORKDAY_MINUTES) * 100));
+                    return cap.bookedMin === 0 ? null : (
+                      <span key={p.id} className="mo-bar" title={`${nameOf(p.id)}: ${cap.over ? 'full' : `room ${hoursText(cap.roomMin)}`}`}>
+                        <span className={cap.over ? 'wk-fill over' : pct > 85 ? 'wk-fill warn' : 'wk-fill'} style={{ width: `${pct}%` }} />
+                      </span>
+                    );
+                  })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {view !== 'month' && (
+        <div className={`wk-scroll ${view === 'day' ? 'wk-single' : ''}`}>
+          <div className="wk">
+            <div className="wk-axis">
+              <div className="wk-dayname">&nbsp;</div>
+              <div className="wk-head" />
+              {hours.map((h) => (
+                <div key={h} className="wk-hour" style={{ height: HOUR_PX }}>
+                  {new Date(2000, 0, 1, h).toLocaleTimeString('en-US', { hour: 'numeric' })}
+                </div>
+              ))}
+            </div>
+            {days.map((d) => (
+              <div key={d.toISOString()} className={`wk-day ${sameDay(d, today) ? 'wk-today' : ''}`}>
+                <div className="wk-dayname">{d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                <div className="wk-cols">
+                  {columns.map((col) => {
+                    const list = inColumn(col, d);
+                    const cap =
+                      col === UNASSIGNED
+                        ? null
+                        : dayCapacity(
+                            list.map((j) => ({ start: j.scheduled_start!, end: j.scheduled_end })),
+                            rates[col]?.rate ?? 1,
+                          );
+                    const pct = cap ? Math.min(100, Math.round((cap.expectedMin / WORKDAY_MINUTES) * 100)) : 0;
+                    const key = `${col}|${d.toDateString()}`;
+                    const lane = lanes(list);
+                    return (
+                      <div key={col} className="wk-col">
+                        <div
+                          className="wk-head"
+                          title={
+                            cap
+                              ? `Jobs usually take ${Math.round((rates[col]?.rate ?? 1) * 100)}% of the booked time${rates[col]?.defaulted ? ' (not enough finished jobs yet to know, so 100%)' : ''}.`
+                              : 'Jobs nobody has been given yet'
+                          }
+                        >
+                          <strong>{col === UNASSIGNED ? 'Unassigned' : nameOf(col).split(' ')[0]}</strong>
+                          {cap && (
+                            <>
+                              <div className="wk-bar">
+                                <div className={cap.over ? 'wk-fill over' : pct > 85 ? 'wk-fill warn' : 'wk-fill'} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="wk-cap">{cap.over ? `over by ${hoursText(cap.expectedMin - WORKDAY_MINUTES)}` : `room ${hoursText(cap.roomMin)}`}</span>
+                            </>
+                          )}
+                        </div>
+                        <div
+                          className={`wk-body ${over === key ? 'wk-over' : ''}`}
+                          style={{ height: hours.length * HOUR_PX }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (over !== key) setOver(key);
+                          }}
+                          onDragLeave={() => setOver((o) => (o === key ? null : o))}
+                          onDrop={(e) => void drop(e, col, d)}
+                        >
+                          {list.map((j) => card(j, col, lane.get(j.id)))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
-          {days.map((d) => (
-            <div key={d.toISOString()} className={`wk-day ${sameDay(d, today) ? 'wk-today' : ''}`}>
-              <div className="wk-dayname">{d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-              <div className="wk-cols">
-                {columns.map((col) => {
-                  const list = inColumn(col, d);
-                  const cap = col === UNASSIGNED ? null : dayCapacity(list.map((j) => ({ start: j.scheduled_start!, end: j.scheduled_end })), rates[col]?.rate ?? 1);
-                  const pct = cap ? Math.min(100, Math.round((cap.expectedMin / WORKDAY_MINUTES) * 100)) : 0;
-                  const key = `${col}|${d.toDateString()}`;
-                  const lane = lanes(list);
-                  return (
-                    <div key={col} className="wk-col">
-                      <div className="wk-head" title={cap ? `Jobs usually take ${Math.round((rates[col]?.rate ?? 1) * 100)}% of the booked time${rates[col]?.defaulted ? ' (not enough finished jobs yet to know, so 100%)' : ''}.` : 'Jobs nobody has been given yet'}>
-                        <strong>{col === UNASSIGNED ? 'Unassigned' : nameOf(col).split(' ')[0]}</strong>
-                        {cap && (
-                          <>
-                            <div className="wk-bar">
-                              <div className={cap.over ? 'wk-fill over' : pct > 85 ? 'wk-fill warn' : 'wk-fill'} style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="wk-cap">{cap.over ? `over by ${hoursText(cap.expectedMin - WORKDAY_MINUTES)}` : `room ${hoursText(cap.roomMin)}`}</span>
-                          </>
-                        )}
-                      </div>
-                      <div
-                        className={`wk-body ${over === key ? 'wk-over' : ''}`}
-                        style={{ height: hours.length * HOUR_PX }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (over !== key) setOver(key);
-                        }}
-                        onDragLeave={() => setOver((o) => (o === key ? null : o))}
-                        onDrop={(e) => void drop(e, col, d)}
-                      >
-                        {list.map((j) => card(j, col, lane.get(j.id)))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
         </div>
-      </div>
+      )}
+
       <p className="muted small-note">“Room” is how much more booked time fits in an 8-hour day, counting how long each person's jobs usually really take.</p>
     </section>
   );

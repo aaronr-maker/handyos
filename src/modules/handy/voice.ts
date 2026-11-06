@@ -1,3 +1,4 @@
+import { PRICING_RULES } from './pricing';
 import type { TurnDeps, WireTool } from './chat';
 import { executeToolCall } from './chat';
 import { fromVoiceUsage, type Usage } from './usage';
@@ -116,7 +117,8 @@ Sound like a warm, relaxed, friendly office manager: unhurried, with natural pau
 When the person names a customer, a property or a contact, even in the middle of a longer sentence, call find_customer or find_property straight away with that name and carry on. Never ask the person for the name again if they already said it, and never ask them for an ID.
 You are speaking out loud, so keep answers short and natural, one or two sentences, and say numbers the way a person would ("about forty-two hours").
 Before you change anything, say exactly what you are about to do, including WHO it is for (the customer's name) and how it goes (text or email), and the new values (the name, the email address, the phone number, the full words of a message), then ask "Is that right?" and stop and wait for the answer. Only after the person says yes, call the tool. If they say anything else, such as a change, do not call the tool: say the new version and ask again. A message to a customer: read the whole message aloud and ask "Should I send it?"; when they say yes it is sent right then. Never claim something is done until the tool says so; a confirmation card on screen is the backup if the app cannot be sure of the spoken yes.
-If you are not sure you heard a name or number right, ask again instead of guessing.`;
+If you are not sure you heard a name or number right, ask again instead of guessing.
+${PRICING_RULES}`;
 
 /** Connects the microphone to the voice model and returns how to talk to it and how to hang up. Only runs in a browser. */
 export async function connectVoice(i: { secret: string; model: string; onEvent: (e: VoiceEvent) => void; onClosed: () => void }): Promise<{ send(event: unknown): void; close(): void }> {

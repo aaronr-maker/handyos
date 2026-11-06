@@ -1,34 +1,31 @@
 import { Link } from 'react-router-dom';
-import { Icon, isSupabaseConfigured, useSession } from '@/core';
-import { appConfig } from '@/config/app';
+import { Icon, isSupabaseConfigured, listTeamMembers, useAsync, useSession } from '@/core';
 import { modules } from '../modules';
 
+const greeting = (h: number) => (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
+
 export function HomeScreen() {
-  const { companyName, role } = useSession();
+  const { companyName, role, user } = useSession();
+  const { data: team } = useAsync(() => listTeamMembers(), []);
+  const me = team?.find((m) => m.id === user.id);
+  const first = (me?.full_name || '').trim().split(' ')[0];
+  const mine = modules.filter((m) => !m.hiddenFromRoles?.includes(role));
   return (
     <section className="page">
-      <header className="page-header">
-        <div>
-          <h1>Welcome to {appConfig.name}</h1>
-          <p className="muted">
-            {companyName} · {appConfig.tagline}
-          </p>
-        </div>
+      <header className="hero">
+        <h1>
+          {greeting(new Date().getHours())}
+          {first ? `, ${first}` : ''}!
+        </h1>
+        <p className="muted">Here's your day at {companyName}. Pick up where you left off.</p>
       </header>
-      <div className="card">
-        <h2>Foundation status</h2>
-        <p className="muted">
-          The app skeleton is live: navigation, install-to-phone, the action/audit system and the database design. Each
-          area below is a placeholder that will be built out one at a time.
-        </p>
-        <p>
-          Database: <span className={isSupabaseConfigured ? 'pill ok' : 'pill'}>{isSupabaseConfigured ? 'Connected' : 'Demo mode (not connected yet)'}</span>
-        </p>
-      </div>
+      {!isSupabaseConfigured && <p className="notice">You're looking at demo mode, so nothing here is saved yet.</p>}
       <div className="grid">
-        {modules.filter((m) => !m.hiddenFromRoles?.includes(role)).map((m) => (
+        {mine.map((m) => (
           <Link key={m.id} to={m.path} className="card tile">
-            <Icon name={m.icon} width={28} height={28} />
+            <span className="tile-icon">
+              <Icon name={m.icon} width={26} height={26} />
+            </span>
             <strong>{m.label}</strong>
             <span className="muted">{m.description}</span>
           </Link>

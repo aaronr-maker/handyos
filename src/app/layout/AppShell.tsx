@@ -43,11 +43,8 @@ export function AppShell() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <img src="/icon.svg" alt="" width={32} height={32} />
-          <div>
-            <strong>{appConfig.name}</strong>
-            <span>{companyName}</span>
-          </div>
+          <img src="/logo-small.png" alt={companyName} />
+          <span>{appConfig.name}</span>
         </div>
         <nav aria-label="Main">
           {all.map((i) => (
@@ -66,8 +63,7 @@ export function AppShell() {
       </aside>
 
       <header className="topbar">
-        <img src="/icon.svg" alt="" width={28} height={28} />
-        <strong>{appConfig.name}</strong>
+        <img src="/logo-small.png" alt={companyName} height={30} style={{ height: 30, width: 'auto' }} />
       </header>
 
       {overlays.map((m) => m.Overlay && <m.Overlay key={m.id} />)}

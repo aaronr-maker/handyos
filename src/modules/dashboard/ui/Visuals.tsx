@@ -111,7 +111,7 @@ export function Pipeline({ constraint }: { constraint: Constraint }) {
 }
 
 /** A horizontal bar inside a table cell. */
-export function Bar({ value, max, color = '#0f766e', label }: { value: number; max: number; color?: string; label: string }) {
+export function Bar({ value, max, color = '#15803d', label }: { value: number; max: number; color?: string; label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <div style={{ flex: 1, minWidth: 60, background: '#f1f5f9', borderRadius: 4, height: 10 }} role="img" aria-label={label}>

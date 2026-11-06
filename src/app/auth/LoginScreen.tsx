@@ -31,7 +31,7 @@ export function LoginScreen() {
   return (
     <main className="auth">
       <form className="card auth-card" onSubmit={submit}>
-        <img src="/icon.svg" alt="" width={48} height={48} />
+        <img src="/logo.png" alt="That Handyman Van" style={{ width: 240, maxWidth: '100%', height: 'auto' }} />
         <h1>{appConfig.name}</h1>
         <p className="muted">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
         <label>

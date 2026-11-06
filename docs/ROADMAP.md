@@ -67,3 +67,7 @@ Build order:
 
 ## Pace-based pricing and labor budgeting (spec from Aaron, 2026-11-06)
 Full specification: [docs/specs/PACE_PRICING.md](specs/PACE_PRICING.md). Builds on what already exists: the standard-times learning (jobcosting), per-task timers, efficiency rate (timesheets), the dashboard and the P4P module. First phase: historical pace tracking, the 20% allowance, job budget snapshots and proposed prices (never auto-published); P4P and close-rate pricing later.
+
+## Housecall Pro data: schedule, pace and efficiency (needs Aaron's answers)
+Goal: keep today's schedule in step with Housecall Pro until customers move over, and pull past jobs (times, crews, quantities) so pace rates and efficiency can be learned and the capacity scheduling tested.
+Open questions: does the Housecall Pro plan include API access (MAX plan) or do we use exports (CSV)? The simplest start is importing a job history export (job, date, crew, scheduled start/end, clocked hours if any). A live schedule sync needs the API. OpenAI keys expire every 30 days: replace them in Vercel and Render.
