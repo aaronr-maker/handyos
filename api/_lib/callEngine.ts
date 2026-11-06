@@ -46,6 +46,9 @@ export interface FlowEdge {
   source: string;
   handle: string;
   target: string;
+  /** Only for drawing: which side of the block the line leaves from and arrives at. The call logic ignores these. */
+  from?: 'r' | 'b' | 't';
+  to?: 'l' | 't' | 'b';
 }
 export interface Flow {
   nodes: FlowNode[];

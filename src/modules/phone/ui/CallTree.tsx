@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   Handle,
+  MarkerType,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -88,7 +89,13 @@ function Block({ id, data, selected }: NodeProps<BlockNode>) {
   const people = (data.people as Person[] | undefined) ?? [];
   return (
     <div className={`pb pb-${data.kind} ${selected ? 'pb-selected' : ''}`}>
-      {data.kind !== 'start' && <Handle type="target" position={Position.Left} />}
+      {data.kind !== 'start' && (
+        <>
+          <Handle type="target" position={Position.Left} />
+          <Handle type="target" id="in@t" position={Position.Top} />
+          <Handle type="target" id="in@b" position={Position.Bottom} />
+        </>
+      )}
       <div className="pb-title">
         <span>{ICON[data.kind]}</span> {data.d.label || TITLE[data.kind]}
       </div>
@@ -97,12 +104,18 @@ function Block({ id, data, selected }: NodeProps<BlockNode>) {
         <div key={p.id} className="pb-port">
           {p.label}
           <Handle type="source" id={p.id} position={Position.Right} style={{ right: -14, top: '50%' }} />
+          {/* a block with one way out can send its line out of the bottom or the top instead */}
+          {ports.length === 1 && <Handle type="source" id={`${p.id}@b`} position={Position.Bottom} style={{ left: '75%' }} />}
+          {ports.length === 1 && <Handle type="source" id={`${p.id}@t`} position={Position.Top} style={{ left: '75%' }} />}
         </div>
       ))}
     </div>
   );
 }
 const nodeTypes = { block: Block };
+
+const baseHandle = (h: string) => h.split('@')[0];
+const sideOf = (h: string | null | undefined) => (h && h.includes('@') ? h.split('@')[1] : null);
 
 const toRf = (flow: Flow, people: Person[]): { nodes: BlockNode[]; edges: Edge[] } => ({
   nodes: flow.nodes.map((n) => ({
@@ -115,8 +128,9 @@ const toRf = (flow: Flow, people: Person[]): { nodes: BlockNode[]; edges: Edge[]
   edges: flow.edges.map((e) => ({
     id: e.id,
     source: e.source,
-    sourceHandle: e.handle,
+    sourceHandle: e.from && e.from !== 'r' ? `${e.handle}@${e.from}` : e.handle,
     target: e.target,
+    targetHandle: e.to && e.to !== 'l' ? `in@${e.to}` : null,
   })),
 });
 const fromRf = (nodes: BlockNode[], edges: Edge[]): Flow => ({
@@ -132,8 +146,10 @@ const fromRf = (nodes: BlockNode[], edges: Edge[]): Flow => ({
     .map((e) => ({
       id: e.id,
       source: e.source,
-      handle: e.sourceHandle as string,
+      handle: baseHandle(e.sourceHandle as string),
       target: e.target,
+      ...(sideOf(e.sourceHandle) ? { from: sideOf(e.sourceHandle) as 'b' | 't' } : {}),
+      ...(e.targetHandle?.startsWith('in@') ? { to: e.targetHandle.slice(3) as 't' | 'b' } : {}),
     })),
 });
 
@@ -320,6 +336,17 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
   const problems = useMemo(() => validateFlow(current), [current]);
   const errors = problems.filter((p) => p.level === 'error');
   const node = nodes.find((n) => n.id === selected) ?? null;
+  // lines are drawn with arrowheads and say which exit they leave from, so you can follow where a call goes
+  const shownEdges = useMemo(
+    () =>
+      edges.map((e) => {
+        const from = nodes.find((n) => n.id === e.source);
+        const port = from ? portsOf({ kind: from.data.kind, data: from.data.d }) : [];
+        const label = port.length > 1 ? port.find((p) => p.id === baseHandle(e.sourceHandle ?? ''))?.label : undefined;
+        return { ...e, type: 'smoothstep', label, markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 }, labelBgPadding: [6, 3] as [number, number], labelBgBorderRadius: 4 };
+      }),
+    [edges, nodes],
+  );
 
   const touch = () => {
     setDirty(true);
@@ -330,7 +357,7 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
       setEdges((eds) =>
         addEdge(
           { ...c, id: `e${Date.now()}` },
-          eds.filter((e) => !(e.source === c.source && e.sourceHandle === c.sourceHandle)),
+          eds.filter((e) => !(e.source === c.source && baseHandle(e.sourceHandle ?? '') === baseHandle(c.sourceHandle ?? ''))),
         ),
       );
       setDirty(true);
@@ -342,7 +369,7 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
     setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, d } } : n)));
     // a menu choice that was removed or renumbered loses its line
     const ports = new Set(portsOf({ kind: node.data.kind, data: d }).map((p) => p.id));
-    setEdges((es) => es.filter((e) => e.source !== node.id || (e.sourceHandle && ports.has(e.sourceHandle))));
+    setEdges((es) => es.filter((e) => e.source !== node.id || (e.sourceHandle && ports.has(baseHandle(e.sourceHandle)))));
     touch();
   };
   const add = (kind: NodeKind) => {
@@ -483,7 +510,7 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
         <div className="call-canvas" ref={box}>
           <ReactFlow<BlockNode, Edge>
             nodes={nodes}
-            edges={edges}
+            edges={shownEdges}
             nodeTypes={nodeTypes}
             onNodesChange={(c) => {
               onNodesChange(c);

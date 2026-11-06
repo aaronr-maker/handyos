@@ -26,7 +26,7 @@ export const saveCallFlowAction = defineAction({
   name: 'phone.save_flow',
   module: 'phone',
   description: 'Save the call tree that answers the company phone. It takes effect for the next call.',
-  input: z.object({ nodes: z.array(node).max(80), edges: z.array(z.object({ id: z.string().max(80), source: z.string().max(60), handle: z.string().max(10), target: z.string().max(60) })).max(300) }),
+  input: z.object({ nodes: z.array(node).max(80), edges: z.array(z.object({ id: z.string().max(80), source: z.string().max(60), handle: z.string().max(10), target: z.string().max(60), from: z.enum(['r', 'b', 't']).optional(), to: z.enum(['l', 't', 'b']).optional() })).max(300) }),
   risk: 'high',
   roles: ['owner', 'admin'],
   // this decides what every caller hears, so an AI agent can only propose a change
