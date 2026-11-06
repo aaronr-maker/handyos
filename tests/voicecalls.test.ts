@@ -21,6 +21,7 @@ function world(over: { flow?: Flow | null; now?: number; known?: boolean } = {})
     activeFlow: async () => (over.flow === undefined ? tree() : over.flow),
     team: async () => ({ phones: { aaron: '+15125550001', sam: '+15125550002' }, names: { aaron: 'Aaron', sam: 'Sam' } }),
     logCall: async (_c, callSid, patch) => void logs.push({ callSid, patch }),
+    callInfo: async (sid) => (sid === 'CA1' ? { from: '+15125559999', to: '+15125550000' } : null),
     saveVoicemail: async (_c, v) => void mails.push(v),
   };
   const deps: VoiceDeps = { store, env: { TWILIO_AUTH_TOKEN: TOKEN, APP_URL: BASE }, now: () => over.now ?? NOW };
@@ -125,6 +126,10 @@ describe('after each step', () => {
     const params = { ...base, RecordingUrl: 'https://api.twilio.com/2010-04-01/Accounts/AC1/Recordings/RE1', RecordingDuration: '23' };
     await handleRecording(w.deps, params, w.sign('/api/voice/recording', params));
     expect(w.mails).toEqual([{ callSid: 'CA1', from: '+15125559999', recordingUrl: 'https://api.twilio.com/2010-04-01/Accounts/AC1/Recordings/RE1.mp3', seconds: 23 }]);
+    // Twilio's real recording message has no To/From: the call log fills them in
+    const bare = { CallSid: 'CA1', RecordingUrl: 'https://api.twilio.com/2010-04-01/Accounts/AC1/Recordings/RE2', RecordingDuration: '5' };
+    await handleRecording(w.deps, bare, w.sign('/api/voice/recording', bare));
+    expect(w.mails[1]).toMatchObject({ callSid: 'CA1', from: '+15125559999', seconds: 5 });
     await expect(handleRecording(w.deps, params, 'forged')).rejects.toBeInstanceOf(VoiceError);
   });
 });
