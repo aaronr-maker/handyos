@@ -3,12 +3,13 @@ import audio from '../_lib/voiceRoutes/audio.js';
 import incoming from '../_lib/voiceRoutes/incoming.js';
 import recording from '../_lib/voiceRoutes/recording.js';
 import step from '../_lib/voiceRoutes/step.js';
+import token from '../_lib/voiceRoutes/token.js';
 
 /**
  * One function for all the phone addresses (/api/voice/incoming, /step, /recording, /audio), because the free Vercel plan
  * allows only 12 functions in all.
  */
-const routes: Record<string, (req: VercelRequest, res: VercelResponse) => Promise<unknown>> = { incoming, step, recording, audio };
+const routes: Record<string, (req: VercelRequest, res: VercelResponse) => Promise<unknown>> = { incoming, step, recording, audio, token };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const name = String(Array.isArray(req.query.action) ? req.query.action[0] : req.query.action ?? '');

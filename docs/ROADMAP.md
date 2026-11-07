@@ -71,3 +71,8 @@ Full specification: [docs/specs/PACE_PRICING.md](specs/PACE_PRICING.md). Builds 
 ## Housecall Pro data: schedule, pace and efficiency (needs Aaron's answers)
 Goal: keep today's schedule in step with Housecall Pro until customers move over, and pull past jobs (times, crews, quantities) so pace rates and efficiency can be learned and the capacity scheduling tested.
 Open questions: does the Housecall Pro plan include API access (MAX plan) or do we use exports (CSV)? The simplest start is importing a job history export (job, date, crew, scheduled start/end, clocked hours if any). A live schedule sync needs the API. OpenAI keys expire every 30 days: replace them in Vercel and Render.
+
+## Android app (decided with Aaron: Androids, one app, not a separate one)
+The Android app is this same app wrapped with Capacitor (the web code is shared), plus a small native calling piece inside it (Twilio Voice for Android with Firebase push), so calls ring even when it is closed and are answered inside the app, with the call screen (prompt and live transcript) on the same phone.
+Done: call tree "Also ring their phone app" option (`<Client>` dialing), `/api/voice/token` (the calling pass), `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_PUSH_CREDENTIAL_SID` settings.
+Next: Firebase project and Twilio push credential (Aaron), Capacitor Android project and native calling plugin, GitHub Actions build of an installable file (APK), install on Androids, then Google Play ($25) for easy updates.

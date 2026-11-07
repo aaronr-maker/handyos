@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
+import { IncomingCall } from './ui/IncomingCall';
 import { markVoicemailHeardAction, saveCallFlowAction, savePhoneSettingsAction, setTeamPhoneAction } from './actions';
 
 /**
@@ -15,6 +16,9 @@ export const phoneModule: ModuleManifest = {
   path: '/phone',
   icon: 'phone',
   hiddenFromRoles: ['tech'],
+  // the phone app's answer screen is for everyone who has the app, techs included
+  Overlay: IncomingCall,
+  overlayForAll: true,
   Screen: lazy(() => import('./ui/PhoneScreen')),
   register({ actions }) {
     for (const a of [saveCallFlowAction, savePhoneSettingsAction, setTeamPhoneAction, markVoicemailHeardAction]) actions.register(a);

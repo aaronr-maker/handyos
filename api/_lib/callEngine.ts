@@ -21,6 +21,8 @@ export interface NodeData {
   /** ring: team members to ring (their phone numbers come from the team list), and any extra numbers */
   people?: string[];
   numbers?: string[];
+  /** ring: also ring each person's HandyOS phone app (as well as their cell number) */
+  app?: boolean;
   /** ring: everyone at once, or one after another */
   mode?: 'all' | 'in_order';
   /** ring, forward: how long to ring before giving up */
@@ -155,14 +157,17 @@ export function menuSpeech(prompt: string, options: MenuOption[]): string {
 }
 
 function ringStep(node: FlowNode, env: Env, index: number): Pause {
-  const people = (node.data.people ?? []).filter((id) => env.phones[id]);
-  const entries = [...people.map((id) => ({ number: env.phones[id], who: env.names?.[id] ?? 'a team member' })), ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ number: n, who: n }))];
+  // each person can be reached on their phone app ("client:<id>", when the block rings apps) and on their cell number
+  const entries = [
+    ...(node.data.people ?? []).map((id) => ({ numbers: [...(node.data.app ? [`client:${id}`] : []), ...(env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
+    ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ numbers: [n], who: n })),
+  ].filter((e) => e.numbers.length > 0);
   const seconds = Math.min(60, Math.max(8, node.data.seconds ?? 20));
   if (node.data.mode === 'in_order') {
     const one = entries[index];
-    return { type: 'dial', node: node.id, numbers: one ? [one.number] : [], who: one ? [one.who] : [], seconds, index, total: entries.length };
+    return { type: 'dial', node: node.id, numbers: one ? one.numbers : [], who: one ? [one.who] : [], seconds, index, total: entries.length };
   }
-  return { type: 'dial', node: node.id, numbers: entries.map((e) => e.number), who: entries.map((e) => e.who), seconds, index: 0, total: 1 };
+  return { type: 'dial', node: node.id, numbers: entries.flatMap((e) => e.numbers), who: entries.map((e) => e.who), seconds, index: 0, total: 1 };
 }
 
 /** Follows the tree from a block until something has to happen (a menu, a ring, a recording, a hang-up). */
@@ -297,6 +302,8 @@ export interface TwimlOptions {
   recordingUrl: string;
   /** When set, the audio of a connected call is also sent here to be typed out (a live transcript). Nothing is stored. */
   stream?: { url: string; params: Record<string, string> };
+  /** This call's id, passed along to a ringing phone app so it can show this call's transcript. */
+  callSid?: string;
 }
 
 /** Turns a step into the instructions Twilio understands. */
@@ -315,7 +322,7 @@ export function toTwiml(step: Step, o: TwimlOptions): string {
       else {
         // the live transcript starts when the first ring starts and follows the call to its end
         if (o.stream && p.index === 0) out.push(`<Start><Stream url="${esc(o.stream.url)}" track="both_tracks">${Object.entries(o.stream.params).map(([k, v]) => `<Parameter name="${esc(k)}" value="${esc(v)}"/>`).join('')}</Stream></Start>`);
-        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => `<Number>${esc(n)}</Number>`).join('')}</Dial>`);
+        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => (n.startsWith('client:') ? `<Client><Identity>${esc(n.slice(7))}</Identity>${o.callSid ? `<Parameter name="parent" value="${esc(o.callSid)}"/>` : ''}</Client>` : `<Number>${esc(n)}</Number>`)).join('')}</Dial>`);
       }
       break;
     case 'record':

@@ -7,8 +7,6 @@ dev-dist
 .vercel
 *.local
 .DS_Store
-# Capacitor native projects are generated later, not scaffolded yet
 /ios
-/android
 supabase/.temp
 supabase/.branches

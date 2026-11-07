@@ -82,7 +82,7 @@ const render = (step: Step, base: string, c: CompanyPhone, deps: VoiceDeps, para
   const sid = params.CallSid ?? '';
   // a live transcript is only started when the server address and the shared secret are both set
   const stream = url && secret && sid ? { url, params: { callSid: sid, companyId: c.companyId, token: streamToken(secret, sid, c.companyId) } } : undefined;
-  return toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId: params.From, stream });
+  return toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId: params.From, stream, callSid: sid || undefined });
 };
 
 const hangupWith = (text: string) => `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${text}</Say><Hangup/></Response>`;
