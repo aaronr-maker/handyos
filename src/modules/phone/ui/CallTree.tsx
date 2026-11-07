@@ -37,6 +37,7 @@ const newId = (kind: NodeKind) => `${kind}-${crypto.randomUUID().slice(0, 6)}`;
 const TITLE: Record<NodeKind, string> = {
   start: 'Call comes in',
   hours: 'Business hours?',
+  job: 'Caller has an open job?',
   say: 'Greeting',
   menu: 'Menu',
   ring: 'Ring people',
@@ -48,6 +49,7 @@ const TITLE: Record<NodeKind, string> = {
 const ICON: Record<NodeKind, string> = {
   start: '📞',
   hours: '🕗',
+  job: '🧰',
   say: '💬',
   menu: '🔢',
   ring: '🔔',
@@ -56,7 +58,7 @@ const ICON: Record<NodeKind, string> = {
   forward: '↗️',
   hangup: '⛔',
 };
-const ADDABLE: NodeKind[] = ['hours', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup'];
+const ADDABLE: NodeKind[] = ['hours', 'job', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup'];
 
 const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
   switch (k) {
@@ -74,6 +76,8 @@ const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
       return d.number || 'No number yet';
     case 'hours':
       return 'Uses your Hours & people settings';
+    case 'job':
+      return 'Looks the caller up by phone number';
     case 'ai':
       return 'Talks to the caller, takes down details';
     default:
@@ -266,6 +270,10 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
             />
           </label>
           <label className="check">
+            <input type="checkbox" checked={!!d.assigned} onChange={(e) => set({ assigned: e.target.checked })} />
+            Also ring whoever is assigned to the caller's open job
+          </label>
+          <label className="check">
             <input type="checkbox" checked={!!d.onlyClockedIn} onChange={(e) => set({ onlyClockedIn: e.target.checked })} />
             Only ring people who are on the clock right now
           </label>
@@ -303,6 +311,12 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
             <input type="number" min={8} max={60} value={d.seconds ?? 25} onChange={(e) => set({ seconds: Number(e.target.value) || 25 })} />
           </label>
         </>
+      )}
+      {kind === 'job' && (
+        <p className="muted">
+          Checks whether the person calling is a customer with an open job. If so, callers go down "Has an open job" (and a Ring block set to ring the job's crew reaches whoever is assigned). New
+          callers and customers with no open job go down the other line.
+        </p>
       )}
       {kind === 'hours' && (
         <p className="muted">

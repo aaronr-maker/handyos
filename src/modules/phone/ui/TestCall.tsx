@@ -5,7 +5,8 @@ import type { Person } from './CallTree';
 const ALL_DAY: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, [{ open: '00:00', close: '23:59' }]])) as unknown as Hours['week'];
 const NEVER: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, []])) as unknown as Hours['week'];
 
-const makeEnv = (when: 'open' | 'closed', people: Person[]): Env => ({
+const makeEnv = (when: 'open' | 'closed', people: Person[], crew: string): Env => ({
+  callerCrew: crew ? [crew] : [],
   now: Date.now(),
   hours: { timezone: 'America/Chicago', week: when === 'open' ? ALL_DAY : NEVER },
   phones: Object.fromEntries(people.filter((p) => p.phone).map((p) => [p.id, p.phone])),
@@ -22,8 +23,9 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
   const [when, setWhen] = useState<'open' | 'closed'>('open');
   const [lines, setLines] = useState<Line[]>([]);
   const [pause, setPause] = useState<Pause | null>(null);
+  const [crew, setCrew] = useState('');
 
-  const env = () => makeEnv(when, people);
+  const env = () => makeEnv(when, people, crew);
 
   const show = (step: { say: string[]; pause: Pause }, extra: Line[] = []) => {
     const out: Line[] = [...extra, ...step.say.map((t) => ({ who: 'system' as const, text: t }))];
@@ -61,6 +63,17 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
           <select value={when} onChange={(e) => setWhen(e.target.value as 'open' | 'closed')}>
             <option value="open">during business hours</option>
             <option value="closed">after hours</option>
+          </select>
+        </label>
+        <label>
+          Pretend the caller is
+          <select value={crew} onChange={(e) => setCrew(e.target.value)}>
+            <option value="">a new caller</option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                a customer whose open job is assigned to {p.name}
+              </option>
+            ))}
           </select>
         </label>
         <button type="button" onClick={start} disabled={disabled}>
