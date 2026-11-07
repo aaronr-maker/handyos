@@ -159,7 +159,8 @@ export function menuSpeech(prompt: string, options: MenuOption[]): string {
 function ringStep(node: FlowNode, env: Env, index: number): Pause {
   // each person can be reached on their phone app ("client:<id>", when the block rings apps) and on their cell number
   const entries = [
-    ...(node.data.people ?? []).map((id) => ({ numbers: [...(node.data.app ? [`client:${id}`] : []), ...(env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
+    ...(node.data.people ?? []).map((id) => ({ // a removed team member is no longer in the team list, so their phone app is never rung
+    numbers: [...(node.data.app && (!env.names || env.names[id]) ? [`client:${id}`] : []), ...(env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
     ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ numbers: [n], who: n })),
   ].filter((e) => e.numbers.length > 0);
   const seconds = Math.min(60, Math.max(8, node.data.seconds ?? 20));

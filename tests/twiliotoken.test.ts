@@ -28,6 +28,12 @@ describe('ringing the phone app', () => {
     expect(xml(true)).toContain('<Client><Identity>u1</Identity></Client><Number>+15125550001</Number>');
     expect(xml(false)).not.toContain('<Client>');
   });
+  it('never rings the app of someone who is no longer on the team', () => {
+    const gone = walk(flow(true), 'start', { ...env, names: { someoneElse: 'Sam' }, phones: {} });
+    expect(gone.pause).toMatchObject({ type: 'dial', numbers: [] });
+    const here = walk(flow(true), 'start', { ...env, names: { u1: 'Alex' }, phones: {} });
+    expect(here.pause).toMatchObject({ numbers: ['client:u1'] });
+  });
   it('rings someone with an app but no cell number', () => {
     const noPhone = walk(flow(true), 'start', { ...env, phones: {} });
     expect(noPhone.pause).toMatchObject({ type: 'dial', numbers: ['client:u1'] });
