@@ -21,6 +21,8 @@ export interface NodeData {
   /** ring: team members to ring (their phone numbers come from the team list), and any extra numbers */
   people?: string[];
   numbers?: string[];
+  /** ring: only ring team members who are on the clock right now (extra numbers always ring) */
+  onlyClockedIn?: boolean;
   /** ring: also ring each person's HandyOS phone app (as well as their cell number) */
   app?: boolean;
   /** ring: everyone at once, or one after another */
@@ -73,6 +75,8 @@ export interface Env {
   phones: Record<string, string>;
   /** Team member id -> name (for the test call). */
   names?: Record<string, string>;
+  /** Team members on the clock right now. Missing (like in the test call) means everyone counts as clocked in. */
+  clockedIn?: string[];
   /** True once the AI receptionist is connected; until then the AI block's "unavailable" exit is used. */
   aiReady?: boolean;
 }
@@ -158,8 +162,9 @@ export function menuSpeech(prompt: string, options: MenuOption[]): string {
 
 function ringStep(node: FlowNode, env: Env, index: number): Pause {
   // each person can be reached on their phone app ("client:<id>", when the block rings apps) and on their cell number
+  const onTheClock = (id: string) => !node.data.onlyClockedIn || !env.clockedIn || env.clockedIn.includes(id);
   const entries = [
-    ...(node.data.people ?? []).map((id) => ({ // a removed team member is no longer in the team list, so their phone app is never rung
+    ...(node.data.people ?? []).filter(onTheClock).map((id) => ({ // a removed team member is no longer in the team list, so their phone app is never rung
     numbers: [...(node.data.app && (!env.names || env.names[id]) ? [`client:${id}`] : []), ...(env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
     ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ numbers: [n], who: n })),
   ].filter((e) => e.numbers.length > 0);

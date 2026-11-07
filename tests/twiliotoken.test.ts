@@ -34,6 +34,14 @@ describe('ringing the phone app', () => {
     const here = walk(flow(true), 'start', { ...env, names: { u1: 'Alex' }, phones: {} });
     expect(here.pause).toMatchObject({ numbers: ['client:u1'] });
   });
+  it('rings only people on the clock when the block says so, and falls through when nobody is', () => {
+    const f = (only: boolean): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1', 'u2'], onlyClockedIn: only, mode: 'all', seconds: 20 } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
+    const phones = { u1: '+15125550001', u2: '+15125550002' };
+    expect(walk(f(true), 'start', { ...env, phones, clockedIn: ['u2'] }).pause).toMatchObject({ numbers: ['+15125550002'] });
+    expect(walk(f(true), 'start', { ...env, phones, clockedIn: [] }).pause).toMatchObject({ numbers: [] });
+    expect(walk(f(false), 'start', { ...env, phones, clockedIn: ['u2'] }).pause).toMatchObject({ numbers: ['+15125550001', '+15125550002'] });
+    expect(walk(f(true), 'start', { ...env, phones }).pause).toMatchObject({ numbers: ['+15125550001', '+15125550002'] }); // the test call has no clock data
+  });
   it('rings someone with an app but no cell number', () => {
     const noPhone = walk(flow(true), 'start', { ...env, phones: {} });
     expect(noPhone.pause).toMatchObject({ type: 'dial', numbers: ['client:u1'] });

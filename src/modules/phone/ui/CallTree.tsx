@@ -266,6 +266,10 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
             />
           </label>
           <label className="check">
+            <input type="checkbox" checked={!!d.onlyClockedIn} onChange={(e) => set({ onlyClockedIn: e.target.checked })} />
+            Only ring people who are on the clock right now
+          </label>
+          <label className="check">
             <input type="checkbox" checked={!!d.app} onChange={(e) => set({ app: e.target.checked })} />
             Also ring their phone app (once it is installed on their phone)
           </label>

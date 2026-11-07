@@ -22,7 +22,7 @@ export interface VoiceStore {
   /** The tree that answers the phone, if one is switched on. */
   activeFlow(companyId: string): Promise<Flow | null>;
   /** Team member id -> phone, and id -> name. */
-  team(companyId: string): Promise<{ phones: Record<string, string>; names: Record<string, string> }>;
+  team(companyId: string): Promise<{ phones: Record<string, string>; names: Record<string, string>; clockedIn?: string[] }>;
   logCall(companyId: string, callSid: string, patch: { from?: string; to?: string; trail?: string[]; outcome?: string }): Promise<void>;
   /** The numbers of a call we logged earlier (Twilio's recording message does not repeat them). */
   callInfo(callSid: string): Promise<{ from: string | null; to: string | null } | null>;
@@ -74,7 +74,7 @@ function check(deps: VoiceDeps, path: string, query: string, params: Record<stri
   throw new VoiceError(403, 'This request did not come from Twilio (the signature did not match: check that TWILIO_AUTH_TOKEN is the Primary auth token).');
 }
 
-const env = (deps: VoiceDeps, c: CompanyPhone, team: { phones: Record<string, string>; names: Record<string, string> }): Env => ({ now: deps.now(), hours: c.hours, phones: team.phones, names: team.names, aiReady: deps.env.VOICE_AI_READY === '1' });
+const env = (deps: VoiceDeps, c: CompanyPhone, team: { phones: Record<string, string>; names: Record<string, string>; clockedIn?: string[] }): Env => ({ now: deps.now(), hours: c.hours, phones: team.phones, names: team.names, clockedIn: team.clockedIn, aiReady: deps.env.VOICE_AI_READY === '1' });
 
 const render = (step: Step, base: string, c: CompanyPhone, deps: VoiceDeps, params: Record<string, string>) => {
   const url = deps.env.VOICE_STREAM_URL?.trim();
@@ -163,8 +163,16 @@ export function supabaseVoiceStore(env: { SUPABASE_URL?: string; SUPABASE_SERVIC
       return (data?.graph as Flow | undefined) ?? null;
     },
     async team(companyId) {
-      const [{ data: phones }, { data: users }] = await Promise.all([db.from('team_phones').select('user_id, phone').eq('company_id', companyId), db.from('users').select('id, full_name, email').eq('company_id', companyId)]);
+      // on the clock = an open day shift (started in the last 16 hours, so a forgotten clock-out does not count forever) or an open job clock
+      const since = new Date(Date.now() - 16 * 3600_000).toISOString();
+      const [{ data: phones }, { data: users }, { data: shifts }, { data: jobs }] = await Promise.all([
+        db.from('team_phones').select('user_id, phone').eq('company_id', companyId),
+        db.from('users').select('id, full_name, email').eq('company_id', companyId),
+        db.from('shifts').select('user_id').eq('company_id', companyId).is('clock_out', null).gte('clock_in', since),
+        db.from('time_entries').select('user_id').eq('company_id', companyId).is('clock_out', null).gte('clock_in', since),
+      ]);
       return {
+        clockedIn: [...new Set([...(shifts ?? []), ...(jobs ?? [])].map((r) => r.user_id as string))],
         phones: Object.fromEntries((phones ?? []).map((p) => [p.user_id as string, p.phone as string])),
         names: Object.fromEntries((users ?? []).map((u) => [u.id as string, ((u.full_name as string) || (u.email as string) || 'a team member').split(' ')[0]])),
       };
