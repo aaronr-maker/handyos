@@ -22,6 +22,7 @@ function world(over: { flow?: Flow | null; now?: number; known?: boolean } = {})
     activeFlow: async () => (over.flow === undefined ? tree() : over.flow),
     team: async () => ({ phones: { aaron: '+15125550001', sam: '+15125550002' }, names: { aaron: 'Aaron', sam: 'Sam' } }),
     logCall: async (_c, callSid, patch) => void logs.push({ callSid, patch }),
+    callerCrew: async () => ['aaron'],
     callInfo: async (sid) => (sid === 'CA1' ? { from: '+15125559999', to: '+15125550000' } : null),
     saveVoicemail: async (_c, v) => void mails.push(v),
   };

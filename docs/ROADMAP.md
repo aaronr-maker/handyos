@@ -76,3 +76,8 @@ Open questions: does the Housecall Pro plan include API access (MAX plan) or do 
 The Android app is this same app wrapped with Capacitor (the web code is shared), plus a small native calling piece inside it (Twilio Voice for Android with Firebase push), so calls ring even when it is closed and are answered inside the app, with the call screen (prompt and live transcript) on the same phone.
 Done: call tree "Also ring their phone app" option (`<Client>` dialing), `/api/voice/token` (the calling pass), `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_PUSH_CREDENTIAL_SID` settings.
 Next: Firebase project and Twilio push credential (Aaron), Capacitor Android project and native calling plugin, GitHub Actions build of an installable file (APK), install on Androids, then Google Play ($25) for easy updates.
+
+## One owner for every conversation (calls and texts) (from Aaron)
+Rule: a new caller or texter goes to Aaron. A customer with an open job goes to whoever is assigned to that job. Nobody ever texts in without someone being responsible, and Aaron sees every conversation.
+Calls: done ("Caller has an open job?" block, "Also ring whoever is assigned to the caller's open job" on Ring people).
+Texts (needs Twilio texting registration first): inbound webhook saves each text on the customer; a conversation page shows each thread with who owns it (the job's crew, else Aaron); techs see only their own threads and can reply in the app; Aaron sees all; a text from someone with no owner raises a to-do for Aaron; unanswered texts raise an alert after a set time. The owner is the same rule as for calls (one shared function).
