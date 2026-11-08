@@ -3,6 +3,7 @@ import { listTeamMembers, resultError, useAction, useAsync, useSession } from '@
 import { upcomingJobsFor, loadTimeFacts } from '@/modules/timesheets';
 import { offerSentence, openSlots, pickOffers, type EstimateBlocks, type Weekday } from '../availability';
 import { saveEstimateTimesAction } from '../actions';
+import { clock, nextStart, slotStarts, startsToBlocks } from '../slots';
 import { getEstimateBlocks } from '../service';
 
 const DAYS: [Weekday, string][] = [
@@ -54,98 +55,74 @@ export default function EstimateTimesScreen() {
       </header>
       <div className="card">
         <h2>Times set aside</h2>
-        <p className="muted small-note">Each in-home estimate is a one-hour slot.</p>
-        {DAYS.map(([d, label]) => (
-          <div key={d} style={{ margin: '8px 0' }}>
-            <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
-            {(b.week[d] ?? []).map((blk, i) => (
-              <span key={i} className="row" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
-                <input
-                  type="time"
-                  value={blk.start}
-                  onChange={(e) =>
-                    setDay(
-                      d,
-                      (b.week[d] ?? []).map((x, j) => (j === i ? { ...x, start: e.target.value } : x)),
-                    )
-                  }
-                />
-                to
-                <input
-                  type="time"
-                  value={blk.end}
-                  onChange={(e) =>
-                    setDay(
-                      d,
-                      (b.week[d] ?? []).map((x, j) => (j === i ? { ...x, end: e.target.value } : x)),
-                    )
-                  }
-                />
+        <p className="muted small-note">Pick the start of each one-hour slot. The end fills in by itself.</p>
+        {DAYS.map(([d, label]) => {
+          const starts = slotStarts(b.week[d]);
+          const setStarts = (next: string[]) => setDay(d, startsToBlocks(next));
+          return (
+            <div key={d} style={{ margin: '8px 0' }}>
+              <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
+              {starts.map((st, i) => (
+                <span key={`${st}-${i}`} className="row" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
+                  <input type="time" defaultValue={st} onBlur={(e) => e.target.value && e.target.value !== st && setStarts(starts.map((x, j) => (j === i ? e.target.value : x)))} />
+                  <span className="muted small-note">to {clock(startsToBlocks([st])[0]?.end ?? st)}</span>
+                  <button type="button" className="link" onClick={() => setStarts(starts.filter((_, j) => j !== i))}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setStarts([...starts, nextStart(starts)])}>
+                + Add time
+              </button>
+              {starts.length > 0 && (
                 <button
                   type="button"
                   className="link"
-                  onClick={() =>
-                    setDay(
-                      d,
-                      (b.week[d] ?? []).filter((_, j) => j !== i),
-                    )
-                  }
+                  onClick={() => {
+                    setCopying(copying === d ? null : d);
+                    setTargets([]);
+                  }}
                 >
-                  ✕
+                  Copy to other days
                 </button>
-              </span>
-            ))}
-            <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setDay(d, [...(b.week[d] ?? []), { start: '16:00', end: '18:00' }])}>
-              + Add time
-            </button>
-            {(b.week[d] ?? []).length > 0 && (
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setCopying(copying === d ? null : d);
-                  setTargets([]);
-                }}
-              >
-                Copy to other days
-              </button>
-            )}
-            {copying === d && (
-              <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
-                <p className="muted small-note">Copy {label}'s times to:</p>
-                <div className="row" style={{ gap: 12 }}>
-                  {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
-                    <label key={x} className="check" style={{ margin: 0 }}>
-                      <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
-                      {name}
-                    </label>
-                  ))}
+              )}
+              {copying === d && (
+                <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
+                  <p className="muted small-note">Copy {label}'s times to:</p>
+                  <div className="row" style={{ gap: 12 }}>
+                    {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
+                      <label key={x} className="check" style={{ margin: 0 }}>
+                        <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
+                        {name}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets((['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[]).filter((x) => x !== d))}>
+                      Weekdays
+                    </button>
+                    <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
+                      Every day
+                    </button>
+                    <button
+                      type="button"
+                      style={{ minHeight: 36 }}
+                      disabled={targets.length === 0}
+                      onClick={() => {
+                        const week = { ...b.week };
+                        for (const t of targets) week[t] = startsToBlocks(starts);
+                        set({ week });
+                        setCopying(null);
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(['mon', 'tue', 'wed', 'thu', 'fri'].filter((x) => x !== d) as Weekday[])}>
-                    Weekdays
-                  </button>
-                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
-                    Every day
-                  </button>
-                  <button
-                    type="button"
-                    style={{ minHeight: 36 }}
-                    disabled={targets.length === 0}
-                    onClick={() => {
-                      const week = { ...b.week };
-                      for (const t of targets) week[t] = (b.week[d] ?? []).map((blk) => ({ ...blk }));
-                      set({ week });
-                      setCopying(null);
-                    }}
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          );
+        })}
         <div className="row">
           <label className="grow">
             Travel time kept between jobs (minutes)
