@@ -8,6 +8,7 @@ export const MODULE_IDS = [
   'payments',
   'jobcosting',
   'sales',
+  'receptionist',
   'cashplan',
   'revenue',
   'qbsync',

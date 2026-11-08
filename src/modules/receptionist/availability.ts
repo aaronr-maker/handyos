@@ -50,7 +50,11 @@ export function zonedTime(date: string, hhmm: string, timezone: string): number 
   const [h, mi] = hhmm.split(':').map(Number);
   const guess = Date.UTC(y, m - 1, d, h, mi);
   const offsetAt = (t: number) => {
-    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        .formatToParts(new Date(t))
+        .map((x) => [x.type, x.value]),
+    );
     return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) - t;
   };
   // the offset can change across the guess (daylight saving), so settle on it in two passes
@@ -70,7 +74,14 @@ const sayTime = (t: number, timezone: string, now: number) => {
   const clock = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '');
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(new Date(t));
   const within6 = t - now < 6 * DAY;
-  const label = day === today ? 'today' : day === tomorrow ? 'tomorrow' : within6 ? weekday : `${weekday} the ${new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long', day: 'numeric' }).format(new Date(t))}`;
+  const label =
+    day === today
+      ? 'today'
+      : day === tomorrow
+        ? 'tomorrow'
+        : within6
+          ? weekday
+          : `${weekday} the ${new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long', day: 'numeric' }).format(new Date(t))}`;
   return `${label} at ${clock}`;
 };
 
