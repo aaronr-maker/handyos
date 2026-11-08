@@ -84,3 +84,6 @@ Texts (needs Twilio texting registration first): inbound webhook saves each text
 
 ## Service fee minimum on every estimate and job (spec from Aaron, 2026-11-08)
 Full notes and open questions: [docs/specs/SERVICE_FEE_MINIMUM.md](specs/SERVICE_FEE_MINIMUM.md). A last line that tops labor up to one hour's worth (never described that way), shrinking as the labor lines grow, stated on every estimate, with a per-customer exemption.
+
+## AI receptionist (decided with Aaron, 2026-11-08)
+Full plan and rules: [docs/specs/AI_RECEPTIONIST.md](specs/AI_RECEPTIONIST.md). Books free in-home estimates in the blocks Aaron sets aside, with team members signed off as sellers; offers two choices; anything outside the blocks becomes a callback task; never quotes prices; woman's voice; the call tree decides when it answers. Step 1, the open-slot logic, is built and tested (`src/modules/receptionist/availability.ts`).
