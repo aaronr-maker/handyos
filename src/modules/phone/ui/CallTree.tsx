@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addEdge,
   Background,
@@ -21,6 +21,7 @@ import '@xyflow/react/dist/style.css';
 import { resultError, useAction } from '@/core';
 import { portsOf, validateFlow, type Flow, type NodeData, type NodeKind } from '../../../../api/_lib/callEngine';
 import { saveCallFlowAction } from '../actions';
+import { tidyLayout } from '../layout';
 import { TestCall } from './TestCall';
 
 type BlockData = { kind: NodeKind; d: NodeData } & Record<string, unknown>;
@@ -38,6 +39,7 @@ const TITLE: Record<NodeKind, string> = {
   start: 'Call comes in',
   hours: 'Business hours?',
   job: 'Caller has an open job?',
+  clock: 'Anyone on the clock?',
   say: 'Greeting',
   menu: 'Menu',
   ring: 'Ring people',
@@ -50,6 +52,7 @@ const ICON: Record<NodeKind, string> = {
   start: '📞',
   hours: '🕗',
   job: '🧰',
+  clock: '⏱️',
   say: '💬',
   menu: '🔢',
   ring: '🔔',
@@ -58,7 +61,20 @@ const ICON: Record<NodeKind, string> = {
   forward: '↗️',
   hangup: '⛔',
 };
-const ADDABLE: NodeKind[] = ['hours', 'job', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup'];
+const DESCRIBE: Record<NodeKind, string> = {
+  start: '',
+  hours: 'Send callers one way during business hours and another way after hours.',
+  job: 'Send customers with an open job to their crew, and new callers somewhere else.',
+  clock: 'Check whether someone is on the clock, and send the call one way or the other.',
+  say: 'Play a message to the caller.',
+  menu: 'Let the caller press a key to choose where to go.',
+  ring: 'Ring the people you pick, on their phone app, their cell, or both.',
+  voicemail: 'Let the caller leave a message.',
+  ai: 'The AI receptionist talks to the caller (coming later).',
+  forward: 'Send the call to another number.',
+  hangup: 'End the call.',
+};
+const ADDABLE: NodeKind[] = ['hours', 'job', 'clock', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup'];
 
 const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
   switch (k) {
@@ -78,6 +94,10 @@ const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
       return 'Uses your Hours & people settings';
     case 'job':
       return 'Looks the caller up by phone number';
+    case 'clock': {
+      const names = (d.people ?? []).map((id) => people.find((p) => p.id === id)?.name ?? '?');
+      return names.length ? `Is ${names.join(' or ')} on the clock?` : 'Is anyone on the team on the clock?';
+    }
     case 'ai':
       return 'Talks to the caller, takes down details';
     default:
@@ -85,12 +105,16 @@ const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
   }
 };
 
+/** Lets a block's "+" open the chooser, and tells it which exits already lead somewhere. */
+const TreeContext = createContext<{ connected: Set<string>; pick: (nodeId: string, portId: string) => void }>({ connected: new Set(), pick: () => undefined });
+
 function Block({ id, data, selected }: NodeProps<BlockNode>) {
   const ports = portsOf({ kind: data.kind, data: data.d });
   const update = useUpdateNodeInternals();
   const key = ports.map((p) => p.id).join(',');
   useEffect(() => update(id), [id, key, update]);
   const people = (data.people as Person[] | undefined) ?? [];
+  const tree = useContext(TreeContext);
   return (
     <div className={`pb pb-${data.kind} ${selected ? 'pb-selected' : ''}`}>
       {data.kind !== 'start' && (
@@ -107,6 +131,19 @@ function Block({ id, data, selected }: NodeProps<BlockNode>) {
       {ports.map((p) => (
         <div key={p.id} className="pb-port">
           {p.label}
+          {!tree.connected.has(`${id}|${p.id}`) && (
+            <button
+              type="button"
+              className="pb-plus nodrag nopan"
+              title="Add the next step"
+              onClick={(e) => {
+                e.stopPropagation();
+                tree.pick(id, p.id);
+              }}
+            >
+              +
+            </button>
+          )}
           <Handle type="source" id={p.id} position={Position.Right} style={{ right: -14, top: '50%' }} />
           {/* a block with one way out can send its line out of the bottom or the top instead */}
           {ports.length === 1 && <Handle type="source" id={`${p.id}@b`} position={Position.Bottom} style={{ left: '75%' }} />}
@@ -253,6 +290,10 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
               </span>
             </label>
           ))}
+          <label className="check">
+            <input type="checkbox" checked={!!d.assigned} onChange={(e) => set({ assigned: e.target.checked })} />
+            Whoever is assigned to the caller's open job
+          </label>
           <label>
             Other numbers to ring (one per line)
             <textarea
@@ -269,17 +310,19 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
               }
             />
           </label>
-          <label className="check">
-            <input type="checkbox" checked={!!d.assigned} onChange={(e) => set({ assigned: e.target.checked })} />
-            Also ring whoever is assigned to the caller's open job
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={!!d.onlyClockedIn} onChange={(e) => set({ onlyClockedIn: e.target.checked })} />
-            Only ring people who are on the clock right now
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={!!d.app} onChange={(e) => set({ app: e.target.checked })} />
-            Also ring their phone app (once it is installed on their phone)
+          {d.onlyClockedIn && (
+            <label className="check">
+              <input type="checkbox" checked onChange={() => set({ onlyClockedIn: undefined })} />
+              Only ring people who are on the clock (older setting: an "Anyone on the clock?" block does this better)
+            </label>
+          )}
+          <label>
+            How to reach them
+            <select value={d.reach ?? (d.app ? 'both' : 'cell')} onChange={(e) => set({ reach: e.target.value as 'app' | 'cell' | 'both', app: undefined })}>
+              <option value="app">Phone app only (they must have it installed and signed in)</option>
+              <option value="cell">Cell number only</option>
+              <option value="both">Phone app and cell number</option>
+            </select>
           </label>
           <label>
             How to ring them
@@ -310,6 +353,24 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
             Ring for how many seconds
             <input type="number" min={8} max={60} value={d.seconds ?? 25} onChange={(e) => set({ seconds: Number(e.target.value) || 25 })} />
           </label>
+        </>
+      )}
+      {kind === 'clock' && (
+        <>
+          <p className="muted">
+            Callers go down "Someone is on the clock" when one of the people below is clocked in (the day clock or a job clock), and down "Nobody is on the clock" otherwise. Pick no one to mean anyone
+            on the team.
+          </p>
+          {people.map((p) => (
+            <label key={p.id} className="check">
+              <input
+                type="checkbox"
+                checked={(d.people ?? []).includes(p.id)}
+                onChange={(e) => set({ people: e.target.checked ? [...(d.people ?? []), p.id] : (d.people ?? []).filter((x) => x !== p.id) })}
+              />
+              {p.name}
+            </label>
+          ))}
         </>
       )}
       {kind === 'job' && (
@@ -349,6 +410,7 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [chooser, setChooser] = useState<{ nodeId: string; portId: string } | null>(null);
   const rf = useReactFlow<BlockNode, Edge>();
   const box = useRef<HTMLDivElement>(null);
   const [dirty, setDirty] = useState(!saved);
@@ -394,37 +456,43 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
     setEdges((es) => es.filter((e) => e.source !== node.id || (e.sourceHandle && ports.has(baseHandle(e.sourceHandle)))));
     touch();
   };
+  const defaultsFor = (kind: NodeKind): NodeData =>
+    kind === 'menu'
+      ? { prompt: '', options: [{ digit: '1', label: '' }] }
+      : kind === 'ring'
+        ? { people: [], numbers: [], mode: 'all', seconds: 20, reach: 'both' }
+        : kind === 'voicemail'
+          ? { prompt: 'Please leave a message after the beep and we will call you back.', notify: [] }
+          : {};
   const add = (kind: NodeKind) => {
     const id = newId(kind);
-    const defaults: NodeData =
-      kind === 'menu'
-        ? { prompt: '', options: [{ digit: '1', label: '' }] }
-        : kind === 'ring'
-          ? { people: [], numbers: [], mode: 'all', seconds: 20 }
-          : kind === 'voicemail'
-            ? {
-                prompt: 'Please leave a message after the beep and we will call you back.',
-                notify: [],
-              }
-            : {};
     // new blocks land in the middle of what you are looking at, nudged so they never sit exactly on top of each other
     const r = box.current?.getBoundingClientRect();
-    const center = r
-      ? rf.screenToFlowPosition({
-          x: r.left + r.width / 2,
-          y: r.top + r.height / 2,
-        })
-      : { x: 80, y: 80 };
+    const center = r ? rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }) : { x: 80, y: 80 };
     const nudge = (nodes.length % 5) * 24;
-    setNodes((ns) => [
-      ...ns,
-      {
-        id,
-        type: 'block',
-        position: { x: center.x - 90 + nudge, y: center.y - 40 + nudge },
-        data: { kind, d: defaults, people },
-      },
+    setNodes((ns) => [...ns, { id, type: 'block', position: { x: center.x - 90 + nudge, y: center.y - 40 + nudge }, data: { kind, d: defaultsFor(kind), people } }]);
+    setSelected(id);
+    touch();
+  };
+  /** The "+" on an exit: adds the chosen block to the right of it and draws the line, so the tree grows as you build it. */
+  const addAfter = (kind: NodeKind) => {
+    if (!chooser) return;
+    const from = nodes.find((n) => n.id === chooser.nodeId);
+    if (!from) return setChooser(null);
+    const id = newId(kind);
+    const portIndex = Math.max(
+      0,
+      portsOf({ kind: from.data.kind, data: from.data.d }).findIndex((p) => p.id === chooser.portId),
+    );
+    const x = from.position.x + 300;
+    let y = from.position.y + portIndex * 110;
+    while (nodes.some((n) => Math.abs(n.position.x - x) < 200 && Math.abs(n.position.y - y) < 110)) y += 130;
+    setNodes((ns) => [...ns, { id, type: 'block', position: { x, y }, data: { kind, d: defaultsFor(kind), people } }]);
+    setEdges((es) => [
+      ...es.filter((e) => !(e.source === chooser.nodeId && baseHandle(e.sourceHandle ?? '') === chooser.portId)),
+      { id: `e${Date.now()}`, source: chooser.nodeId, sourceHandle: chooser.portId, target: id },
     ]);
+    setChooser(null);
     setSelected(id);
     touch();
   };
@@ -443,28 +511,8 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
   };
   /** Lays the blocks out left to right in the order a call meets them. */
   const tidy = () => {
-    const depth = new Map<string, number>();
-    const start = nodes.find((n) => n.data.kind === 'start');
-    const queue = start ? [start.id] : [];
-    if (start) depth.set(start.id, 0);
-    while (queue.length) {
-      const id = queue.shift() as string;
-      for (const e of edges.filter((x) => x.source === id))
-        if (!depth.has(e.target)) {
-          depth.set(e.target, (depth.get(id) ?? 0) + 1);
-          queue.push(e.target);
-        }
-    }
-    const loose = Math.max(-1, ...depth.values()) + 1;
-    const rows = new Map<number, number>();
-    setNodes((ns) =>
-      ns.map((n) => {
-        const d = depth.get(n.id) ?? loose;
-        const row = rows.get(d) ?? 0;
-        rows.set(d, row + 1);
-        return { ...n, position: { x: d * 270, y: row * 190 } };
-      }),
-    );
+    const spots = tidyLayout(current);
+    setNodes((ns) => ns.map((n) => ({ ...n, position: spots[n.id] ?? n.position })));
     touch();
     setTimeout(() => void rf.fitView({ maxZoom: 0.9, padding: 0.12, duration: 300 }), 50);
   };
@@ -528,51 +576,85 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
         </button>
       </div>
 
-      <div className="call-work">
-        <div className="call-canvas" ref={box}>
-          <ReactFlow<BlockNode, Edge>
-            nodes={nodes}
-            edges={shownEdges}
-            nodeTypes={nodeTypes}
-            onNodesChange={(c) => {
-              onNodesChange(c);
-              if (c.some((x) => x.type === 'position' || x.type === 'remove')) setDirty(true);
-            }}
-            onEdgesChange={(c) => {
-              onEdgesChange(c);
-              if (c.some((x) => x.type === 'remove')) setDirty(true);
-            }}
-            onConnect={onConnect}
-            onNodeClick={(_, n) => {
-              setSelected(n.id);
-              setSelectedEdge(null);
-            }}
-            onEdgeClick={(_, e) => {
-              setSelectedEdge(e.id);
-              setSelected(null);
-            }}
-            onPaneClick={() => {
-              setSelected(null);
-              setSelectedEdge(null);
-            }}
-            defaultEdgeOptions={{ interactionWidth: 28 }}
-            snapToGrid
-            snapGrid={[20, 20]}
-            connectionRadius={40}
-            fitView
-            fitViewOptions={{ maxZoom: 0.9, padding: 0.12 }}
-            onInit={(rf) => setTimeout(() => void rf.fitView({ maxZoom: 0.9, padding: 0.12 }), 150)}
-            minZoom={0.3}
-            deleteKeyCode={['Backspace', 'Delete']}
-          >
-            <Background />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+      <TreeContext.Provider
+        value={{
+          connected: new Set(edges.map((e) => `${e.source}|${baseHandle(e.sourceHandle ?? '')}`)),
+          pick: (nodeId, portId) => {
+            setChooser({ nodeId, portId });
+            setSelected(null);
+            setSelectedEdge(null);
+          },
+        }}
+      >
+        <div className="call-work">
+          <div className="call-canvas" ref={box}>
+            <ReactFlow<BlockNode, Edge>
+              nodes={nodes}
+              edges={shownEdges}
+              nodeTypes={nodeTypes}
+              onNodesChange={(c) => {
+                onNodesChange(c);
+                if (c.some((x) => x.type === 'position' || x.type === 'remove')) setDirty(true);
+              }}
+              onEdgesChange={(c) => {
+                onEdgesChange(c);
+                if (c.some((x) => x.type === 'remove')) setDirty(true);
+              }}
+              onConnect={onConnect}
+              onNodeClick={(_, n) => {
+                setSelected(n.id);
+                setSelectedEdge(null);
+              }}
+              onEdgeClick={(_, e) => {
+                setSelectedEdge(e.id);
+                setSelected(null);
+              }}
+              onPaneClick={() => {
+                setSelected(null);
+                setSelectedEdge(null);
+              }}
+              defaultEdgeOptions={{ interactionWidth: 28 }}
+              snapToGrid
+              snapGrid={[20, 20]}
+              connectionRadius={40}
+              fitView
+              fitViewOptions={{ maxZoom: 0.9, padding: 0.12 }}
+              onInit={(rf) => setTimeout(() => void rf.fitView({ maxZoom: 0.9, padding: 0.12 }), 150)}
+              minZoom={0.3}
+              deleteKeyCode={['Backspace', 'Delete']}
+            >
+              <Background />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          </div>
+          <div className="call-side">
+            {chooser ? (
+              <div className="card">
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3>Choose the next step</h3>
+                  <button type="button" className="link" onClick={() => setChooser(null)}>
+                    Cancel
+                  </button>
+                </div>
+                <div className="chooser">
+                  {ADDABLE.map((k) => (
+                    <button key={k} type="button" className="chooser-item" onClick={() => addAfter(k)}>
+                      <strong>
+                        {ICON[k]} {TITLE[k]}
+                      </strong>
+                      <span className="muted small-note">{DESCRIBE[k]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : node ? (
+              <Editor node={node} people={people} onChange={change} onDelete={remove} />
+            ) : (
+              <div className="card muted">Click a block to change what it says or who it rings, or click the + on an exit to add the next step.</div>
+            )}
+          </div>
         </div>
-        <div className="call-side">
-          {node ? <Editor node={node} people={people} onChange={change} onDelete={remove} /> : <div className="card muted">Click a block to change what it says or who it rings.</div>}
-        </div>
-      </div>
+      </TreeContext.Provider>
 
       <div className="row" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => void submit()} disabled={!dirty && errors.length === 0}>

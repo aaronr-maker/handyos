@@ -5,7 +5,7 @@ import { markHeard, saveFlow, saveSettings, setTeamPhone } from './service';
 const digit = z.string().regex(/^[0-9]$/);
 const node = z.object({
   id: z.string().min(1).max(60),
-  kind: z.enum(['start', 'hours', 'job', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup']),
+  kind: z.enum(['start', 'hours', 'job', 'clock', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup']),
   x: z.number(),
   y: z.number(),
   data: z.object({
@@ -15,6 +15,7 @@ const node = z.object({
     people: z.array(z.string().max(60)).max(30).optional(),
     numbers: z.array(z.string().max(30)).max(10).optional(),
     app: z.boolean().optional(),
+    reach: z.enum(['app', 'cell', 'both']).optional(),
     assigned: z.boolean().optional(),
     onlyClockedIn: z.boolean().optional(),
     mode: z.enum(['all', 'in_order']).optional(),

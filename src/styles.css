@@ -380,3 +380,12 @@ button.danger { background: #dc2626; color: #fff; }
 .phone-from { font-size: 1.6rem; font-weight: 800; margin: 0; }
 .phone-buttons { margin-top: auto; justify-content: space-between; }
 .phone-buttons button { flex: 1; min-height: 56px; font-size: 1.1rem; }
+
+/* the + on an exit, and the "choose the next step" list */
+.pb-plus { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); min-height: 0; width: 22px; height: 22px; padding: 0; border-radius: 50%; background: #fff; color: var(--brand); border: 2px dashed var(--brand); font-size: 14px; line-height: 1; }
+.pb-plus:hover { background: var(--brand-soft); }
+.chooser { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.chooser-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 0; padding: 10px 12px; border-radius: 14px; background: #fff; color: var(--text); border: 1.5px solid var(--border); text-align: left; font-weight: 600; }
+.chooser-item:hover { background: var(--brand-soft); border-color: var(--brand); }
+/* the call tree needs room */
+.content:has(.call-work) { max-width: none; }
