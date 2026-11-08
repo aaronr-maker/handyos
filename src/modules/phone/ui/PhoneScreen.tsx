@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { listTeamMembers, useAsync, useSession } from '@/core';
-import { getFlow, getSettings, listTeamPhones } from '../service';
+import { customerLabel, listCustomers } from '@/modules/customers';
+import { getFlow, getSettings } from '../service';
 import { Calls } from './Calls';
 import { CallScreen } from './CallScreen';
 import { CallTree, type Person } from './CallTree';
@@ -14,14 +15,25 @@ export default function PhoneScreen() {
   const [tab, setTab] = useState<Tab>('screen');
   const canEdit = role === 'owner' || role === 'admin';
   const { data, loading, error, reload } = useAsync(
-    async () => ({ flow: await getFlow(companyId), settings: await getSettings(companyId), phones: await listTeamPhones(companyId), team: await listTeamMembers() }),
+    async () => ({ flow: await getFlow(companyId), settings: await getSettings(companyId), team: await listTeamMembers(), customers: await listCustomers(companyId) }),
     [companyId],
   );
   if (loading) return <p className="muted">Loading…</p>;
   if (error || !data) return <p className="err">{error ?? 'Could not load the phone.'}</p>;
 
-  const people: Person[] = data.team.map((m) => ({ id: m.id, name: m.full_name || m.email || 'Team member', phone: data.phones[m.id] ?? '' }));
-  const tabs: [Tab, string][] = canEdit ? [['screen', 'Call screen'], ['tree', 'Call tree'], ['setup', 'Number, hours & people'], ['calls', 'Calls & voicemails']] : [['screen', 'Call screen'], ['calls', 'Calls & voicemails']];
+  const people: Person[] = data.team.map((m) => ({ id: m.id, name: m.full_name || m.email || 'Team member' }));
+  const customers = data.customers.map((c) => ({ id: c.id, name: customerLabel(c) })).sort((a, b) => a.name.localeCompare(b.name));
+  const tabs: [Tab, string][] = canEdit
+    ? [
+        ['screen', 'Call screen'],
+        ['tree', 'Call tree'],
+        ['setup', 'Number & hours'],
+        ['calls', 'Calls & voicemails'],
+      ]
+    : [
+        ['screen', 'Call screen'],
+        ['calls', 'Calls & voicemails'],
+      ];
   const current = canEdit || tab === 'calls' ? tab : 'screen';
 
   return (
@@ -34,8 +46,8 @@ export default function PhoneScreen() {
           </button>
         ))}
       </div>
-      {current === 'tree' && <CallTree flow={data.flow.graph} saved={data.flow.saved} people={people} companyName={companyName} />}
-      {current === 'setup' && <HoursPeople settings={data.settings} people={people} onSaved={reload} />}
+      {current === 'tree' && <CallTree flow={data.flow.graph} saved={data.flow.saved} people={people} customers={customers} companyName={companyName} />}
+      {current === 'setup' && <HoursPeople settings={data.settings} onSaved={reload} />}
       {current === 'screen' && <CallScreen script={data.settings.script} />}
       {current === 'calls' && <Calls />}
     </div>

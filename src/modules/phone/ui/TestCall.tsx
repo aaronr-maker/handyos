@@ -5,12 +5,13 @@ import type { Person } from './CallTree';
 const ALL_DAY: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, [{ open: '00:00', close: '23:59' }]])) as unknown as Hours['week'];
 const NEVER: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, []])) as unknown as Hours['week'];
 
-const makeEnv = (when: 'open' | 'closed', people: Person[], crew: string, offClock: boolean): Env => ({
+const makeEnv = (when: 'open' | 'closed', people: Person[], crew: string, offClock: boolean, number: string, direct: string[]): Env => ({
+  callerNumber: number,
+  callerCustomers: direct,
   clockedIn: offClock ? [] : undefined,
   callerCrew: crew ? [crew] : [],
   now: Date.now(),
   hours: { timezone: 'America/Chicago', week: when === 'open' ? ALL_DAY : NEVER },
-  phones: Object.fromEntries(people.filter((p) => p.phone).map((p) => [p.id, p.phone])),
   names: Object.fromEntries(people.map((p) => [p.id, p.name])),
 });
 
@@ -26,8 +27,10 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
   const [pause, setPause] = useState<Pause | null>(null);
   const [crew, setCrew] = useState('');
   const [offClock, setOffClock] = useState(false);
+  const [number, setNumber] = useState('+14175550100');
+  const [isDirect, setIsDirect] = useState(false);
 
-  const env = () => makeEnv(when, people, crew, offClock);
+  const env = () => makeEnv(when, people, crew, offClock, number, isDirect ? flow.nodes.flatMap((n) => n.data.customers ?? []) : []);
 
   const show = (step: { say: string[]; pause: Pause }, extra: Line[] = []) => {
     const out: Line[] = [...extra, ...step.say.map((t) => ({ who: 'system' as const, text: t }))];
@@ -77,6 +80,14 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
               </option>
             ))}
           </select>
+        </label>
+        <label>
+          Pretend the caller's number is
+          <input value={number} onChange={(e) => setNumber(e.target.value)} />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={isDirect} onChange={(e) => setIsDirect(e.target.checked)} />
+          Pretend the caller is on my direct list
         </label>
         <label className="check">
           <input type="checkbox" checked={offClock} onChange={(e) => setOffClock(e.target.checked)} />

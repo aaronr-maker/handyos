@@ -49,9 +49,9 @@ describe('following the tree', () => {
 
   it('a menu key goes where that key leads: one person, or everyone at once', () => {
     const one = afterMenu(tree(), 'menu', '1', env(OPEN_TIME));
-    expect(one.pause).toMatchObject({ type: 'dial', node: 'ring1', numbers: ['+15125550001'], who: ['Aaron'] });
+    expect(one.pause).toMatchObject({ type: 'dial', node: 'ring1', numbers: ['client:aaron'], who: ['Aaron'] });
     const all = afterMenu(tree(), 'menu', '2', env(OPEN_TIME));
-    expect(all.pause).toMatchObject({ type: 'dial', node: 'ring2', numbers: ['+15125550002', '+15125550003'] });
+    expect(all.pause).toMatchObject({ type: 'dial', node: 'ring2', numbers: ['client:sam', 'client:pat'] });
   });
 
   it('asks again for a wrong key, up to three times, then hangs up politely', () => {
@@ -79,9 +79,9 @@ describe('following the tree', () => {
     const ring = f.nodes.find((n) => n.id === 'ring2')!;
     ring.data.mode = 'in_order';
     const first = afterMenu(f, 'menu', '2', env(OPEN_TIME)).pause;
-    expect(first).toMatchObject({ type: 'dial', numbers: ['+15125550002'], who: ['Sam'], index: 0, total: 2 });
+    expect(first).toMatchObject({ type: 'dial', numbers: ['client:sam'], who: ['Sam'], index: 0, total: 2 });
     const second = afterDial(f, 'ring2', false, env(OPEN_TIME), 0).pause;
-    expect(second).toMatchObject({ type: 'dial', numbers: ['+15125550003'], who: ['Pat'], index: 1 });
+    expect(second).toMatchObject({ type: 'dial', numbers: ['client:pat'], who: ['Pat'], index: 1 });
     expect(afterDial(f, 'ring2', false, env(OPEN_TIME), 1).pause).toMatchObject({ type: 'record' });
   });
 
@@ -150,10 +150,10 @@ describe('what Twilio is told', () => {
     expect(x).toContain('<Redirect method="POST">https://app.example.com/api/voice/step?node=menu');
   });
 
-  it('rings the numbers with the caller\'s own number shown, and comes back to say what happened', () => {
+  it('rings the phone apps with the caller\'s own number shown, and comes back to say what happened', () => {
     const x = twiml(afterMenu(tree(), 'menu', '2', env(OPEN_TIME)));
     expect(x).toContain('<Dial timeout="20" answerOnBridge="true" callerId="+15125559999" action="https://app.example.com/api/voice/step?node=ring2&amp;ev=dial&amp;idx=0">');
-    expect(x).toContain('<Number>+15125550002</Number><Number>+15125550003</Number>');
+    expect(x).toContain('<Client><Identity>sam</Identity></Client><Client><Identity>pat</Identity></Client>');
   });
 
   it('records a voicemail with a beep and says thank you', () => {

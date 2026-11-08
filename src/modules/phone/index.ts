@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
 import { IncomingCall } from './ui/IncomingCall';
-import { markVoicemailHeardAction, saveCallFlowAction, savePhoneSettingsAction, setTeamPhoneAction } from './actions';
+import { markVoicemailHeardAction, saveCallFlowAction, savePhoneSettingsAction } from './actions';
 
 /**
  * The company phone system: a drag-and-drop call tree (business hours, greetings, menus, who to ring, what happens when nobody
@@ -21,6 +21,6 @@ export const phoneModule: ModuleManifest = {
   overlayForAll: true,
   Screen: lazy(() => import('./ui/PhoneScreen')),
   register({ actions }) {
-    for (const a of [saveCallFlowAction, savePhoneSettingsAction, setTeamPhoneAction, markVoicemailHeardAction]) actions.register(a);
+    for (const a of [saveCallFlowAction, savePhoneSettingsAction, markVoicemailHeardAction]) actions.register(a);
   },
 };

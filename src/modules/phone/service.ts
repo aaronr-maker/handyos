@@ -1,9 +1,8 @@
 import { createRepo, type Id } from '@/core';
 import { DAYS, DEFAULT_HOURS, starterFlow, type Flow, type Hours } from '../../../api/_lib/callEngine';
-import type { CallFlow, CallLogRow, CallSettings, TeamPhone, TranscriptLine, Voicemail } from './types';
+import type { CallFlow, CallLogRow, CallSettings, TranscriptLine, Voicemail } from './types';
 
 const settingsRepo = createRepo<CallSettings>('call_settings');
-const phonesRepo = createRepo<TeamPhone>('team_phones');
 const flowsRepo = createRepo<CallFlow>('call_flows');
 const logRepo = createRepo<CallLogRow>('call_log');
 const mailRepo = createRepo<Voicemail>('voicemails');
@@ -36,19 +35,6 @@ export async function saveSettings(companyId: Id, s: PhoneSettings): Promise<voi
   const row = (await settingsRepo.list(companyId))[0];
   if (row) await settingsRepo.update(companyId, row.id, data);
   else await settingsRepo.insert(companyId, data);
-}
-
-export const listTeamPhones = async (companyId: Id): Promise<Record<Id, string>> => Object.fromEntries((await phonesRepo.list(companyId)).map((p) => [p.user_id, p.phone]));
-
-export async function setTeamPhone(companyId: Id, userId: Id, phone: string): Promise<void> {
-  const row = (await phonesRepo.list(companyId, { where: { user_id: userId } }))[0];
-  const clean = phone.trim();
-  if (!clean) {
-    if (row) await phonesRepo.remove(companyId, row.id);
-    return;
-  }
-  if (row) await phonesRepo.update(companyId, row.id, { phone: clean });
-  else await phonesRepo.insert(companyId, { user_id: userId, phone: clean });
 }
 
 /** The tree that answers the phone, or the starter tree when none is saved yet. */
