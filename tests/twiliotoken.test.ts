@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_HOURS, walk, toTwiml, type Flow } from '../api/_lib/callEngine';
+import { areaCodeOf, DEFAULT_HOURS, toTwiml, validateFlow, walk, type Flow } from '../api/_lib/callEngine';
 import { tokenSettings, voiceAccessToken } from '../api/_lib/twilioToken';
 
 const S = { accountSid: 'AC' + 'a'.repeat(32), apiKeySid: 'SK' + 'b'.repeat(32), apiKeySecret: 'secret-'.padEnd(32, 'x'), pushCredentialSid: 'CR' + 'c'.repeat(32) };
@@ -20,27 +20,28 @@ describe('the phone app calling pass', () => {
   });
 });
 
-describe('ringing the phone app', () => {
-  const flow = (app: boolean): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], reach: app ? 'both' : 'cell', mode: 'all', seconds: 20 } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
-  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, phones: { u1: '+15125550001' } };
-  it('dials the app and the cell together when asked, and only the cell otherwise', () => {
-    const xml = (app: boolean) => toTwiml(walk(flow(app), 'start', env), { stepUrl: 'https://x/step', voice: 'v', recordingUrl: 'https://x/rec' });
-    expect(xml(true)).toContain('<Client><Identity>u1</Identity></Client><Number>+15125550001</Number>');
-    expect(xml(false)).not.toContain('<Client>');
+describe('ringing the phone app, and never a personal phone', () => {
+  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, names: { u1: 'Alex', u2: 'Sam' } };
+  const line = (node: object): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { mode: 'all', seconds: 20, ...node } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
+  const xml = (f: Flow, e = env) => toTwiml(walk(f, 'start', e), { stepUrl: 'https://x/step', voice: 'v', recordingUrl: 'https://x/rec', callSid: 'CA1' });
+
+  it('dials the phone app of each person picked', () => {
+    expect(xml(line({ people: ['u1'] }))).toContain('<Client><Identity>u1</Identity><Parameter name="parent" value="CA1"/></Client>');
+  });
+  it('never dials a phone number, however the tree or the team list is set up', () => {
+    const odd = line({ people: ['u1'], numbers: ['+15125559999'], reach: 'cell', app: true });
+    const out = xml(odd, { ...env, phones: { u1: '+15125550001' } } as typeof env);
+    expect(out).not.toContain('<Number>');
+    expect(out).not.toContain('+15125559999');
+    expect(out).not.toContain('+15125550001');
+    // a "send to a number" block rings nobody
+    const forward: Flow = { nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'f', kind: 'forward', x: 0, y: 0, data: { number: '+15125559999' } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'f' }] };
+    expect(xml(forward)).not.toContain('<Number>');
+    expect(validateFlow(forward).some((p) => p.level === 'error' && /never sent to a phone number/.test(p.text))).toBe(true);
   });
   it('never rings the app of someone who is no longer on the team', () => {
-    const gone = walk(flow(true), 'start', { ...env, names: { someoneElse: 'Sam' }, phones: {} });
-    expect(gone.pause).toMatchObject({ type: 'dial', numbers: [] });
-    const here = walk(flow(true), 'start', { ...env, names: { u1: 'Alex' }, phones: {} });
-    expect(here.pause).toMatchObject({ numbers: ['client:u1'] });
-  });
-  it('rings only people on the clock when the block says so, and falls through when nobody is', () => {
-    const f = (only: boolean): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1', 'u2'], onlyClockedIn: only, mode: 'all', seconds: 20 } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
-    const phones = { u1: '+15125550001', u2: '+15125550002' };
-    expect(walk(f(true), 'start', { ...env, phones, clockedIn: ['u2'] }).pause).toMatchObject({ numbers: ['+15125550002'] });
-    expect(walk(f(true), 'start', { ...env, phones, clockedIn: [] }).pause).toMatchObject({ numbers: [] });
-    expect(walk(f(false), 'start', { ...env, phones, clockedIn: ['u2'] }).pause).toMatchObject({ numbers: ['+15125550001', '+15125550002'] });
-    expect(walk(f(true), 'start', { ...env, phones }).pause).toMatchObject({ numbers: ['+15125550001', '+15125550002'] }); // the test call has no clock data
+    expect(walk(line({ people: ['gone'] }), 'start', env).pause).toMatchObject({ type: 'dial', numbers: [] });
+    expect(walk(line({ people: ['u1'] }), 'start', env).pause).toMatchObject({ numbers: ['client:u1'] });
   });
   it('sends a caller with an open job to the crew of that job, and anyone else down the other line', () => {
     const f: Flow = {
@@ -56,21 +57,14 @@ describe('ringing the phone app', () => {
         { id: 'e3', source: 'job', handle: 'no', target: 'boss' },
       ],
     };
-    const phones = { u1: '+15125550001', u2: '+15125550002' };
-    expect(walk(f, 'start', { ...env, phones, callerCrew: ['u2'] }).pause).toMatchObject({ node: 'crew', numbers: ['+15125550002'] });
-    expect(walk(f, 'start', { ...env, phones, callerCrew: [] }).pause).toMatchObject({ node: 'boss', numbers: ['+15125550001'] });
-    expect(walk(f, 'start', { ...env, phones }).pause).toMatchObject({ node: 'boss' });
+    expect(walk(f, 'start', { ...env, callerCrew: ['u2'] }).pause).toMatchObject({ node: 'crew', numbers: ['client:u2'] });
+    expect(walk(f, 'start', { ...env, callerCrew: [] }).pause).toMatchObject({ node: 'boss', numbers: ['client:u1'] });
   });
-  it('rings only the app when the block says app only, and still handles older trees', () => {
-    const f = (data: object): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], mode: 'all', seconds: 20, ...data } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
-    expect(walk(f({ reach: 'app' }), 'start', env).pause).toMatchObject({ numbers: ['client:u1'] });
-    expect(walk(f({ reach: 'cell' }), 'start', env).pause).toMatchObject({ numbers: ['+15125550001'] });
-    expect(walk(f({ app: true }), 'start', env).pause).toMatchObject({ numbers: ['client:u1', '+15125550001'] }); // saved before this setting existed
-    expect(walk(f({}), 'start', env).pause).toMatchObject({ numbers: ['+15125550001'] });
-  });
-  it('rings someone with an app but no cell number', () => {
-    const noPhone = walk(flow(true), 'start', { ...env, phones: {} });
-    expect(noPhone.pause).toMatchObject({ type: 'dial', numbers: ['client:u1'] });
+  it('rings only people on the clock when the block says so, and rings nobody when none is', () => {
+    const f = line({ people: ['u1', 'u2'], onlyClockedIn: true });
+    expect(walk(f, 'start', { ...env, clockedIn: ['u2'] }).pause).toMatchObject({ numbers: ['client:u2'] });
+    expect(walk(f, 'start', { ...env, clockedIn: [] }).pause).toMatchObject({ numbers: [] });
+    expect(walk(f, 'start', env).pause).toMatchObject({ numbers: ['client:u1', 'client:u2'] });
   });
 });
 
@@ -88,11 +82,61 @@ describe('the "anyone on the clock?" split', () => {
       { id: 'e3', source: 'c', handle: 'no', target: 'out' },
     ],
   };
-  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, phones: { u1: '+15125550001', u2: '+15125550002' }, names: { u1: 'A', u2: 'B' } };
+  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, names: { u1: 'A', u2: 'B' } };
   it('sends the call one way when the person is clocked in and the other way when not', () => {
     expect(walk(f, 'start', { ...env, clockedIn: ['u1'] }).pause).toMatchObject({ node: 'in' });
     expect(walk(f, 'start', { ...env, clockedIn: ['u2'] }).pause).toMatchObject({ node: 'out' });
     expect(walk(f, 'start', { ...env, clockedIn: [] }).pause).toMatchObject({ node: 'out' });
     expect(walk(f, 'start', env).pause).toMatchObject({ node: 'in' }); // no clock data (the test call): counts as yes
+  });
+});
+
+describe('the direct list and area code routing', () => {
+  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, names: { u1: 'Alex' } };
+  it('sends listed customers straight to the next block and everyone else down the other line', () => {
+    const f: Flow = {
+      nodes: [
+        { id: 'start', kind: 'start', x: 0, y: 0, data: {} },
+        { id: 'd', kind: 'direct', x: 0, y: 0, data: { customers: ['c1', 'c2'] } },
+        { id: 'me', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], mode: 'all', seconds: 20 } },
+        { id: 'ai', kind: 'say', x: 0, y: 0, data: { text: 'The assistant' } },
+      ],
+      edges: [
+        { id: 'e1', source: 'start', handle: 'next', target: 'd' },
+        { id: 'e2', source: 'd', handle: 'yes', target: 'me' },
+        { id: 'e3', source: 'd', handle: 'no', target: 'ai' },
+      ],
+    };
+    expect(walk(f, 'start', { ...env, callerCustomers: ['c2'] }).pause).toMatchObject({ node: 'me' });
+    expect(walk(f, 'start', { ...env, callerCustomers: ['someone-else'] }).trail).toContain('ai');
+    expect(walk(f, 'start', env).trail).toContain('ai');
+  });
+  it('knows an area code however the number is written', () => {
+    expect(areaCodeOf('+14175550100')).toBe('417');
+    expect(areaCodeOf('(870) 555-0100')).toBe('870');
+    expect(areaCodeOf('555')).toBe('');
+    expect(areaCodeOf(undefined)).toBe('');
+  });
+  it('sends callers down the line for their area, and everyone else down "anywhere else"', () => {
+    const f: Flow = {
+      nodes: [
+        { id: 'start', kind: 'start', x: 0, y: 0, data: {} },
+        { id: 'a', kind: 'area', x: 0, y: 0, data: { areas: [{ label: 'West Plains', codes: ['417', '573'] }, { label: 'Mountain Home', codes: ['870'] }] } },
+        { id: 'wp', kind: 'say', x: 0, y: 0, data: { text: 'West Plains' } },
+        { id: 'mh', kind: 'say', x: 0, y: 0, data: { text: 'Mountain Home' } },
+        { id: 'el', kind: 'say', x: 0, y: 0, data: { text: 'Elsewhere' } },
+      ],
+      edges: [
+        { id: 'e1', source: 'start', handle: 'next', target: 'a' },
+        { id: 'e2', source: 'a', handle: 'a0', target: 'wp' },
+        { id: 'e3', source: 'a', handle: 'a1', target: 'mh' },
+        { id: 'e4', source: 'a', handle: 'other', target: 'el' },
+      ],
+    };
+    const go = (n?: string) => walk(f, 'start', { ...env, callerNumber: n }).trail.at(-1);
+    expect(go('+14175550100')).toBe('wp');
+    expect(go('+18705550100')).toBe('mh');
+    expect(go('+12145550100')).toBe('el');
+    expect(go(undefined)).toBe('el');
   });
 });

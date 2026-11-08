@@ -22,11 +22,11 @@ export interface VoiceStore {
   /** The tree that answers the phone, if one is switched on. */
   activeFlow(companyId: string): Promise<Flow | null>;
   /** Team member id -> phone, and id -> name. */
-  team(companyId: string): Promise<{ phones: Record<string, string>; names: Record<string, string>; clockedIn?: string[] }>;
+  team(companyId: string): Promise<{ names: Record<string, string>; clockedIn?: string[] }>;
   logCall(companyId: string, callSid: string, patch: { from?: string; to?: string; trail?: string[]; outcome?: string }): Promise<void>;
   /** The numbers of a call we logged earlier (Twilio's recording message does not repeat them). */
-  /** Team members assigned to the open jobs of the customer whose phone number this is (empty for a new caller). */
-  callerCrew(companyId: string, from: string): Promise<string[]>;
+  /** Who the caller is: the customers with this phone number, and the team members assigned to their open jobs (both empty for a new caller). */
+  callerLookup(companyId: string, from: string): Promise<{ customers: string[]; crew: string[] }>;
   callInfo(callSid: string): Promise<{ from: string | null; to: string | null } | null>;
   saveVoicemail(companyId: string, v: { callSid: string; from: string | null; recordingUrl: string; seconds: number }): Promise<void>;
 }
@@ -76,11 +76,11 @@ function check(deps: VoiceDeps, path: string, query: string, params: Record<stri
   throw new VoiceError(403, 'This request did not come from Twilio (the signature did not match: check that TWILIO_AUTH_TOKEN is the Primary auth token).');
 }
 
-const env = (deps: VoiceDeps, c: CompanyPhone, team: { phones: Record<string, string>; names: Record<string, string>; clockedIn?: string[] }, callerCrew: string[] = []): Env => ({ now: deps.now(), hours: c.hours, phones: team.phones, names: team.names, clockedIn: team.clockedIn, callerCrew, aiReady: deps.env.VOICE_AI_READY === '1' });
+const env = (deps: VoiceDeps, c: CompanyPhone, team: { names: Record<string, string>; clockedIn?: string[] }, caller: { customers: string[]; crew: string[] } = { customers: [], crew: [] }, from?: string): Env => ({ now: deps.now(), hours: c.hours, names: team.names, clockedIn: team.clockedIn, callerCrew: caller.crew, callerCustomers: caller.customers, callerNumber: from, aiReady: deps.env.VOICE_AI_READY === '1' });
 
 /** Looks the caller up only when the tree has a block that uses it. */
-const usesCaller = (flow: Flow) => flow.nodes.some((n) => n.kind === 'job' || (n.kind === 'ring' && n.data.assigned));
-const crewFor = async (deps: VoiceDeps, flow: Flow, companyId: string, from: string | undefined): Promise<string[]> => (from && usesCaller(flow) ? deps.store.callerCrew(companyId, from).catch(() => []) : []);
+const usesCaller = (flow: Flow) => flow.nodes.some((n) => n.kind === 'job' || n.kind === 'direct' || (n.kind === 'ring' && n.data.assigned));
+const callerFor = async (deps: VoiceDeps, flow: Flow, companyId: string, from: string | undefined) => (from && usesCaller(flow) ? deps.store.callerLookup(companyId, from).catch(() => ({ customers: [], crew: [] })) : { customers: [], crew: [] });
 
 const render = (step: Step, base: string, c: CompanyPhone, deps: VoiceDeps, params: Record<string, string>) => {
   const url = deps.env.VOICE_STREAM_URL?.trim();
@@ -102,7 +102,7 @@ export async function handleIncoming(deps: VoiceDeps, params: Record<string, str
   if (!flow) return hangupWith(FALLBACK_SAY);
   const team = await deps.store.team(company.companyId);
   const start = flow.nodes.find((n) => n.kind === 'start');
-  const first = walk(flow, start?.id ?? null, env(deps, company, team, await crewFor(deps, flow, company.companyId, params.From)));
+  const first = walk(flow, start?.id ?? null, env(deps, company, team, await callerFor(deps, flow, company.companyId, params.From), params.From));
   // the recording notice comes before anything else the tree says
   const step: Step = company.notice?.trim() ? { ...first, say: [company.notice.trim(), ...first.say] } : first;
   await deps.store.logCall(company.companyId, params.CallSid ?? '', { from: params.From, to: params.To, trail: step.trail, outcome: 'started' });
@@ -117,7 +117,7 @@ export async function handleStep(deps: VoiceDeps, query: Record<string, string>,
   const flow = await deps.store.activeFlow(company.companyId);
   if (!flow) return hangupWith(FALLBACK_SAY);
   const team = await deps.store.team(company.companyId);
-  const e = env(deps, company, team, await crewFor(deps, flow, company.companyId, params.From));
+  const e = env(deps, company, team, await callerFor(deps, flow, company.companyId, params.From), params.From);
   const node = query.node ?? '';
   let step: Step;
   let outcome = 'in progress';
@@ -171,15 +171,13 @@ export function supabaseVoiceStore(env: { SUPABASE_URL?: string; SUPABASE_SERVIC
     async team(companyId) {
       // on the clock = an open day shift (started in the last 16 hours, so a forgotten clock-out does not count forever) or an open job clock
       const since = new Date(Date.now() - 16 * 3600_000).toISOString();
-      const [{ data: phones }, { data: users }, { data: shifts }, { data: jobs }] = await Promise.all([
-        db.from('team_phones').select('user_id, phone').eq('company_id', companyId),
+      const [{ data: users }, { data: shifts }, { data: jobs }] = await Promise.all([
         db.from('users').select('id, full_name, email').eq('company_id', companyId),
         db.from('shifts').select('user_id').eq('company_id', companyId).is('clock_out', null).gte('clock_in', since),
         db.from('time_entries').select('user_id').eq('company_id', companyId).is('clock_out', null).gte('clock_in', since),
       ]);
       return {
         clockedIn: [...new Set([...(shifts ?? []), ...(jobs ?? [])].map((r) => r.user_id as string))],
-        phones: Object.fromEntries((phones ?? []).map((p) => [p.user_id as string, p.phone as string])),
         names: Object.fromEntries((users ?? []).map((u) => [u.id as string, ((u.full_name as string) || (u.email as string) || 'a team member').split(' ')[0]])),
       };
     },
@@ -191,19 +189,19 @@ export function supabaseVoiceStore(env: { SUPABASE_URL?: string; SUPABASE_SERVIC
       const { error } = await db.from('call_log').upsert(row, { onConflict: 'company_id,call_sid' });
       if (error) console.error('Saving the call log failed:', error.message);
     },
-    async callerCrew(companyId, from) {
+    async callerLookup(companyId, from) {
       const last10 = (n: string | null | undefined) => (n ?? '').replace(/\D/g, '').slice(-10);
       const mine = last10(from);
-      if (mine.length < 10) return [];
+      if (mine.length < 10) return { customers: [], crew: [] };
       const [{ data: customers }, { data: contacts }] = await Promise.all([db.from('customers').select('id, phone').eq('company_id', companyId), db.from('customer_contacts').select('customer_id, phone').eq('company_id', companyId)]);
       const ids = [...new Set([...(customers ?? []).filter((c) => last10(c.phone as string | null) === mine).map((c) => c.id as string), ...(contacts ?? []).filter((c) => last10(c.phone as string | null) === mine).map((c) => c.customer_id as string)])];
-      if (ids.length === 0) return [];
+      if (ids.length === 0) return { customers: [], crew: [] };
       const list = ids.join(',');
       const { data: jobs } = await db.from('jobs').select('id').eq('company_id', companyId).neq('status', 'completed').or(`customer_id.in.(${list}),owed_by_customer_id.in.(${list})`);
       const jobIds = (jobs ?? []).map((j) => j.id as string);
-      if (jobIds.length === 0) return [];
+      if (jobIds.length === 0) return { customers: ids, crew: [] };
       const { data: crew } = await db.from('job_assignments').select('user_id').eq('company_id', companyId).in('job_id', jobIds);
-      return [...new Set((crew ?? []).map((a) => a.user_id as string))];
+      return { customers: ids, crew: [...new Set((crew ?? []).map((a) => a.user_id as string))] };
     },
     async callInfo(callSid) {
       const { data } = await db.from('call_log').select('from_number, to_number').eq('call_sid', callSid).maybeSingle();

@@ -4,7 +4,7 @@
  * hours, the team's phone numbers and what just happened (a key pressed, a ring that was not answered), and it says what to
  * do next. A second function turns that into the instructions Twilio understands (TwiML).
  */
-export type NodeKind = 'start' | 'hours' | 'job' | 'clock' | 'say' | 'menu' | 'ring' | 'voicemail' | 'ai' | 'forward' | 'hangup';
+export type NodeKind = 'start' | 'hours' | 'job' | 'clock' | 'direct' | 'area' | 'say' | 'menu' | 'ring' | 'voicemail' | 'ai' | 'forward' | 'hangup';
 
 export interface MenuOption {
   digit: string;
@@ -18,7 +18,11 @@ export interface NodeData {
   prompt?: string;
   /** menu: "Press 1 for ..." choices */
   options?: MenuOption[];
-  /** ring: team members to ring (their phone numbers come from the team list), and any extra numbers */
+  /** direct: customers whose calls skip everything else and go straight to the next block */
+  customers?: string[];
+  /** area: groups of area codes, each with its own exit (like West Plains: 417 and 573, Mountain Home: 870) */
+  areas?: { label: string; codes: string[] }[];
+  /** ring: team members to ring (their phone app only; a personal phone number is never dialed) */
   people?: string[];
   numbers?: string[];
   /** ring: also ring whoever is assigned to this caller's open job (when the caller is a customer with one) */
@@ -74,14 +78,18 @@ export interface Env {
   /** Now, in ms. */
   now: number;
   hours: Hours;
-  /** Team member id -> phone number. */
-  phones: Record<string, string>;
+  /** No longer used: calls never go to personal phone numbers. Kept so older callers still type-check. */
+  phones?: Record<string, string>;
   /** Team member id -> name (for the test call). */
   names?: Record<string, string>;
   /** Team members on the clock right now. Missing (like in the test call) means everyone counts as clocked in. */
   clockedIn?: string[];
   /** Team members assigned to the open jobs of the customer who is calling (empty when the caller is new or has no open job). */
   callerCrew?: string[];
+  /** The number the caller is calling from, as Twilio gives it (like +14175550100). */
+  callerNumber?: string;
+  /** The ids of the customers whose phone number matches the caller (empty for a new caller). */
+  callerCustomers?: string[];
   /** True once the AI receptionist is connected; until then the AI block's "unavailable" exit is used. */
   aiReady?: boolean;
 }
@@ -106,6 +114,13 @@ export function portsOf(node: Pick<FlowNode, 'kind' | 'data'>): Port[] {
         { id: 'open', label: 'Open' },
         { id: 'closed', label: 'Closed' },
       ];
+    case 'direct':
+      return [
+        { id: 'yes', label: 'On my direct list' },
+        { id: 'no', label: 'Not on the list' },
+      ];
+    case 'area':
+      return [...(node.data.areas ?? []).map((a, i) => ({ id: `a${i}`, label: a.label.trim() || `Area ${i + 1}` })), { id: 'other', label: 'Anywhere else' }];
     case 'clock':
       return [
         { id: 'yes', label: 'Someone is on the clock' },
@@ -175,21 +190,28 @@ export function menuSpeech(prompt: string, options: MenuOption[]): string {
   return [prompt.trim(), ...options.filter((o) => o.digit).map((o) => `Press ${o.digit}${o.label ? ` for ${o.label}` : ''}.`)].filter(Boolean).join(' ');
 }
 
+/**
+ * Who to ring. Calls only ever go to a team member's phone app (`client:<id>`), never to a personal phone number: numbers typed
+ * into old trees, team phone numbers and "send to a number" blocks are ignored here, and toTwiml refuses to write a <Number> at all.
+ */
 function ringStep(node: FlowNode, env: Env, index: number): Pause {
-  // each person can be reached on their phone app ("client:<id>", when the block rings apps) and on their cell number
-  const reach = node.data.reach ?? (node.data.app ? 'both' : 'cell');
   const onTheClock = (id: string) => !node.data.onlyClockedIn || !env.clockedIn || env.clockedIn.includes(id);
-  const entries = [
-    ...[...new Set([...(node.data.people ?? []), ...(node.data.assigned ? (env.callerCrew ?? []) : [])])].filter(onTheClock).map((id) => ({ // a removed team member is no longer in the team list, so their phone app is never rung
-    numbers: [...(reach !== 'cell' && (!env.names || env.names[id]) ? [`client:${id}`] : []), ...(reach !== 'app' && env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
-    ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ numbers: [n], who: n })),
-  ].filter((e) => e.numbers.length > 0);
+  const stillOnTeam = (id: string) => !env.names || !!env.names[id];
+  const ids = [...new Set([...(node.data.people ?? []), ...(node.data.assigned ? (env.callerCrew ?? []) : [])])].filter(onTheClock).filter(stillOnTeam);
+  const entries = ids.map((id) => ({ numbers: [`client:${id}`], who: env.names?.[id] ?? 'a team member' }));
   const seconds = Math.min(60, Math.max(8, node.data.seconds ?? 20));
   if (node.data.mode === 'in_order') {
     const one = entries[index];
     return { type: 'dial', node: node.id, numbers: one ? one.numbers : [], who: one ? [one.who] : [], seconds, index, total: entries.length };
   }
   return { type: 'dial', node: node.id, numbers: entries.flatMap((e) => e.numbers), who: entries.map((e) => e.who), seconds, index: 0, total: 1 };
+}
+
+/** The area code of a US number ("+14175550100" or "417-555-0100" give "417"), or "" when it is not one. */
+export function areaCodeOf(number: string | undefined): string {
+  const d = (number ?? '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) return d.slice(1, 4);
+  return d.length === 10 ? d.slice(0, 3) : '';
 }
 
 /** Follows the tree from a block until something has to happen (a menu, a ring, a recording, a hang-up). */
@@ -207,6 +229,17 @@ export function walk(flow: Flow, from: string | null, env: Env, say: string[] = 
       case 'hours':
         current = go(isOpen(env.hours, env.now) ? 'open' : 'closed');
         break;
+      case 'direct': {
+        const list = node.data.customers ?? [];
+        current = go((env.callerCustomers ?? []).some((c) => list.includes(c)) ? 'yes' : 'no');
+        break;
+      }
+      case 'area': {
+        const code = areaCodeOf(env.callerNumber);
+        const at = (node.data.areas ?? []).findIndex((a) => a.codes.map((c) => c.replace(/\D/g, '')).includes(code));
+        current = go(at >= 0 ? `a${at}` : 'other');
+        break;
+      }
       case 'clock': {
         // who counts: the people picked on the block, or anyone on the team; with no clock data (the test call) it counts as yes
         const who = node.data.people?.length ? node.data.people : Object.keys(env.names ?? {});
@@ -226,7 +259,8 @@ export function walk(flow: Flow, from: string | null, env: Env, say: string[] = 
       case 'ring':
         return { say, pause: ringStep(node, env, 0), trail };
       case 'forward':
-        return { say, pause: { type: 'dial', node: node.id, numbers: node.data.number ? [node.data.number] : [], who: [node.data.number ?? ''], seconds: Math.min(60, Math.max(8, node.data.seconds ?? 25)), index: 0, total: 1 }, trail };
+        // sending a call to a phone number is not allowed: nobody to ring, so it follows the "if they don't answer" line
+        return { say, pause: { type: 'dial', node: node.id, numbers: [], who: [], seconds: 8, index: 0, total: 1 }, trail };
       case 'voicemail':
         return { say, pause: { type: 'record', node: node.id, prompt: node.data.prompt?.trim() || 'Please leave a message after the beep and we will call you back.', notify: node.data.notify ?? [] }, trail };
       case 'ai':
@@ -277,7 +311,7 @@ export function validateFlow(flow: Flow): Problem[] {
   const out: Problem[] = [];
   const starts = flow.nodes.filter((n) => n.kind === 'start');
   if (starts.length !== 1) out.push({ node: null, level: 'error', text: starts.length === 0 ? 'The tree needs a starting point.' : 'The tree has more than one starting point.' });
-  const named = (n: FlowNode) => n.data.label || ({ start: 'Call comes in', hours: 'Business hours', job: 'Open-job check', clock: 'On the clock', say: 'Greeting', menu: 'Menu', ring: 'Ring', voicemail: 'Voicemail', ai: 'AI receptionist', forward: 'Forward', hangup: 'Hang up' } as const)[n.kind];
+  const named = (n: FlowNode) => n.data.label || ({ start: 'Call comes in', hours: 'Business hours', job: 'Open-job check', clock: 'On the clock', direct: 'Direct list', area: 'Area code', say: 'Greeting', menu: 'Menu', ring: 'Ring', voicemail: 'Voicemail', ai: 'AI receptionist', forward: 'Forward', hangup: 'Hang up' } as const)[n.kind];
   for (const n of flow.nodes) {
     for (const p of portsOf(n)) {
       if (p.id === 'none' || p.id === 'unavailable') continue; // these have a built-in way to carry on
@@ -288,8 +322,8 @@ export function validateFlow(flow: Flow): Problem[] {
       const digits = (n.data.options ?? []).map((o) => o.digit);
       if (new Set(digits).size !== digits.length) out.push({ node: n.id, level: 'error', text: `${named(n)} uses the same key twice.` });
     }
-    if (n.kind === 'ring' && (n.data.people ?? []).length + (n.data.numbers ?? []).length === 0) out.push({ node: n.id, level: 'error', text: `${named(n)} has nobody to ring.` });
-    if (n.kind === 'forward' && !n.data.number) out.push({ node: n.id, level: 'error', text: `${named(n)} has no number.` });
+    if (n.kind === 'ring' && (n.data.people ?? []).length === 0 && !n.data.assigned) out.push({ node: n.id, level: 'error', text: `${named(n)} has nobody to ring.` });
+    if (n.kind === 'forward') out.push({ node: n.id, level: 'error', text: `${named(n)}: calls are never sent to a phone number. Remove this block (use Ring people, which rings the phone app).` });
   }
   // blocks nothing leads to
   if (starts.length === 1) {
@@ -350,11 +384,11 @@ export function toTwiml(step: Step, o: TwimlOptions): string {
       out.push(`<Redirect method="POST">${link({ node: p.node, ev: 'menu', attempt: p.attempt })}</Redirect>`); // nothing pressed
       break;
     case 'dial':
-      if (p.numbers.length === 0) out.push(`<Redirect method="POST">${link({ node: p.node, ev: 'dial', idx: p.index, answered: 0 })}</Redirect>`);
+      if (!p.numbers.some((n) => n.startsWith('client:'))) out.push(`<Redirect method="POST">${link({ node: p.node, ev: 'dial', idx: p.index, answered: 0 })}</Redirect>`);
       else {
         // the live transcript starts when the first ring starts and follows the call to its end
         if (o.stream && p.index === 0) out.push(`<Start><Stream url="${esc(o.stream.url)}" track="both_tracks">${Object.entries(o.stream.params).map(([k, v]) => `<Parameter name="${esc(k)}" value="${esc(v)}"/>`).join('')}</Stream></Start>`);
-        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.map((n) => (n.startsWith('client:') ? `<Client><Identity>${esc(n.slice(7))}</Identity>${o.callSid ? `<Parameter name="parent" value="${esc(o.callSid)}"/>` : ''}</Client>` : `<Number>${esc(n)}</Number>`)).join('')}</Dial>`);
+        out.push(`<Dial timeout="${p.seconds}" answerOnBridge="true"${o.callerId ? ` callerId="${esc(o.callerId)}"` : ''} action="${link({ node: p.node, ev: 'dial', idx: p.index })}">${p.numbers.filter((n) => n.startsWith('client:')).map((n) => `<Client><Identity>${esc(n.slice(7))}</Identity>${o.callSid ? `<Parameter name="parent" value="${esc(o.callSid)}"/>` : ''}</Client>`).join('')}</Dial>`);
       }
       break;
     case 'record':
@@ -381,8 +415,8 @@ export function starterFlow(): Flow {
       { id: 'hours', kind: 'hours', x: 220, y: 140, data: {} },
       { id: 'greet', kind: 'say', x: 470, y: 20, data: { text: 'Thank you for calling That Handyman Van.' } },
       { id: 'menu', kind: 'menu', x: 720, y: 20, data: { prompt: '', options: [{ digit: '1', label: 'Aaron' }, { digit: '2', label: 'our service team' }] } },
-      { id: 'ring1', kind: 'ring', x: 1000, y: 0, data: { people: [], numbers: [], mode: 'all', seconds: 20 } },
-      { id: 'ring2', kind: 'ring', x: 1000, y: 200, data: { people: [], numbers: [], mode: 'all', seconds: 20 } },
+      { id: 'ring1', kind: 'ring', x: 1000, y: 0, data: { people: [], mode: 'all', seconds: 20 } },
+      { id: 'ring2', kind: 'ring', x: 1000, y: 200, data: { people: [], mode: 'all', seconds: 20 } },
       { id: 'closed', kind: 'say', x: 470, y: 330, data: { text: "Thank you for calling That Handyman Van. We're closed right now." } },
       { id: 'vm', kind: 'voicemail', x: 720, y: 330, data: { prompt: 'Please leave your name, number and what you need, and we will call you back.', notify: [] } },
     ],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getFlow, getSettings, listTeamPhones, saveFlow, saveSettings, setTeamPhone } from '../src/modules/phone/service';
+import { getFlow, getSettings, saveFlow, saveSettings } from '../src/modules/phone/service';
 import { validateFlow } from '../api/_lib/callEngine';
 
 describe('phone settings and call tree', () => {
@@ -22,14 +22,5 @@ describe('phone settings and call tree', () => {
     await saveFlow('p-co-2', graph);
     await saveFlow('p-co-2', graph);
     expect((await getFlow('p-co-2')).saved).toBe(true);
-  });
-
-  it('sets and clears a team phone', async () => {
-    await setTeamPhone('p-co-4', 'u1', '+15125550001');
-    expect(await listTeamPhones('p-co-4')).toEqual({ u1: '+15125550001' });
-    await setTeamPhone('p-co-4', 'u1', '+15125550002');
-    expect((await listTeamPhones('p-co-4')).u1).toBe('+15125550002');
-    await setTeamPhone('p-co-4', 'u1', '');
-    expect(await listTeamPhones('p-co-4')).toEqual({});
   });
 });

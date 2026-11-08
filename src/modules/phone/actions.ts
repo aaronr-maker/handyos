@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
-import { markHeard, saveFlow, saveSettings, setTeamPhone } from './service';
+import { markHeard, saveFlow, saveSettings } from './service';
 
 const digit = z.string().regex(/^[0-9]$/);
 const node = z.object({
   id: z.string().min(1).max(60),
-  kind: z.enum(['start', 'hours', 'job', 'clock', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup']),
+  kind: z.enum(['start', 'hours', 'job', 'clock', 'direct', 'area', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup']),
   x: z.number(),
   y: z.number(),
   data: z.object({
@@ -14,6 +14,8 @@ const node = z.object({
     options: z.array(z.object({ digit, label: z.string().max(80) })).max(10).optional(),
     people: z.array(z.string().max(60)).max(30).optional(),
     numbers: z.array(z.string().max(30)).max(10).optional(),
+    customers: z.array(z.string().max(60)).max(500).optional(),
+    areas: z.array(z.object({ label: z.string().max(60), codes: z.array(z.string().max(5)).max(30) })).max(12).optional(),
     app: z.boolean().optional(),
     reach: z.enum(['app', 'cell', 'both']).optional(),
     assigned: z.boolean().optional(),
@@ -54,21 +56,6 @@ export const savePhoneSettingsAction = defineAction({
   example: { number: '+15125550000', timezone: 'America/Chicago', voice: 'Polly.Joanna', notice: 'This call may be recorded.', script: 'Get their name and address.', week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } },
   async handler({ number, timezone, voice, notice, script, week }, ctx) {
     await saveSettings(ctx.companyId, { number, hours: { timezone, week }, voice, notice, script });
-    return { saved: true };
-  },
-});
-
-export const setTeamPhoneAction = defineAction({
-  name: 'phone.set_team_phone',
-  module: 'phone',
-  description: "Set the number to ring for a team member (an empty number removes it).",
-  input: z.object({ user_id: z.string().min(1), phone: z.string().trim().max(30) }),
-  risk: 'medium',
-  roles: ['owner', 'admin'],
-  requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
-  example: { user_id: 'user-id', phone: '+15125550001' },
-  async handler({ user_id, phone }, ctx) {
-    await setTeamPhone(ctx.companyId, user_id, phone);
     return { saved: true };
   },
 });

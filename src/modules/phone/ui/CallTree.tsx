@@ -30,7 +30,6 @@ type BlockNode = Node<BlockData, 'block'>;
 export interface Person {
   id: string;
   name: string;
-  phone: string;
 }
 
 const newId = (kind: NodeKind) => `${kind}-${crypto.randomUUID().slice(0, 6)}`;
@@ -40,6 +39,8 @@ const TITLE: Record<NodeKind, string> = {
   hours: 'Business hours?',
   job: 'Caller has an open job?',
   clock: 'Anyone on the clock?',
+  direct: 'Direct to me list',
+  area: 'Caller area code',
   say: 'Greeting',
   menu: 'Menu',
   ring: 'Ring people',
@@ -53,6 +54,8 @@ const ICON: Record<NodeKind, string> = {
   hours: '🕗',
   job: '🧰',
   clock: '⏱️',
+  direct: '⭐',
+  area: '📍',
   say: '💬',
   menu: '🔢',
   ring: '🔔',
@@ -66,15 +69,17 @@ const DESCRIBE: Record<NodeKind, string> = {
   hours: 'Send callers one way during business hours and another way after hours.',
   job: 'Send customers with an open job to their crew, and new callers somewhere else.',
   clock: 'Check whether someone is on the clock, and send the call one way or the other.',
+  direct: 'Send certain customers straight to you, skipping the assistant and everything else.',
+  area: 'Send callers one way or another by where they are calling from (area code).',
   say: 'Play a message to the caller.',
   menu: 'Let the caller press a key to choose where to go.',
-  ring: 'Ring the people you pick, on their phone app, their cell, or both.',
+  ring: 'Ring the people you pick, in their phone app.',
   voicemail: 'Let the caller leave a message.',
   ai: 'The AI receptionist talks to the caller (coming later).',
   forward: 'Send the call to another number.',
   hangup: 'End the call.',
 };
-const ADDABLE: NodeKind[] = ['hours', 'job', 'clock', 'say', 'menu', 'ring', 'voicemail', 'ai', 'forward', 'hangup'];
+const ADDABLE: NodeKind[] = ['hours', 'job', 'clock', 'direct', 'area', 'say', 'menu', 'ring', 'voicemail', 'ai', 'hangup'];
 
 const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
   switch (k) {
@@ -94,6 +99,10 @@ const summary = (k: NodeKind, d: NodeData, people: Person[]): string => {
       return 'Uses your Hours & people settings';
     case 'job':
       return 'Looks the caller up by phone number';
+    case 'direct':
+      return `${(d.customers ?? []).length} customer${(d.customers ?? []).length === 1 ? '' : 's'} on the list`;
+    case 'area':
+      return (d.areas ?? []).map((a) => `${a.label || 'Area'}: ${a.codes.join(', ')}`).join(' · ') || 'No areas yet';
     case 'clock': {
       const names = (d.people ?? []).map((id) => people.find((p) => p.id === id)?.name ?? '?');
       return names.length ? `Is ${names.join(' or ')} on the clock?` : 'Is anyone on the team on the clock?';
@@ -164,7 +173,8 @@ const toRf = (flow: Flow, people: Person[]): { nodes: BlockNode[]; edges: Edge[]
     type: 'block',
     position: { x: n.x, y: n.y },
     deletable: n.kind !== 'start',
-    data: { kind: n.kind, d: n.data, people },
+    // everyone takes calls in the phone app, so a ring block rings the app (numbers typed into the block still ring)
+    data: { kind: n.kind, d: n.kind === 'ring' ? { ...n.data, reach: 'app' as const, app: undefined, numbers: undefined } : n.data, people },
   })),
   edges: flow.edges.map((e) => ({
     id: e.id,
@@ -197,7 +207,19 @@ const fromRf = (nodes: BlockNode[], edges: Edge[]): Flow => ({
 const input = { width: '100%' } as const;
 
 /** What can be changed on the selected block. */
-function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people: Person[]; onChange: (d: NodeData) => void; onDelete: () => void }) {
+function Editor({
+  node,
+  people,
+  customers,
+  onChange,
+  onDelete,
+}: {
+  node: BlockNode;
+  people: Person[];
+  customers: { id: string; name: string }[];
+  onChange: (d: NodeData) => void;
+  onDelete: () => void;
+}) {
   const { kind, d } = node.data;
   const set = (patch: Partial<NodeData>) => onChange({ ...d, ...patch });
   return (
@@ -285,30 +307,12 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
                   })
                 }
               />
-              <span>
-                {p.name} <span className="muted small-note">{p.phone || 'no phone number yet (add it under Hours & people)'}</span>
-              </span>
+              <span>{p.name}</span>
             </label>
           ))}
           <label className="check">
             <input type="checkbox" checked={!!d.assigned} onChange={(e) => set({ assigned: e.target.checked })} />
             Whoever is assigned to the caller's open job
-          </label>
-          <label>
-            Other numbers to ring (one per line)
-            <textarea
-              rows={2}
-              style={input}
-              value={(d.numbers ?? []).join('\n')}
-              onChange={(e) =>
-                set({
-                  numbers: e.target.value
-                    .split('\n')
-                    .map((x) => x.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
           </label>
           {d.onlyClockedIn && (
             <label className="check">
@@ -316,14 +320,6 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
               Only ring people who are on the clock (older setting: an "Anyone on the clock?" block does this better)
             </label>
           )}
-          <label>
-            How to reach them
-            <select value={d.reach ?? (d.app ? 'both' : 'cell')} onChange={(e) => set({ reach: e.target.value as 'app' | 'cell' | 'both', app: undefined })}>
-              <option value="app">Phone app only (they must have it installed and signed in)</option>
-              <option value="cell">Cell number only</option>
-              <option value="both">Phone app and cell number</option>
-            </select>
-          </label>
           <label>
             How to ring them
             <select value={d.mode ?? 'all'} onChange={(e) => set({ mode: e.target.value as 'all' | 'in_order' })}>
@@ -343,16 +339,79 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
           <textarea rows={3} style={input} value={d.prompt ?? ''} onChange={(e) => set({ prompt: e.target.value })} />
         </label>
       )}
-      {kind === 'forward' && (
+      {kind === 'direct' && (
         <>
+          <p className="muted">
+            Callers whose phone number belongs to one of these customers go down "On my direct list". Everyone else goes down "Not on the list". Put your own ring block on the direct line to skip the
+            assistant.
+          </p>
           <label>
-            Number to send the call to
-            <input style={input} value={d.number ?? ''} onChange={(e) => set({ number: e.target.value })} placeholder="+15125550000" />
+            Add a customer
+            <select value="" onChange={(e) => e.target.value && set({ customers: [...new Set([...(d.customers ?? []), e.target.value])] })}>
+              <option value="">Choose a customer…</option>
+              {customers
+                .filter((c) => !(d.customers ?? []).includes(c.id))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
           </label>
-          <label>
-            Ring for how many seconds
-            <input type="number" min={8} max={60} value={d.seconds ?? 25} onChange={(e) => set({ seconds: Number(e.target.value) || 25 })} />
-          </label>
+          {(d.customers ?? []).map((id) => (
+            <div key={id} className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>{customers.find((c) => c.id === id)?.name ?? 'A customer'}</span>
+              <button type="button" className="link" onClick={() => set({ customers: (d.customers ?? []).filter((x) => x !== id) })}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+      {kind === 'area' && (
+        <>
+          <p className="muted">
+            Each group gets its own line. List the area codes in a group with commas, like 417, 573. A caller whose area code is not in any group goes down "Anywhere else". A cell number can keep its
+            old area code after a move, so this is a good guess, not a promise.
+          </p>
+          {(d.areas ?? []).map((a, i) => (
+            <div key={i} className="row" style={{ alignItems: 'center' }}>
+              <input
+                className="grow"
+                aria-label="Name of the area"
+                placeholder="e.g. West Plains"
+                value={a.label}
+                onChange={(e) => set({ areas: (d.areas ?? []).map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })}
+              />
+              <input
+                className="grow"
+                aria-label="Area codes"
+                placeholder="417, 573"
+                value={a.codes.join(', ')}
+                onChange={(e) =>
+                  set({
+                    areas: (d.areas ?? []).map((x, j) =>
+                      j === i
+                        ? {
+                            ...x,
+                            codes: e.target.value
+                              .split(/[ ,]+/)
+                              .map((c) => c.replace(/\D/g, '').slice(0, 3))
+                              .filter(Boolean),
+                          }
+                        : x,
+                    ),
+                  })
+                }
+              />
+              <button type="button" className="link" onClick={() => set({ areas: (d.areas ?? []).filter((_, j) => j !== i) })}>
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" className="secondary" onClick={() => set({ areas: [...(d.areas ?? []), { label: '', codes: [] }] })}>
+            + Add an area
+          </button>
         </>
       )}
       {kind === 'clock' && (
@@ -395,15 +454,15 @@ function Editor({ node, people, onChange, onDelete }: { node: BlockNode; people:
 }
 
 /** The drag-and-drop call tree: blocks to add, lines to draw between them, a side panel to change the selected block, and a test call. */
-export function CallTree({ flow, saved, people, companyName }: { flow: Flow; saved: boolean; people: Person[]; companyName: string }) {
+export function CallTree({ flow, saved, people, customers, companyName }: { flow: Flow; saved: boolean; people: Person[]; customers: { id: string; name: string }[]; companyName: string }) {
   return (
     <ReactFlowProvider>
-      <Canvas flow={flow} saved={saved} people={people} companyName={companyName} />
+      <Canvas flow={flow} saved={saved} people={people} customers={customers} companyName={companyName} />
     </ReactFlowProvider>
   );
 }
 
-function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boolean; people: Person[]; companyName: string }) {
+function Canvas({ flow, saved, people, customers, companyName }: { flow: Flow; saved: boolean; people: Person[]; customers: { id: string; name: string }[]; companyName: string }) {
   const save = useAction(saveCallFlowAction);
   const initial = useMemo(() => toRf(flow, people), []); // eslint-disable-line react-hooks/exhaustive-deps -- loaded once
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNode>(initial.nodes);
@@ -457,13 +516,15 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
     touch();
   };
   const defaultsFor = (kind: NodeKind): NodeData =>
-    kind === 'menu'
-      ? { prompt: '', options: [{ digit: '1', label: '' }] }
-      : kind === 'ring'
-        ? { people: [], numbers: [], mode: 'all', seconds: 20, reach: 'both' }
-        : kind === 'voicemail'
-          ? { prompt: 'Please leave a message after the beep and we will call you back.', notify: [] }
-          : {};
+    kind === 'area'
+      ? { areas: [{ label: '', codes: [] }] }
+      : kind === 'menu'
+        ? { prompt: '', options: [{ digit: '1', label: '' }] }
+        : kind === 'ring'
+          ? { people: [], mode: 'all', seconds: 20, reach: 'app' }
+          : kind === 'voicemail'
+            ? { prompt: 'Please leave a message after the beep and we will call you back.', notify: [] }
+            : {};
   const add = (kind: NodeKind) => {
     const id = newId(kind);
     // new blocks land in the middle of what you are looking at, nudged so they never sit exactly on top of each other
@@ -648,7 +709,7 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
                 </div>
               </div>
             ) : node ? (
-              <Editor node={node} people={people} onChange={change} onDelete={remove} />
+              <Editor node={node} people={people} customers={customers} onChange={change} onDelete={remove} />
             ) : (
               <div className="card muted">Click a block to change what it says or who it rings, or click the + on an exit to add the next step.</div>
             )}

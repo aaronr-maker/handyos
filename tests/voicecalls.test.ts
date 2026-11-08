@@ -20,9 +20,9 @@ function world(over: { flow?: Flow | null; now?: number; known?: boolean } = {})
   const store: VoiceStore = {
     findCompany: async (to) => (over.known === false || to !== '+15125550000' ? null : { companyId: 'co1', hours: DEFAULT_HOURS, voice: 'Polly.Joanna', notice: 'Calls are recorded for note taking purposes.' }),
     activeFlow: async () => (over.flow === undefined ? tree() : over.flow),
-    team: async () => ({ phones: { aaron: '+15125550001', sam: '+15125550002' }, names: { aaron: 'Aaron', sam: 'Sam' } }),
+    team: async () => ({ names: { aaron: 'Aaron', sam: 'Sam' } }),
     logCall: async (_c, callSid, patch) => void logs.push({ callSid, patch }),
-    callerCrew: async () => ['aaron'],
+    callerLookup: async () => ({ customers: ['cust1'], crew: ['aaron'] }),
     callInfo: async (sid) => (sid === 'CA1' ? { from: '+15125559999', to: '+15125550000' } : null),
     saveVoicemail: async (_c, v) => void mails.push(v),
   };
@@ -116,7 +116,8 @@ describe('after each step', () => {
     const raw = 'node=menu&ev=menu&attempt=1';
     const params = { ...base, Digits: '1' };
     const xml = await handleStep(w.deps, q, raw, params, w.sign('/api/voice/step', params, raw));
-    expect(xml).toContain('<Number>+15125550001</Number>');
+    expect(xml).toContain('<Client><Identity>aaron</Identity><Parameter name="parent" value="CA1"/></Client>');
+    expect(xml).not.toContain('<Number>');
     expect(xml).toContain('callerId="+15125559999"');
   });
 

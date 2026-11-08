@@ -1,4 +1,4 @@
-import type { BaseRecord, Id } from '@/core';
+import type { BaseRecord } from '@/core';
 import type { Flow, Hours } from '../../../api/_lib/callEngine';
 
 export interface CallSettings extends BaseRecord {
@@ -8,10 +8,6 @@ export interface CallSettings extends BaseRecord {
   voice: string;
   notice: string;
   script: string;
-}
-export interface TeamPhone extends BaseRecord {
-  user_id: Id;
-  phone: string;
 }
 export interface CallFlow extends BaseRecord {
   name: string;
