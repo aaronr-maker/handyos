@@ -9,4 +9,8 @@ Every estimate and job gets a last line, **Service fee minimum**, that tops the 
 - Some customers are exempt. A setting on the customer ("No service fee minimum") turns it off for that customer; their estimates then show no line and no statement.
 - The minimum amount is a company setting (the current rate is $120 per hour; Aaron to confirm the starting amount).
 
-Open questions for Aaron: Which lines count as labor (service lines only, not materials or fees)? Should the line show when it is $0? Does it also apply to invoices created without an estimate? Does the customer's sales tax apply to the fee?
+Decided (Aaron, 2026-11-08):
+- Only labor lines count toward the minimum (not materials or fees).
+- The line shows even when it is $0.
+- Only estimates, and the jobs and invoices that come from an accepted estimate, can carry it. An invoice that did not start as an estimate never gets it, so nobody is surprised by a fee they did not accept.
+- Sales tax on the fee: still to decide. Suggested rule: tax the fee the same way the labor lines on that estimate are taxed (a fee that tops up labor is labor), and confirm with the accountant.
