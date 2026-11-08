@@ -73,3 +73,26 @@ describe('ringing the phone app', () => {
     expect(noPhone.pause).toMatchObject({ type: 'dial', numbers: ['client:u1'] });
   });
 });
+
+describe('the "anyone on the clock?" split', () => {
+  const f: Flow = {
+    nodes: [
+      { id: 'start', kind: 'start', x: 0, y: 0, data: {} },
+      { id: 'c', kind: 'clock', x: 0, y: 0, data: { people: ['u1'] } },
+      { id: 'in', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], mode: 'all', seconds: 20 } },
+      { id: 'out', kind: 'ring', x: 0, y: 0, data: { people: ['u2'], mode: 'all', seconds: 20 } },
+    ],
+    edges: [
+      { id: 'e1', source: 'start', handle: 'next', target: 'c' },
+      { id: 'e2', source: 'c', handle: 'yes', target: 'in' },
+      { id: 'e3', source: 'c', handle: 'no', target: 'out' },
+    ],
+  };
+  const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, phones: { u1: '+15125550001', u2: '+15125550002' }, names: { u1: 'A', u2: 'B' } };
+  it('sends the call one way when the person is clocked in and the other way when not', () => {
+    expect(walk(f, 'start', { ...env, clockedIn: ['u1'] }).pause).toMatchObject({ node: 'in' });
+    expect(walk(f, 'start', { ...env, clockedIn: ['u2'] }).pause).toMatchObject({ node: 'out' });
+    expect(walk(f, 'start', { ...env, clockedIn: [] }).pause).toMatchObject({ node: 'out' });
+    expect(walk(f, 'start', env).pause).toMatchObject({ node: 'in' }); // no clock data (the test call): counts as yes
+  });
+});

@@ -4,7 +4,7 @@
  * hours, the team's phone numbers and what just happened (a key pressed, a ring that was not answered), and it says what to
  * do next. A second function turns that into the instructions Twilio understands (TwiML).
  */
-export type NodeKind = 'start' | 'hours' | 'job' | 'say' | 'menu' | 'ring' | 'voicemail' | 'ai' | 'forward' | 'hangup';
+export type NodeKind = 'start' | 'hours' | 'job' | 'clock' | 'say' | 'menu' | 'ring' | 'voicemail' | 'ai' | 'forward' | 'hangup';
 
 export interface MenuOption {
   digit: string;
@@ -106,6 +106,11 @@ export function portsOf(node: Pick<FlowNode, 'kind' | 'data'>): Port[] {
         { id: 'open', label: 'Open' },
         { id: 'closed', label: 'Closed' },
       ];
+    case 'clock':
+      return [
+        { id: 'yes', label: 'Someone is on the clock' },
+        { id: 'no', label: 'Nobody is on the clock' },
+      ];
     case 'job':
       return [
         { id: 'yes', label: 'Has an open job' },
@@ -202,6 +207,13 @@ export function walk(flow: Flow, from: string | null, env: Env, say: string[] = 
       case 'hours':
         current = go(isOpen(env.hours, env.now) ? 'open' : 'closed');
         break;
+      case 'clock': {
+        // who counts: the people picked on the block, or anyone on the team; with no clock data (the test call) it counts as yes
+        const who = node.data.people?.length ? node.data.people : Object.keys(env.names ?? {});
+        const someone = !env.clockedIn || who.some((id) => env.clockedIn?.includes(id));
+        current = go(someone ? 'yes' : 'no');
+        break;
+      }
       case 'job':
         current = go((env.callerCrew ?? []).length > 0 ? 'yes' : 'no');
         break;
@@ -265,7 +277,7 @@ export function validateFlow(flow: Flow): Problem[] {
   const out: Problem[] = [];
   const starts = flow.nodes.filter((n) => n.kind === 'start');
   if (starts.length !== 1) out.push({ node: null, level: 'error', text: starts.length === 0 ? 'The tree needs a starting point.' : 'The tree has more than one starting point.' });
-  const named = (n: FlowNode) => n.data.label || ({ start: 'Call comes in', hours: 'Business hours', job: 'Open-job check', say: 'Greeting', menu: 'Menu', ring: 'Ring', voicemail: 'Voicemail', ai: 'AI receptionist', forward: 'Forward', hangup: 'Hang up' } as const)[n.kind];
+  const named = (n: FlowNode) => n.data.label || ({ start: 'Call comes in', hours: 'Business hours', job: 'Open-job check', clock: 'On the clock', say: 'Greeting', menu: 'Menu', ring: 'Ring', voicemail: 'Voicemail', ai: 'AI receptionist', forward: 'Forward', hangup: 'Hang up' } as const)[n.kind];
   for (const n of flow.nodes) {
     for (const p of portsOf(n)) {
       if (p.id === 'none' || p.id === 'unavailable') continue; // these have a built-in way to carry on

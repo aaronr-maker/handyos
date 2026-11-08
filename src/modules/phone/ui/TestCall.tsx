@@ -5,7 +5,8 @@ import type { Person } from './CallTree';
 const ALL_DAY: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, [{ open: '00:00', close: '23:59' }]])) as unknown as Hours['week'];
 const NEVER: Hours['week'] = Object.fromEntries(DAYS.map((d) => [d, []])) as unknown as Hours['week'];
 
-const makeEnv = (when: 'open' | 'closed', people: Person[], crew: string): Env => ({
+const makeEnv = (when: 'open' | 'closed', people: Person[], crew: string, offClock: boolean): Env => ({
+  clockedIn: offClock ? [] : undefined,
   callerCrew: crew ? [crew] : [],
   now: Date.now(),
   hours: { timezone: 'America/Chicago', week: when === 'open' ? ALL_DAY : NEVER },
@@ -24,8 +25,9 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
   const [lines, setLines] = useState<Line[]>([]);
   const [pause, setPause] = useState<Pause | null>(null);
   const [crew, setCrew] = useState('');
+  const [offClock, setOffClock] = useState(false);
 
-  const env = () => makeEnv(when, people, crew);
+  const env = () => makeEnv(when, people, crew, offClock);
 
   const show = (step: { say: string[]; pause: Pause }, extra: Line[] = []) => {
     const out: Line[] = [...extra, ...step.say.map((t) => ({ who: 'system' as const, text: t }))];
@@ -75,6 +77,10 @@ export function TestCall({ flow, people, companyName, disabled }: { flow: Flow; 
               </option>
             ))}
           </select>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={offClock} onChange={(e) => setOffClock(e.target.checked)} />
+          Pretend nobody is on the clock
         </label>
         <button type="button" onClick={start} disabled={disabled}>
           Start the call
