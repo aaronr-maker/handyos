@@ -21,7 +21,7 @@ describe('the phone app calling pass', () => {
 });
 
 describe('ringing the phone app', () => {
-  const flow = (app: boolean): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], app, mode: 'all', seconds: 20 } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
+  const flow = (app: boolean): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], reach: app ? 'both' : 'cell', mode: 'all', seconds: 20 } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
   const env = { now: Date.parse('2027-01-06T16:00:00Z'), hours: DEFAULT_HOURS, phones: { u1: '+15125550001' } };
   it('dials the app and the cell together when asked, and only the cell otherwise', () => {
     const xml = (app: boolean) => toTwiml(walk(flow(app), 'start', env), { stepUrl: 'https://x/step', voice: 'v', recordingUrl: 'https://x/rec' });
@@ -60,6 +60,13 @@ describe('ringing the phone app', () => {
     expect(walk(f, 'start', { ...env, phones, callerCrew: ['u2'] }).pause).toMatchObject({ node: 'crew', numbers: ['+15125550002'] });
     expect(walk(f, 'start', { ...env, phones, callerCrew: [] }).pause).toMatchObject({ node: 'boss', numbers: ['+15125550001'] });
     expect(walk(f, 'start', { ...env, phones }).pause).toMatchObject({ node: 'boss' });
+  });
+  it('rings only the app when the block says app only, and still handles older trees', () => {
+    const f = (data: object): Flow => ({ nodes: [{ id: 'start', kind: 'start', x: 0, y: 0, data: {} }, { id: 'r', kind: 'ring', x: 0, y: 0, data: { people: ['u1'], mode: 'all', seconds: 20, ...data } }], edges: [{ id: 'e', source: 'start', handle: 'next', target: 'r' }] });
+    expect(walk(f({ reach: 'app' }), 'start', env).pause).toMatchObject({ numbers: ['client:u1'] });
+    expect(walk(f({ reach: 'cell' }), 'start', env).pause).toMatchObject({ numbers: ['+15125550001'] });
+    expect(walk(f({ app: true }), 'start', env).pause).toMatchObject({ numbers: ['client:u1', '+15125550001'] }); // saved before this setting existed
+    expect(walk(f({}), 'start', env).pause).toMatchObject({ numbers: ['+15125550001'] });
   });
   it('rings someone with an app but no cell number', () => {
     const noPhone = walk(flow(true), 'start', { ...env, phones: {} });

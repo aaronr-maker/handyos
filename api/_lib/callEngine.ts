@@ -25,7 +25,8 @@ export interface NodeData {
   assigned?: boolean;
   /** ring: only ring team members who are on the clock right now (extra numbers always ring) */
   onlyClockedIn?: boolean;
-  /** ring: also ring each person's HandyOS phone app (as well as their cell number) */
+  /** ring: how to reach each person: their phone app, their cell number, or both. Older trees with `app: true` mean both; otherwise the cell. */
+  reach?: 'app' | 'cell' | 'both';
   app?: boolean;
   /** ring: everyone at once, or one after another */
   mode?: 'all' | 'in_order';
@@ -171,10 +172,11 @@ export function menuSpeech(prompt: string, options: MenuOption[]): string {
 
 function ringStep(node: FlowNode, env: Env, index: number): Pause {
   // each person can be reached on their phone app ("client:<id>", when the block rings apps) and on their cell number
+  const reach = node.data.reach ?? (node.data.app ? 'both' : 'cell');
   const onTheClock = (id: string) => !node.data.onlyClockedIn || !env.clockedIn || env.clockedIn.includes(id);
   const entries = [
     ...[...new Set([...(node.data.people ?? []), ...(node.data.assigned ? (env.callerCrew ?? []) : [])])].filter(onTheClock).map((id) => ({ // a removed team member is no longer in the team list, so their phone app is never rung
-    numbers: [...(node.data.app && (!env.names || env.names[id]) ? [`client:${id}`] : []), ...(env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
+    numbers: [...(reach !== 'cell' && (!env.names || env.names[id]) ? [`client:${id}`] : []), ...(reach !== 'app' && env.phones[id] ? [env.phones[id]] : [])], who: env.names?.[id] ?? 'a team member' })),
     ...(node.data.numbers ?? []).filter(Boolean).map((n) => ({ numbers: [n], who: n })),
   ].filter((e) => e.numbers.length > 0);
   const seconds = Math.min(60, Math.max(8, node.data.seconds ?? 20));
