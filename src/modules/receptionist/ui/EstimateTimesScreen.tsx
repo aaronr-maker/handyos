@@ -22,6 +22,8 @@ export default function EstimateTimesScreen() {
   const { data, loading, error, reload } = useAsync(async () => ({ blocks: await getEstimateBlocks(companyId), team: await listTeamMembers(), facts: await loadTimeFacts(companyId) }), [companyId]);
   const [edit, setEdit] = useState<EstimateBlocks | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copying, setCopying] = useState<Weekday | null>(null);
+  const [targets, setTargets] = useState<Weekday[]>([]);
   const [now] = useState(() => Date.now());
 
   if (loading) return <p className="muted">Loading…</p>;
@@ -96,6 +98,52 @@ export default function EstimateTimesScreen() {
             <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setDay(d, [...(b.week[d] ?? []), { start: '16:00', end: '18:00' }])}>
               + Add time
             </button>
+            {(b.week[d] ?? []).length > 0 && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setCopying(copying === d ? null : d);
+                  setTargets([]);
+                }}
+              >
+                Copy to other days
+              </button>
+            )}
+            {copying === d && (
+              <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
+                <p className="muted small-note">Copy {label}'s times to:</p>
+                <div className="row" style={{ gap: 12 }}>
+                  {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
+                    <label key={x} className="check" style={{ margin: 0 }}>
+                      <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
+                      {name}
+                    </label>
+                  ))}
+                </div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(['mon', 'tue', 'wed', 'thu', 'fri'].filter((x) => x !== d) as Weekday[])}>
+                    Weekdays
+                  </button>
+                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
+                    Every day
+                  </button>
+                  <button
+                    type="button"
+                    style={{ minHeight: 36 }}
+                    disabled={targets.length === 0}
+                    onClick={() => {
+                      const week = { ...b.week };
+                      for (const t of targets) week[t] = (b.week[d] ?? []).map((blk) => ({ ...blk }));
+                      set({ week });
+                      setCopying(null);
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <div className="row">
