@@ -81,3 +81,6 @@ Next: Firebase project and Twilio push credential (Aaron), Capacitor Android pro
 Rule: a new caller or texter goes to Aaron. A customer with an open job goes to whoever is assigned to that job. Nobody ever texts in without someone being responsible, and Aaron sees every conversation.
 Calls: done ("Caller has an open job?" block, "Also ring whoever is assigned to the caller's open job" on Ring people).
 Texts (needs Twilio texting registration first): inbound webhook saves each text on the customer; a conversation page shows each thread with who owns it (the job's crew, else Aaron); techs see only their own threads and can reply in the app; Aaron sees all; a text from someone with no owner raises a to-do for Aaron; unanswered texts raise an alert after a set time. The owner is the same rule as for calls (one shared function).
+
+## Service fee minimum on every estimate and job (spec from Aaron, 2026-11-08)
+Full notes and open questions: [docs/specs/SERVICE_FEE_MINIMUM.md](specs/SERVICE_FEE_MINIMUM.md). A last line that tops labor up to one hour's worth (never described that way), shrinking as the labor lines grow, stated on every estimate, with a per-customer exemption.
