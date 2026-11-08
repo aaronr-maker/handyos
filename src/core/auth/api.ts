@@ -16,7 +16,7 @@ export interface Profile {
   companyName: string;
 }
 
-export interface Member { id: string; full_name: string; email: string; role: UserRole }
+export interface Member { id: string; full_name: string; email: string; role: UserRole; /** signed off to do in-home estimates */ is_seller?: boolean; /** languages spoken, like "Spanish" */ languages?: string[] }
 export interface Invite { id: string; email: string; role: UserRole; created_at: string }
 export interface JoinRequest { id: string; email: string; full_name: string; created_at: string }
 export interface MyInvite { invite_id: string; company_name: string; role: UserRole }
@@ -68,8 +68,12 @@ export const requestToJoin = async (code: string, name: string) =>
   unwrap(await db().rpc('request_to_join', { join_code: code, member_name: name })) as string;
 
 // --- Team management (owner/admin; the database enforces who may do what) ---
-export const listMembers = async () =>
-  unwrap(await db().from('users').select('id, full_name, email, role').order('created_at')) as Member[];
+export const listMembers = async () => {
+  const full = await db().from('users').select('id, full_name, email, role, is_seller, languages').order('created_at');
+  if (!full.error) return full.data as Member[];
+  // before the team skills SQL has been run, the two new columns do not exist yet: read the basics so nothing breaks
+  return unwrap(await db().from('users').select('id, full_name, email, role').order('created_at')) as Member[];
+};
 export const listInvites = async () =>
   unwrap(await db().from('company_invites').select('id, email, role, created_at').eq('status', 'pending').order('created_at')) as Invite[];
 export const listJoinRequests = async () =>
@@ -84,6 +88,7 @@ export const decideJoinRequest = async (requestId: string, approve: boolean, rol
   unwrap(await db().rpc('decide_join_request', { request_id: requestId, approve, as_role: role }));
 export const setMemberRole = async (memberId: string, role: UserRole) =>
   unwrap(await db().rpc('set_member_role', { member_id: memberId, new_role: role }));
+export const setMemberProfile = async (memberId: string, isSeller: boolean, languages: string[]) => unwrap(await db().rpc('set_member_profile', { member_id: memberId, seller: isSeller, speaks: languages }));
 export const removeMember = async (memberId: string) => unwrap(await db().rpc('remove_member', { member_id: memberId }));
 export const rotateJoinCode = async () => unwrap(await db().rpc('rotate_join_code')) as string;
 

@@ -9,6 +9,7 @@ import {
   removeMember,
   revokeInvite,
   rotateJoinCode,
+  setMemberProfile,
   setMemberRole,
   isSupabaseConfigured,
   useSession,
@@ -92,6 +93,26 @@ export function TeamScreen() {
             <div>
               <strong>{m.full_name || m.email}</strong>
               <div className="muted">{m.email}</div>
+              {canManage && (
+                <div className="member-skills">
+                  <label className="check">
+                    <input type="checkbox" checked={!!m.is_seller} onChange={(e) => void act(() => setMemberProfile(m.id, e.target.checked, m.languages ?? []))} />
+                    Does in-home estimates (seller)
+                  </label>
+                  <label>
+                    Languages spoken, besides English (like Spanish)
+                    <input
+                      defaultValue={(m.languages ?? []).join(', ')}
+                      key={`${m.id}-${(m.languages ?? []).join(',')}`}
+                      placeholder="None"
+                      onBlur={(e) => {
+                        const next = e.target.value.split(/[,]+/).map((x) => x.trim()).filter(Boolean);
+                        if (next.join(',') !== (m.languages ?? []).join(',')) void act(() => setMemberProfile(m.id, !!m.is_seller, next));
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             {canEdit(m) ? (
               <div className="row">
