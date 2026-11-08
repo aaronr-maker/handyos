@@ -39,6 +39,9 @@ export interface Offer {
   end: number;
   /** a ready-to-say description, like "Tuesday at 4 PM" */
   say: string;
+  /** the day on its own ("tomorrow", "Monday, November 16th") and the time on its own ("4 PM") */
+  day: string;
+  at: string;
 }
 
 const MIN = 60_000;
@@ -67,22 +70,18 @@ const localDate = (t: number, timezone: string) => {
   return `${p.year}-${p.month}-${p.day}`;
 };
 
-const sayTime = (t: number, timezone: string, now: number) => {
+const sayTime = (t: number, timezone: string, now: number): { day: string; at: string } => {
   const day = localDate(t, timezone);
   const today = localDate(now, timezone);
   const tomorrow = localDate(now + DAY, timezone);
-  const clock = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '');
+  const at = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '');
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(new Date(t));
   const within6 = t - now < 6 * DAY;
-  const label =
-    day === today
-      ? 'today'
-      : day === tomorrow
-        ? 'tomorrow'
-        : within6
-          ? weekday
-          : `${weekday} the ${new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long', day: 'numeric' }).format(new Date(t))}`;
-  return `${label} at ${clock}`;
+  const dayOfMonth = Number(new Intl.DateTimeFormat('en-US', { timeZone: timezone, day: 'numeric' }).format(new Date(t)));
+  const ordinal = `${dayOfMonth}${dayOfMonth % 100 >= 11 && dayOfMonth % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][dayOfMonth % 10] ?? 'th')}`;
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long' }).format(new Date(t));
+  const label = day === today ? 'today' : day === tomorrow ? 'tomorrow' : within6 ? weekday : `${weekday}, ${month} ${ordinal}`;
+  return { day: label, at };
 };
 
 /** Every open slot for every seller, soonest first. */
@@ -102,7 +101,10 @@ export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Sel
         if (start < earliest) continue;
         for (const s of sellers) {
           const clash = busy.some((b) => b.seller === s.id && b.start < start + slot + buffer && b.end > start - buffer);
-          if (!clash) out.push({ seller: s.id, sellerName: s.name, start, end: start + slot, say: sayTime(start, blocks.timezone, now) });
+          if (!clash) {
+            const when = sayTime(start, blocks.timezone, now);
+            out.push({ seller: s.id, sellerName: s.name, start, end: start + slot, say: `${when.day} at ${when.at}`, day: when.day, at: when.at });
+          }
         }
       }
     }
@@ -130,7 +132,15 @@ export function pickOffers(slots: Offer[], timezone: string, count = 2): Offer[]
 
 /** What the assistant says: "We have tomorrow at 4 PM with Aaron Ross, or Wednesday at 8 AM with Aaron Chamernick. Would one of those work?" */
 export function offerSentence(offers: Offer[]): string {
-  if (offers.length === 0) return '';
-  const part = (o: Offer) => `${o.say} with ${o.sellerName}`;
-  return offers.length === 1 ? `We have ${part(offers[0])}. Would that work for you?` : `We have ${part(offers[0])}, or ${part(offers[1])}. Would one of those work for you?`;
+  const [one, two] = offers;
+  if (!one) return '';
+  if (!two) return `We have ${one.say} with ${one.sellerName}. Would that work for you?`;
+  // anything the two choices share is said once, at the end, so it never sounds like a repeat
+  const sameDay = one.day === two.day;
+  const sameAt = one.at === two.at;
+  const sameWho = one.seller === two.seller;
+  const phrase = (o: Offer, withDay: boolean) => [withDay && o.day, !sameAt && `at ${o.at}`, !sameWho && `with ${o.sellerName}`].filter(Boolean).join(' ');
+  const tail = [sameAt && `${sameWho ? '' : 'both '}at ${one.at}`, sameWho && `with ${one.sellerName}`].filter(Boolean).join(' ');
+  const comma = sameAt && !sameWho ? ',' : '';
+  return `We have ${phrase(one, true)} or ${phrase(two, !sameDay)}${tail ? `${comma} ${tail}` : ''}. Would one of those work for you?`;
 }
