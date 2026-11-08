@@ -35,7 +35,7 @@ export default function EstimateTimesScreen() {
   const offers = pickOffers(openSlots({ now, blocks: b, sellers, busy }), b.timezone);
 
   const submit = async () => {
-    const err = resultError(await save({ timezone: b.timezone, week: b.week, slot_minutes: b.slotMinutes, buffer_minutes: b.bufferMinutes, notice_hours: b.noticeHours, horizon_days: b.horizonDays }));
+    const err = resultError(await save({ timezone: b.timezone, week: b.week, slot_minutes: 60, buffer_minutes: b.bufferMinutes, notice_hours: b.noticeHours, horizon_days: b.horizonDays }));
     if (err) return setNote({ ok: false, text: err });
     setNote({ ok: true, text: 'Saved.' });
     setEdit(null);
@@ -46,12 +46,13 @@ export default function EstimateTimesScreen() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Estimate times</h1>
+          <h2 style={{ fontSize: '1.4rem' }}>Estimate times</h2>
           <p className="muted">The days and hours you set aside for free in-home estimates. The AI receptionist only offers these, and only with team members marked as sellers on the Team page.</p>
         </div>
       </header>
       <div className="card">
         <h2>Times set aside</h2>
+        <p className="muted small-note">Each in-home estimate is a one-hour slot.</p>
         {DAYS.map(([d, label]) => (
           <div key={d} style={{ margin: '8px 0' }}>
             <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
@@ -98,10 +99,6 @@ export default function EstimateTimesScreen() {
           </div>
         ))}
         <div className="row">
-          <label className="grow">
-            Each estimate takes (minutes)
-            <input type="number" min={15} max={480} value={b.slotMinutes} onChange={(e) => set({ slotMinutes: Number(e.target.value) || 60 })} />
-          </label>
           <label className="grow">
             Travel time kept between jobs (minutes)
             <input type="number" min={0} max={240} value={b.bufferMinutes} onChange={(e) => set({ bufferMinutes: Number(e.target.value) || 0 })} />

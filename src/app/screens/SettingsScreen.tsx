@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '@/core';
 import { P4PSettings } from '@/modules/jobcosting';
+import { EstimateTimesSettings } from '@/modules/receptionist';
 
-type Section = 'p4p';
+type Section = 'p4p' | 'estimates';
 
 /** Company settings. Each section is owned by the module it configures. */
 export function SettingsScreen() {
@@ -29,10 +30,14 @@ export function SettingsScreen() {
         <button className={section === 'p4p' ? '' : 'secondary'} onClick={() => setSection('p4p')}>
           Pay-for-performance
         </button>
+        <button className={section === 'estimates' ? '' : 'secondary'} onClick={() => setSection('estimates')}>
+          Estimate times
+        </button>
         <Link to="/handy" className="button secondary">
           Handy usage &amp; options
         </Link>
       </div>
+      {section === 'estimates' && <EstimateTimesSettings />}
       {section === 'p4p' && <P4PSettings />}
     </section>
   );
