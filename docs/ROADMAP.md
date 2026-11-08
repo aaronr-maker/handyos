@@ -90,3 +90,6 @@ Full plan and rules: [docs/specs/AI_RECEPTIONIST.md](specs/AI_RECEPTIONIST.md). 
 
 ## Scheduled time from budget hours and pace (question from Aaron, 2026-11-08)
 Not built yet: today the scheduled length is typed in and only the capacity view uses a person's efficiency rate. A proposal for scheduling from budget hours and each person's pace is in the addendum of [docs/specs/PACE_PRICING.md](specs/PACE_PRICING.md).
+
+## Calendar: click a suggested time slot (idea from Aaron, 2026-11-08)
+Unscheduled and unassigned jobs sit beside the calendar. Pick a job and the calendar shows suggested time slots on the technicians' columns, based on each person's open time, how long the job would take them (their pace, see the addendum in [docs/specs/PACE_PRICING.md](specs/PACE_PRICING.md)) and their **approved skills** (a new employee setting, like Seller and Languages spoken: which kinds of work each person is signed off to do, with a matching "skills needed" on the job or its price book items). Click a slot to book it (assigns the person and sets the time in one step). Handy and the AI receptionist can use the same suggestions.
