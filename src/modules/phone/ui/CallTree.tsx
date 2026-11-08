@@ -21,6 +21,7 @@ import '@xyflow/react/dist/style.css';
 import { resultError, useAction } from '@/core';
 import { portsOf, validateFlow, type Flow, type NodeData, type NodeKind } from '../../../../api/_lib/callEngine';
 import { saveCallFlowAction } from '../actions';
+import { tidyLayout } from '../layout';
 import { TestCall } from './TestCall';
 
 type BlockData = { kind: NodeKind; d: NodeData } & Record<string, unknown>;
@@ -447,28 +448,8 @@ function Canvas({ flow, saved, people, companyName }: { flow: Flow; saved: boole
   };
   /** Lays the blocks out left to right in the order a call meets them. */
   const tidy = () => {
-    const depth = new Map<string, number>();
-    const start = nodes.find((n) => n.data.kind === 'start');
-    const queue = start ? [start.id] : [];
-    if (start) depth.set(start.id, 0);
-    while (queue.length) {
-      const id = queue.shift() as string;
-      for (const e of edges.filter((x) => x.source === id))
-        if (!depth.has(e.target)) {
-          depth.set(e.target, (depth.get(id) ?? 0) + 1);
-          queue.push(e.target);
-        }
-    }
-    const loose = Math.max(-1, ...depth.values()) + 1;
-    const rows = new Map<number, number>();
-    setNodes((ns) =>
-      ns.map((n) => {
-        const d = depth.get(n.id) ?? loose;
-        const row = rows.get(d) ?? 0;
-        rows.set(d, row + 1);
-        return { ...n, position: { x: d * 270, y: row * 190 } };
-      }),
-    );
+    const spots = tidyLayout(current);
+    setNodes((ns) => ns.map((n) => ({ ...n, position: spots[n.id] ?? n.position })));
     touch();
     setTimeout(() => void rf.fitView({ maxZoom: 0.9, padding: 0.12, duration: 300 }), 50);
   };
