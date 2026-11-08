@@ -11,9 +11,15 @@
 5. **Pricing questions:** it never quotes prices. It says in-home estimates are free and that estimates are not done over the phone, because there may be materials, service minimums or trip charges; a technician will get the quote to them.
 6. It saves the call: a transcript and summary (already built), and the booked estimate or callback task.
 
+## Languages (decided with Aaron, 2026-11-08)
+- It answers in whatever language the caller speaks, at no extra cost.
+- **Employee setting: languages spoken.** The assistant knows which languages the team speaks. If nobody speaks the caller's language it says so kindly: "We're happy to help you, but there may be a language barrier, so we wanted to let you know." It never promises a Spanish-speaking (or other) technician that the team does not have.
+- **Transcripts are always in English.** When the call was in another language the call screen and the call record also keep a second transcript in the caller's own language, shown next to the English one. The call summary and the booking details are written in English.
+
 ## Settings it needs
 - **Estimate time blocks** (company setting): which days and hours are set aside for in-home estimates, how long each takes, and any travel buffer.
 - **Seller** (employee setting): team members signed off to do in-home estimates. The assistant only books with sellers.
+- **Languages spoken** (employee setting), as above.
 - The few facts it may answer (hours, service area, what the company does).
 
 ## Rules
@@ -23,6 +29,6 @@
 
 ## Build order
 1. The availability logic (which estimate slots are open, with which seller): pure and tested. **Done.**
-2. Settings and data: estimate time blocks, the seller flag, estimates booked by the assistant on the calendar and the to-do list.
+2. Settings and data: estimate time blocks, the seller flag, languages spoken, estimates booked by the assistant on the calendar and the to-do list. (The transcription server today is told the call is English; it needs to detect the language and also produce the English version.)
 3. The voice server: the live conversation over the phone (Twilio audio to OpenAI's voice model), using the availability logic, booking and callback tools.
 4. Fit it into the call tree's "AI receptionist" block (replaces the "unavailable" exit).
