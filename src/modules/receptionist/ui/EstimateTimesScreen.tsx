@@ -22,6 +22,8 @@ export default function EstimateTimesScreen() {
   const { data, loading, error, reload } = useAsync(async () => ({ blocks: await getEstimateBlocks(companyId), team: await listTeamMembers(), facts: await loadTimeFacts(companyId) }), [companyId]);
   const [edit, setEdit] = useState<EstimateBlocks | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copying, setCopying] = useState<Weekday | null>(null);
+  const [targets, setTargets] = useState<Weekday[]>([]);
   const [now] = useState(() => Date.now());
 
   if (loading) return <p className="muted">Loading…</p>;
@@ -35,7 +37,7 @@ export default function EstimateTimesScreen() {
   const offers = pickOffers(openSlots({ now, blocks: b, sellers, busy }), b.timezone);
 
   const submit = async () => {
-    const err = resultError(await save({ timezone: b.timezone, week: b.week, slot_minutes: b.slotMinutes, buffer_minutes: b.bufferMinutes, notice_hours: b.noticeHours, horizon_days: b.horizonDays }));
+    const err = resultError(await save({ timezone: b.timezone, week: b.week, slot_minutes: 60, buffer_minutes: b.bufferMinutes, notice_hours: b.noticeHours, horizon_days: b.horizonDays }));
     if (err) return setNote({ ok: false, text: err });
     setNote({ ok: true, text: 'Saved.' });
     setEdit(null);
@@ -46,12 +48,13 @@ export default function EstimateTimesScreen() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Estimate times</h1>
+          <h2 style={{ fontSize: '1.4rem' }}>Estimate times</h2>
           <p className="muted">The days and hours you set aside for free in-home estimates. The AI receptionist only offers these, and only with team members marked as sellers on the Team page.</p>
         </div>
       </header>
       <div className="card">
         <h2>Times set aside</h2>
+        <p className="muted small-note">Each in-home estimate is a one-hour slot.</p>
         {DAYS.map(([d, label]) => (
           <div key={d} style={{ margin: '8px 0' }}>
             <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
@@ -95,13 +98,55 @@ export default function EstimateTimesScreen() {
             <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setDay(d, [...(b.week[d] ?? []), { start: '16:00', end: '18:00' }])}>
               + Add time
             </button>
+            {(b.week[d] ?? []).length > 0 && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setCopying(copying === d ? null : d);
+                  setTargets([]);
+                }}
+              >
+                Copy to other days
+              </button>
+            )}
+            {copying === d && (
+              <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
+                <p className="muted small-note">Copy {label}'s times to:</p>
+                <div className="row" style={{ gap: 12 }}>
+                  {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
+                    <label key={x} className="check" style={{ margin: 0 }}>
+                      <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
+                      {name}
+                    </label>
+                  ))}
+                </div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(['mon', 'tue', 'wed', 'thu', 'fri'].filter((x) => x !== d) as Weekday[])}>
+                    Weekdays
+                  </button>
+                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
+                    Every day
+                  </button>
+                  <button
+                    type="button"
+                    style={{ minHeight: 36 }}
+                    disabled={targets.length === 0}
+                    onClick={() => {
+                      const week = { ...b.week };
+                      for (const t of targets) week[t] = (b.week[d] ?? []).map((blk) => ({ ...blk }));
+                      set({ week });
+                      setCopying(null);
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <div className="row">
-          <label className="grow">
-            Each estimate takes (minutes)
-            <input type="number" min={15} max={480} value={b.slotMinutes} onChange={(e) => set({ slotMinutes: Number(e.target.value) || 60 })} />
-          </label>
           <label className="grow">
             Travel time kept between jobs (minutes)
             <input type="number" min={0} max={240} value={b.bufferMinutes} onChange={(e) => set({ bufferMinutes: Number(e.target.value) || 0 })} />

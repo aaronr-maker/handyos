@@ -14,11 +14,13 @@ export const receptionistModule: ModuleManifest = {
   path: '/estimate-times',
   icon: 'scheduling',
   hiddenFromRoles: ['tech', 'office'],
+  hiddenFromNav: true, // it lives in Settings
   Screen: lazy(() => import('./ui/EstimateTimesScreen')),
   register({ actions }) {
     actions.register(saveEstimateTimesAction);
   },
 };
 
+export { default as EstimateTimesSettings } from './ui/EstimateTimesScreen';
 export { offerSentence, openSlots, pickOffers } from './availability';
 export type { EstimateBlocks, Offer } from './availability';
