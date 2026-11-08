@@ -87,3 +87,14 @@ Store and keep: raw task records; benchmark eligibility decisions; pace calculat
 10. The AI assistant can explain calculations and recommend improvements without changing policy.
 
 **Build order:** historical pace tracking, configurable allowance, budget snapshots and proposed-price calculation first; P4P integration and market-based pricing after those are validated.
+
+## Addendum (Aaron, 2026-11-08): how pace sets the time a job is scheduled for
+Question: how should an employee's pace change the time a job is scheduled for, compared with the labor budget hours (BH)?
+
+What exists today: each person has an **efficiency rate** (actual time ÷ scheduled time, from their finished jobs). The calendar already uses it to show capacity (booked hours x rate = real work) and the timesheets use it to project a week. What does **not** exist yet is budget hours on a job, so today the scheduled length is typed in by hand and is not derived from BH and the assigned person's pace.
+
+Proposal to confirm when this is built:
+- Expected actual hours for a job = budget man-hours ÷ the person's pace performance (a person who usually finishes in 80% of budget has a pace of 125%, so a 10 hour budget is expected to take 8 hours).
+- Calendar time to book = expected actual hours ÷ the person's efficiency (the share of their clocked day that is productive work), split across the crew size.
+- The calendar's capacity bars and Handy's "who can take a 3 hour job" suggestions use the same numbers, so what is booked, what is budgeted and what is paid on P4P all tie together.
+- The assigned person is chosen first, then the time is suggested (and shown as a suggestion, never silently changed).
