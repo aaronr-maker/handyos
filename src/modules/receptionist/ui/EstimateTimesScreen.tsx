@@ -5,7 +5,7 @@ import { upcomingJobsFor, loadTimeFacts } from '@/modules/timesheets';
 import { offerSentence, openSlots, pickOffers, type EstimateBlocks, type Weekday } from '../availability';
 import { saveEstimateTimesAction } from '../actions';
 import { clock, nextStart, slotStarts, startsToBlocks } from '../slots';
-import { getEstimateBlocks } from '../service';
+import { getAvailability, getEstimateBlocks } from '../service';
 import { driveMinutes, oneLine } from '../travel';
 
 const DAYS: [Weekday, string][] = [
@@ -23,7 +23,13 @@ export default function EstimateTimesScreen() {
   const { companyId } = useSession();
   const save = useAction(saveEstimateTimesAction);
   const { data, loading, error, reload } = useAsync(
-    async () => ({ blocks: await getEstimateBlocks(companyId), team: await listTeamMembers(), facts: await loadTimeFacts(companyId), properties: await listAllProperties(companyId) }),
+    async () => ({
+      blocks: await getEstimateBlocks(companyId),
+      team: await listTeamMembers(),
+      facts: await loadTimeFacts(companyId),
+      properties: await listAllProperties(companyId),
+      hours: await getAvailability(companyId),
+    }),
     [companyId],
   );
   const [edit, setEdit] = useState<EstimateBlocks | null>(null);
@@ -41,7 +47,7 @@ export default function EstimateTimesScreen() {
   const set = (patch: Partial<EstimateBlocks>) => setEdit({ ...b, ...patch });
   const setDay = (d: Weekday, list: { start: string; end: string }[]) => set({ week: { ...b.week, [d]: list } });
 
-  const sellers = data.team.filter((m) => m.is_seller).map((m) => ({ id: m.id, name: m.full_name || m.email }));
+  const sellers = data.team.filter((m) => m.is_seller).map((m) => ({ id: m.id, name: m.full_name || m.email, ...(data.hours[m.id] ? { hours: data.hours[m.id] } : {}) }));
   const busy = sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end) })));
   const offers = pickOffers(openSlots({ now, blocks: b, sellers, busy }), b.timezone);
 

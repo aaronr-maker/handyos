@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
-import { saveEstimateTimesAction } from './actions';
+import { saveEstimateTimesAction, saveTeamAvailabilityAction } from './actions';
 
 /**
  * The AI receptionist's settings and logic: the times set aside for in-home estimates (with who is signed off to do them), and
@@ -18,9 +18,11 @@ export const receptionistModule: ModuleManifest = {
   Screen: lazy(() => import('./ui/EstimateTimesScreen')),
   register({ actions }) {
     actions.register(saveEstimateTimesAction);
+    actions.register(saveTeamAvailabilityAction);
   },
 };
 
 export { default as EstimateTimesSettings } from './ui/EstimateTimesScreen';
+export { default as TeamAvailabilitySettings } from './ui/TeamAvailability';
 export { offerSentence, openSlots, pickOffers } from './availability';
 export type { EstimateBlocks, Offer } from './availability';

@@ -23,6 +23,11 @@ export interface EstimateBlocks {
 export interface Seller {
   id: string;
   name: string;
+  /**
+   * When this person works, by weekday ("HH:MM" in the company's time zone). Missing means no limit (the old behavior); present means
+   * they are only offered inside these hours, and a weekday with nothing listed is a day off.
+   */
+  hours?: Partial<Record<Weekday, { start: string; end: string }[]>>;
 }
 
 export interface Busy {
@@ -110,14 +115,22 @@ export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Sel
     for (const block of blocks.week[weekday] ?? []) {
       const open = zonedTime(date, block.start, blocks.timezone);
       const close = zonedTime(date, block.end, blocks.timezone);
-      const dayOpen = zonedTime(date, travel?.dayStart ?? '07:00', blocks.timezone);
+      const defaultOpen = zonedTime(date, travel?.dayStart ?? '07:00', blocks.timezone);
       // can this seller be at the estimate for [start, start + slot)? Real drive times when known, the backup buffer otherwise.
-      const fits = (seller: string, start: number): boolean => {
+      const fits = (who: Seller, start: number): boolean => {
+        const seller = who.id;
         const end = start + slot;
         const gap = (from: string | undefined, to: string | undefined) => {
           const m = travel && from && to ? travel.drive(from, to) : null;
           return (m === null ? blocks.bufferMinutes : m) * MIN;
         };
+        // inside this person's own working hours (and the day starts when they start work)
+        let dayOpen = defaultOpen;
+        if (who.hours) {
+          const todays = (who.hours[weekday] ?? []).map((h) => ({ from: zonedTime(date, h.start, blocks.timezone), to: zonedTime(date, h.end, blocks.timezone) }));
+          if (!todays.some((h) => start >= h.from && end <= h.to)) return false;
+          dayOpen = Math.min(...todays.map((h) => h.from));
+        }
         const mine = busy.filter((b) => b.seller === seller);
         if (mine.some((b) => b.start < end && b.end > start)) return false; // overlaps another booking
         const before = mine.filter((b) => b.end <= start && localDate(b.end, blocks.timezone) === date).sort((a, b) => b.end - a.end)[0];
@@ -133,7 +146,7 @@ export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Sel
       for (let start = open; start + slot <= close; start += slot) {
         if (start < earliest) continue;
         for (const s of sellers) {
-          if (fits(s.id, start)) {
+          if (fits(s, start)) {
             const when = sayTime(start, blocks.timezone, now);
             out.push({ seller: s.id, sellerName: s.name, start, end: start + slot, say: `${when.day} at ${when.at}`, day: when.day, at: when.at });
           }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
-import { saveEstimateBlocks } from './service';
+import { saveAvailability, saveEstimateBlocks } from './service';
 
 const time = z.string().regex(/^\d{2}:\d{2}$/);
 const day = z.array(z.object({ start: time, end: time })).max(4);
@@ -31,6 +31,25 @@ export const saveEstimateTimesAction = defineAction({
       noticeHours: i.notice_hours,
       horizonDays: i.horizon_days,
     });
+    return { saved: true };
+  },
+});
+
+const hours = z.array(z.object({ start: time, end: time })).max(4);
+export const saveTeamAvailabilityAction = defineAction({
+  name: 'receptionist.save_team_availability',
+  module: 'receptionist',
+  description: 'Save when one team member works, by weekday (used for offering estimate times and booking jobs).',
+  input: z.object({
+    user_id: z.string().min(1),
+    week: z.object({ mon: hours.optional(), tue: hours.optional(), wed: hours.optional(), thu: hours.optional(), fri: hours.optional(), sat: hours.optional(), sun: hours.optional() }),
+  }),
+  risk: 'medium',
+  roles: ['owner', 'admin'],
+  requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
+  example: { user_id: 'user-id', week: { mon: [{ start: '07:00', end: '16:00' }] } },
+  async handler({ user_id, week }, ctx) {
+    await saveAvailability(ctx.companyId, user_id, week);
     return { saved: true };
   },
 });

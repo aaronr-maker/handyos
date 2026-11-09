@@ -1,6 +1,6 @@
 import { createRepo, type Id } from '@/core';
-import type { EstimateBlocks } from './availability';
-import type { EstimateSettingsRow } from './types';
+import type { EstimateBlocks, Seller } from './availability';
+import type { EstimateSettingsRow, TeamAvailabilityRow } from './types';
 
 /** An in-home estimate is always a one-hour slot. */
 export const ESTIMATE_MINUTES = 60;
@@ -20,4 +20,17 @@ export async function saveEstimateBlocks(companyId: Id, b: EstimateBlocks): Prom
   const r = (await repo.list(companyId))[0];
   if (r) await repo.update(companyId, r.id, data);
   else await repo.insert(companyId, data);
+}
+
+const availabilityRepo = createRepo<TeamAvailabilityRow>('team_availability');
+
+/** When each person works, by person id. People with no schedule saved are not in the list (no limit on them). */
+export async function getAvailability(companyId: Id): Promise<Record<Id, NonNullable<Seller['hours']>>> {
+  return Object.fromEntries((await availabilityRepo.list(companyId)).map((r) => [r.user_id, r.week ?? {}]));
+}
+
+export async function saveAvailability(companyId: Id, userId: Id, week: NonNullable<Seller['hours']>): Promise<void> {
+  const row = (await availabilityRepo.list(companyId, { where: { user_id: userId } }))[0];
+  if (row) await availabilityRepo.update(companyId, row.id, { week });
+  else await availabilityRepo.insert(companyId, { user_id: userId, week });
 }
