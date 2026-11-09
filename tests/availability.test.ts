@@ -110,3 +110,28 @@ describe('estimate availability', () => {
     expect(times).toContain(new Date(at('2027-01-05', '09:00')).toISOString());
   });
 });
+
+describe("each seller's own working hours", () => {
+  const week = { tue: [{ start: '16:00', end: '19:00' }] };
+  const b2: EstimateBlocks = { timezone: TZ, week, slotMinutes: 60, bufferMinutes: 30, noticeHours: 12, horizonDays: 14 };
+  const times = (hours?: object) =>
+    openSlots({ now: NOW, blocks: b2, sellers: [{ id: 'ross', name: 'Aaron Ross', ...(hours ? { hours: hours as never } : {}) }], busy: [] })
+      .filter((s) => s.start < at('2027-01-06', '00:00'))
+      .map((s) => new Date(s.start).toISOString());
+  const iso = (hhmm: string) => new Date(at('2027-01-05', hhmm)).toISOString();
+
+  it('offers nothing outside the hours a person works, and a day with no hours is a day off', () => {
+    expect(times()).toEqual([iso('16:00'), iso('17:00'), iso('18:00')]); // no hours set: no limit
+    expect(times({ tue: [{ start: '07:00', end: '17:30' }] })).toEqual([iso('16:00')]); // done at 5:30, so only the 4 PM hour fits
+    expect(times({ mon: [{ start: '08:00', end: '17:00' }] })).toEqual([]); // not working Tuesday
+  });
+  it('counts the drive from home against when the person starts work', () => {
+    const drive = () => 50;
+    const hours = { tue: [{ start: '15:30', end: '19:00' }] };
+    const got = openSlots({ now: NOW, blocks: b2, sellers: [{ id: 'ross', name: 'Aaron Ross', hours }], busy: [], travel: { target: 'town', homes: { ross: 'house' }, drive } })
+      .filter((s) => s.start < at('2027-01-06', '00:00'))
+      .map((s) => new Date(s.start).toISOString());
+    expect(got).not.toContain(iso('16:00')); // starts work 3:30, needs 50 minutes: earliest arrival 4:20
+    expect(got).toContain(iso('17:00'));
+  });
+});

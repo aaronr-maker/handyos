@@ -5,7 +5,7 @@ import { upcomingJobsFor, loadTimeFacts } from '@/modules/timesheets';
 import { offerSentence, openSlots, pickOffers, type EstimateBlocks, type Weekday } from '../availability';
 import { saveEstimateTimesAction } from '../actions';
 import { clock, nextStart, slotStarts, startsToBlocks } from '../slots';
-import { getEstimateBlocks } from '../service';
+import { getAvailability, getEstimateBlocks } from '../service';
 import { driveMinutes, oneLine } from '../travel';
 
 const DAYS: [Weekday, string][] = [
@@ -23,7 +23,13 @@ export default function EstimateTimesScreen() {
   const { companyId } = useSession();
   const save = useAction(saveEstimateTimesAction);
   const { data, loading, error, reload } = useAsync(
-    async () => ({ blocks: await getEstimateBlocks(companyId), team: await listTeamMembers(), facts: await loadTimeFacts(companyId), properties: await listAllProperties(companyId) }),
+    async () => ({
+      blocks: await getEstimateBlocks(companyId),
+      team: await listTeamMembers(),
+      facts: await loadTimeFacts(companyId),
+      properties: await listAllProperties(companyId),
+      hours: await getAvailability(companyId),
+    }),
     [companyId],
   );
   const [edit, setEdit] = useState<EstimateBlocks | null>(null);
@@ -32,7 +38,7 @@ export default function EstimateTimesScreen() {
   const [targets, setTargets] = useState<Weekday[]>([]);
   const [now] = useState(() => Date.now());
   const [address, setAddress] = useState('');
-  const [trying, setTrying] = useState<{ offers: string; checked: number } | { problem: string } | null>(null);
+  const [trying, setTrying] = useState<{ offers: string; checked: number; fromHome: string[] } | { problem: string } | null>(null);
   const [busyTrying, setBusyTrying] = useState(false);
 
   if (loading) return <p className="muted">Loading…</p>;
@@ -41,7 +47,7 @@ export default function EstimateTimesScreen() {
   const set = (patch: Partial<EstimateBlocks>) => setEdit({ ...b, ...patch });
   const setDay = (d: Weekday, list: { start: string; end: string }[]) => set({ week: { ...b.week, [d]: list } });
 
-  const sellers = data.team.filter((m) => m.is_seller).map((m) => ({ id: m.id, name: m.full_name || m.email }));
+  const sellers = data.team.filter((m) => m.is_seller).map((m) => ({ id: m.id, name: m.full_name || m.email, ...(data.hours[m.id] ? { hours: data.hours[m.id] } : {}) }));
   const busy = sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end) })));
   const offers = pickOffers(openSlots({ now, blocks: b, sellers, busy }), b.timezone);
 
@@ -65,7 +71,13 @@ export default function EstimateTimesScreen() {
       const table = new Map(pairs.map((p, i) => [`${p.from}>${p.to}`, minutes[i]]));
       const drive = (a: string, b: string) => table.get(`${a}>${b}`) ?? null;
       const found = pickOffers(openSlots({ now, blocks: b, sellers, busy: jobs, travel: { target: address, homes, drive } }), b.timezone);
-      setTrying({ offers: found.length ? offerSentence(found) : 'Nothing is open for that address.', checked: minutes.filter((m) => m !== null).length });
+      const fromHome = sellers
+        .filter((s) => homes[s.id])
+        .map((s) => {
+          const m = drive(homes[s.id], address);
+          return `${s.name}: ${m === null ? 'could not work out the drive' : `about ${m} minutes from home`}`;
+        });
+      setTrying({ offers: found.length ? offerSentence(found) : 'Nothing is open for that address.', checked: minutes.filter((m) => m !== null).length, fromHome });
     } catch (e) {
       setTrying({ problem: e instanceof Error ? e.message : 'Could not work out drive times.' });
     } finally {
@@ -201,9 +213,15 @@ export default function EstimateTimesScreen() {
           ('problem' in trying ? (
             <p className="err">{trying.problem}</p>
           ) : (
-            <p>
-              “{trying.offers}” <span className="muted small-note">(used {trying.checked} real drive times; anything unknown uses the backup travel time)</span>
-            </p>
+            <>
+              <p>
+                “{trying.offers}” <span className="muted small-note">(used {trying.checked} real drive times; anything unknown uses the backup travel time)</span>
+              </p>
+              <p className="muted small-note">
+                {trying.fromHome.join(' · ') || 'No home base address is set for the sellers yet, so only the backup travel time was used.'} People are assumed to set out from home no earlier than
+                7:00 AM.
+              </p>
+            </>
           ))}
       </div>
     </section>
