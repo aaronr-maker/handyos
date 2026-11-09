@@ -125,7 +125,7 @@ export default function EstimateTimesScreen() {
         })}
         <div className="row">
           <label className="grow">
-            Travel time kept between jobs (minutes)
+            Backup travel time (minutes), used only until real drive times are connected
             <input type="number" min={0} max={240} value={b.bufferMinutes} onChange={(e) => set({ bufferMinutes: Number(e.target.value) || 0 })} />
           </label>
           <label className="grow">
