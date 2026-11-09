@@ -80,4 +80,33 @@ describe('estimate availability', () => {
     expect(offerSentence([])).toBe('');
     expect(pickOffers([], TZ)).toEqual([]);
   });
+
+  it('uses real drive times: a long drive from the last job rules out a slot a short one would allow', () => {
+    // Ross has a job ending 3:00 PM at "far"; the estimate is at "home-town". Far is 50 minutes away, so a 4 PM slot (1 hour gap) works, but not 3:45.
+    const drive = (a: string, b: string) => (a === 'far' && b === 'town' ? 50 : a === 'town' && b === 'far' ? 50 : 10);
+    const busy = [{ seller: 'ross', start: at('2027-01-05', '14:00'), end: at('2027-01-05', '15:00'), place: 'far' }];
+    const b2 = { ...blocks, week: { tue: [{ start: '15:30', end: '18:00' }] }, slotMinutes: 60 };
+    const times = (travel?: object) =>
+      openSlots({ now: NOW, blocks: b2, sellers: [sellers[0]], busy, ...(travel ? { travel: travel as never } : {}) })
+        .filter((x) => x.start < at('2027-01-06', '00:00'))
+        .map((x) => new Date(x.start).toISOString());
+    const real = times({ target: 'town', drive });
+    expect(real).not.toContain(new Date(at('2027-01-05', '15:30')).toISOString()); // only 30 minutes after the job, needs 50
+    expect(real).toContain(new Date(at('2027-01-05', '16:30')).toISOString());
+    // with no drive time known it falls back to the 30 minute backup buffer
+    const backup = times({ target: 'town', drive: () => null });
+    expect(backup).toContain(new Date(at('2027-01-05', '15:30')).toISOString());
+  });
+
+  it('also checks the drive from the new address to the next job, and from home when the day has no earlier job', () => {
+    const drive = (a: string, b: string) => (a === 'town' && b === 'next' ? 45 : a === 'house' ? 90 : 5);
+    const busy = [{ seller: 'ross', start: at('2027-01-05', '17:30'), end: at('2027-01-05', '18:30'), place: 'next' }];
+    const b2 = { ...blocks, week: { tue: [{ start: '07:00', end: '18:00' }] } };
+    const times = openSlots({ now: NOW, blocks: b2, sellers: [sellers[0]], busy, travel: { target: 'town', homes: { ross: 'house' }, drive } }).map((x) => new Date(x.start).toISOString());
+    expect(times).not.toContain(new Date(at('2027-01-05', '16:00')).toISOString()); // ends 5:00, next job 5:30, drive 45
+    expect(times).toContain(new Date(at('2027-01-05', '15:00')).toISOString());
+    // 90 minutes from home, and people set out at 7:00: nothing before 8:30
+    expect(times).not.toContain(new Date(at('2027-01-05', '08:00')).toISOString());
+    expect(times).toContain(new Date(at('2027-01-05', '09:00')).toISOString());
+  });
 });

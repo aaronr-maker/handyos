@@ -9,6 +9,7 @@ import {
   removeMember,
   revokeInvite,
   rotateJoinCode,
+  setMemberHome,
   setMemberProfile,
   setMemberRole,
   isSupabaseConfigured,
@@ -100,13 +101,25 @@ export function TeamScreen() {
                     Does in-home estimates (seller)
                   </label>
                   <label>
+                    Home base address (where their day starts, for drive times)
+                    <input
+                      defaultValue={m.home_address ?? ''}
+                      key={`${m.id}-home-${m.home_address ?? ''}`}
+                      placeholder="123 Main St, West Plains, MO 65775"
+                      onBlur={(e) => e.target.value.trim() !== (m.home_address ?? '') && void act(() => setMemberHome(m.id, e.target.value))}
+                    />
+                  </label>
+                  <label>
                     Languages spoken, besides English (like Spanish)
                     <input
                       defaultValue={(m.languages ?? []).join(', ')}
                       key={`${m.id}-${(m.languages ?? []).join(',')}`}
                       placeholder="None"
                       onBlur={(e) => {
-                        const next = e.target.value.split(/[,]+/).map((x) => x.trim()).filter(Boolean);
+                        const next = e.target.value
+                          .split(/[,]+/)
+                          .map((x) => x.trim())
+                          .filter(Boolean);
                         if (next.join(',') !== (m.languages ?? []).join(',')) void act(() => setMemberProfile(m.id, !!m.is_seller, next));
                       }}
                     />
@@ -123,10 +136,7 @@ export function TeamScreen() {
                     </option>
                   ))}
                 </select>
-                <button
-                  className="secondary"
-                  onClick={() => confirm(`Remove ${m.full_name || m.email}?`) && void act(() => removeMember(m.id))}
-                >
+                <button className="secondary" onClick={() => confirm(`Remove ${m.full_name || m.email}?`) && void act(() => removeMember(m.id))}>
                   Remove
                 </button>
               </div>

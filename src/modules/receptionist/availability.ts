@@ -29,6 +29,20 @@ export interface Busy {
   seller: string;
   start: number;
   end: number;
+  /** Where that job is (an address). When missing, the backup travel time is used around it. */
+  place?: string;
+}
+
+/** Real drive times: where the new estimate would be, where each person's day starts, and a lookup of minutes between two addresses. */
+export interface Travel {
+  /** The address of the job the estimate is for. */
+  target: string;
+  /** Each seller's home base address, by seller id. */
+  homes?: Record<string, string>;
+  /** Drive minutes from one address to another, or null when it is not known. */
+  drive: (from: string, to: string) => number | null;
+  /** When people can set out in the morning ("HH:MM"). Default 07:00. */
+  dayStart?: string;
 }
 
 export interface Offer {
@@ -85,11 +99,10 @@ const sayTime = (t: number, timezone: string, now: number): { day: string; at: s
 };
 
 /** Every open slot for every seller, soonest first. */
-export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Seller[]; busy: Busy[] }): Offer[] {
-  const { now, blocks, sellers, busy } = i;
+export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Seller[]; busy: Busy[]; travel?: Travel }): Offer[] {
+  const { now, blocks, sellers, busy, travel } = i;
   const earliest = now + blocks.noticeHours * 60 * MIN;
   const slot = blocks.slotMinutes * MIN;
-  const buffer = blocks.bufferMinutes * MIN;
   const out: Offer[] = [];
   for (let n = 0; n <= blocks.horizonDays; n++) {
     const date = localDate(now + n * DAY, blocks.timezone);
@@ -97,11 +110,30 @@ export function openSlots(i: { now: number; blocks: EstimateBlocks; sellers: Sel
     for (const block of blocks.week[weekday] ?? []) {
       const open = zonedTime(date, block.start, blocks.timezone);
       const close = zonedTime(date, block.end, blocks.timezone);
+      const dayOpen = zonedTime(date, travel?.dayStart ?? '07:00', blocks.timezone);
+      // can this seller be at the estimate for [start, start + slot)? Real drive times when known, the backup buffer otherwise.
+      const fits = (seller: string, start: number): boolean => {
+        const end = start + slot;
+        const gap = (from: string | undefined, to: string | undefined) => {
+          const m = travel && from && to ? travel.drive(from, to) : null;
+          return (m === null ? blocks.bufferMinutes : m) * MIN;
+        };
+        const mine = busy.filter((b) => b.seller === seller);
+        if (mine.some((b) => b.start < end && b.end > start)) return false; // overlaps another booking
+        const before = mine.filter((b) => b.end <= start && localDate(b.end, blocks.timezone) === date).sort((a, b) => b.end - a.end)[0];
+        const after = mine.filter((b) => b.start >= end && localDate(b.start, blocks.timezone) === date).sort((a, b) => a.start - b.start)[0];
+        if (before && before.end + gap(before.place, travel?.target) > start) return false;
+        if (after && end + gap(travel?.target, after.place) > after.start) return false;
+        // nothing earlier that day: the day starts at home
+        if (!before && travel?.homes?.[seller] && start - gap(travel.homes[seller], travel.target) < dayOpen) return false;
+        // jobs the day before or after only matter through the backup buffer when no address is known
+        if (!travel) return !mine.some((b) => b.start < end + blocks.bufferMinutes * MIN && b.end > start - blocks.bufferMinutes * MIN);
+        return true;
+      };
       for (let start = open; start + slot <= close; start += slot) {
         if (start < earliest) continue;
         for (const s of sellers) {
-          const clash = busy.some((b) => b.seller === s.id && b.start < start + slot + buffer && b.end > start - buffer);
-          if (!clash) {
+          if (fits(s.id, start)) {
             const when = sayTime(start, blocks.timezone, now);
             out.push({ seller: s.id, sellerName: s.name, start, end: start + slot, say: `${when.day} at ${when.at}`, day: when.day, at: when.at });
           }
