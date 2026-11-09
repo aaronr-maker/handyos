@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addressKey, driveMinutes, MAX_PAIRS, travelSettings, type TravelStore } from '../api/_lib/travel';
+import { addressKey, driveMinutes, MAX_PAIRS, suggestAddresses, travelSettings, type TravelStore } from '../api/_lib/travel';
 
 const KEY = 'k'.repeat(40);
 const settings = travelSettings({ ORS_API_KEY: KEY });
@@ -44,12 +44,48 @@ describe('drive times', () => {
   });
   it('says 0 for the same place, null for an address it cannot find, and never guesses', async () => {
     const w = world();
-    expect(await driveMinutes(w.deps, w.store, settings, 'co', [{ from: 'A St', to: 'a st' }, { from: 'A St', to: 'Nowhere Rd' }, { from: '', to: 'A St' }])).toEqual([0, null, null]);
+    expect(
+      await driveMinutes(w.deps, w.store, settings, 'co', [
+        { from: 'A St', to: 'a st' },
+        { from: 'A St', to: 'Nowhere Rd' },
+        { from: '', to: 'A St' },
+      ]),
+    ).toEqual([0, null, null]);
   });
   it('refuses too many trips at once, and says what is wrong with the key', async () => {
     const w = world();
-    await expect(driveMinutes(w.deps, w.store, settings, 'co', Array.from({ length: MAX_PAIRS + 1 }, () => ({ from: 'A St', to: 'B St' })))).rejects.toThrow(/at most/);
+    await expect(
+      driveMinutes(
+        w.deps,
+        w.store,
+        settings,
+        'co',
+        Array.from({ length: MAX_PAIRS + 1 }, () => ({ from: 'A St', to: 'B St' })),
+      ),
+    ).rejects.toThrow(/at most/);
     expect(() => travelSettings({})).toThrow(/ORS_API_KEY/);
     expect(travelSettings({ ORS_API_KEY: KEY, ORS_BASE_URL: 'https://api.heigit.org/openrouteservice/' }).base).toBe('https://api.heigit.org/openrouteservice');
+  });
+});
+
+describe('address suggestions', () => {
+  it('suggests matches for what is typed, once each, and nothing for a few letters or when the service is down', async () => {
+    const ok = (async (url: string | URL | Request) => {
+      expect(String(url)).toContain('/geocode/autocomplete');
+      expect(String(url)).toContain('text=1103%20Jackson%20st');
+      return new Response(
+        JSON.stringify({
+          features: [
+            { properties: { label: '1103 Jackson St, West Plains, MO, USA' } },
+            { properties: { label: '1103 Jackson St, West Plains, MO, USA' } },
+            { properties: { label: '1103 Jackson Ave, Mountain Home, AR, USA' } },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof globalThis.fetch;
+    expect(await suggestAddresses({ fetch: ok }, settings, '1103 Jackson st')).toEqual(['1103 Jackson St, West Plains, MO, USA', '1103 Jackson Ave, Mountain Home, AR, USA']);
+    expect(await suggestAddresses({ fetch: ok }, settings, '11')).toEqual([]);
+    expect(await suggestAddresses({ fetch: (async () => new Response('nope', { status: 500 })) as typeof globalThis.fetch }, settings, '1103 Jackson st')).toEqual([]);
   });
 });

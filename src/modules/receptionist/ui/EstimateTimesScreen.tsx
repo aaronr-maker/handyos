@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
+import { AddressInput, listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
 import { listAllProperties } from '@/modules/customers';
 import { upcomingJobsFor, loadTimeFacts } from '@/modules/timesheets';
 import { offerSentence, openSlots, pickOffers, type EstimateBlocks, type Weekday } from '../availability';
@@ -192,7 +192,7 @@ export default function EstimateTimesScreen() {
         <p className="muted small-note">Sellers: {sellers.map((s) => s.name).join(', ') || 'none'}.</p>
         <label>
           Try a customer's address, to see the real drive times at work
-          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, West Plains, MO 65775" />
+          <AddressInput value={address} onChange={setAddress} placeholder="123 Main St, West Plains, MO 65775" />
         </label>
         <button type="button" onClick={() => void tryAddress()} disabled={busyTrying || !address.trim() || sellers.length === 0}>
           {busyTrying ? 'Working it out…' : 'See what they would be offered'}

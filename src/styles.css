@@ -391,3 +391,8 @@ button.danger { background: #dc2626; color: #fff; }
 .content:has(.call-work) { max-width: none; }
 .member-skills { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; }
 .member-skills label { margin: 4px 0; }
+
+/* address suggestions */
+.address-options { position: absolute; z-index: 30; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; background: #fff; border: 1.5px solid var(--border); border-radius: 14px; box-shadow: 0 8px 22px rgb(15 23 42 / 0.12); }
+.address-options li { padding: 10px 12px; border-radius: 10px; cursor: pointer; font-weight: 500; }
+.address-options li:hover { background: var(--brand-soft); }

@@ -12,6 +12,7 @@ import {
   setMemberHome,
   setMemberProfile,
   setMemberRole,
+  AddressInput,
   isSupabaseConfigured,
   useSession,
   type Invite,
@@ -19,6 +20,12 @@ import {
   type Member,
   type UserRole,
 } from '@/core';
+
+/** A person's home base address, with suggestions as you type; saved when you pick one or leave the box. */
+function HomeBase({ member, onSave }: { member: Member; onSave: (v: string) => void }) {
+  const [value, setValue] = useState(member.home_address ?? '');
+  return <AddressInput value={value} onChange={setValue} onCommit={(v) => v.trim() !== (member.home_address ?? '') && onSave(v)} placeholder="123 Main St, West Plains, MO 65775" />;
+}
 
 const labels: Record<UserRole, string> = { owner: 'Owner', admin: 'Admin', office: 'Office', tech: 'Tech' };
 
@@ -102,12 +109,7 @@ export function TeamScreen() {
                   </label>
                   <label>
                     Home base address (where their day starts, for drive times)
-                    <input
-                      defaultValue={m.home_address ?? ''}
-                      key={`${m.id}-home-${m.home_address ?? ''}`}
-                      placeholder="123 Main St, West Plains, MO 65775"
-                      onBlur={(e) => e.target.value.trim() !== (m.home_address ?? '') && void act(() => setMemberHome(m.id, e.target.value))}
-                    />
+                    <HomeBase member={m} onSave={(v) => void act(() => setMemberHome(m.id, v))} />
                   </label>
                   <label>
                     Languages spoken, besides English (like Spanish)

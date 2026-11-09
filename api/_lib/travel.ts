@@ -47,6 +47,15 @@ async function drive(deps: Pick<Deps, 'fetch'>, s: TravelSettings, a: { lat: num
   return typeof seconds === 'number' ? Math.max(1, Math.ceil(seconds / 60)) : null;
 }
 
+/** Address suggestions for what is typed so far (up to five, US addresses). */
+export async function suggestAddresses(deps: Pick<Deps, 'fetch'>, s: TravelSettings, text: string): Promise<string[]> {
+  if (text.trim().length < 4) return [];
+  const res = await deps.fetch(`${s.base}/geocode/autocomplete?api_key=${encodeURIComponent(s.key)}&text=${encodeURIComponent(text.trim())}&boundary.country=US&size=5&layers=address,street`);
+  if (!res.ok) return [];
+  const json = (await res.json()) as { features?: { properties?: { label?: string } }[] };
+  return [...new Set((json.features ?? []).map((f) => f.properties?.label).filter((l): l is string => !!l))];
+}
+
 export const MAX_PAIRS = 40;
 const THIRTY_DAYS = 30 * 86_400_000;
 
