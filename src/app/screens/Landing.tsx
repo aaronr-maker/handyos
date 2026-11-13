@@ -1,9 +1,8 @@
 import { Navigate } from 'react-router-dom';
-import { useSession } from '@/core';
+import { modules } from '../modules';
 import { HomeScreen } from './HomeScreen';
 
-/** Where the app opens: the dashboard for the owner and admins; everyone else gets the home page of their sections. */
+/** Where the app opens: the Dashboard for everyone. If that section is switched off, the old home page of tiles is used. */
 export function Landing() {
-  const { role } = useSession();
-  return role === 'owner' || role === 'admin' ? <Navigate to="/dashboard" replace /> : <HomeScreen />;
+  return modules.some((m) => m.id === 'today') ? <Navigate to="/dashboard" replace /> : <HomeScreen />;
 }

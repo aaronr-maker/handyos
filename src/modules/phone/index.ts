@@ -24,3 +24,4 @@ export const phoneModule: ModuleManifest = {
     for (const a of [saveCallFlowAction, savePhoneSettingsAction, markVoicemailHeardAction, setAiRequestStatusAction]) actions.register(a);
   },
 };
+export { listAiRequests, listVoicemails } from './service';
