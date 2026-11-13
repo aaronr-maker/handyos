@@ -1,7 +1,9 @@
 import type { ModuleManifest } from '@/core';
 import { cashplanModule } from '@/modules/cashplan';
 import { customersModule } from '@/modules/customers';
+import { addressesModule } from '@/modules/addresses';
 import { dashboardModule } from '@/modules/dashboard';
+import { todayModule } from '@/modules/today';
 import { deskModule } from '@/modules/desk';
 import { estimatesModule } from '@/modules/estimates';
 import { handyModule } from '@/modules/handy';
@@ -22,6 +24,7 @@ import { schedulingModule } from '@/modules/scheduling';
 
 /** The only place the app learns which modules exist. Order = sidebar order. */
 export const modules: ModuleManifest[] = [
+  todayModule,
   dashboardModule,
   jobsdataModule,
   salesModule,
@@ -42,4 +45,5 @@ export const modules: ModuleManifest[] = [
   messagingModule,
   phoneModule,
   receptionistModule,
+  addressesModule,
 ];

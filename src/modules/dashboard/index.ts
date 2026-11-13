@@ -7,9 +7,9 @@ import type { ModuleManifest } from '@/core';
  */
 export const dashboardModule: ModuleManifest = {
   id: 'dashboard',
-  label: 'Dashboard',
+  label: 'KPI Dashboard',
   description: 'Your numbers, and your constraint.',
-  path: '/dashboard',
+  path: '/kpi-dashboard',
   icon: 'dashboard',
   hiddenFromRoles: ['tech', 'office'],
   Screen: lazy(() => import('./ui/DashboardScreen')),
@@ -20,3 +20,4 @@ export const dashboardModule: ModuleManifest = {
 
 export { computeDashboard, TARGETS } from './kpis';
 export type { Constraint, Dashboard, Kpi } from './kpis';
+export { loadDashboard } from './service';

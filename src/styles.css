@@ -439,3 +439,26 @@ button.danger { background: #dc2626; color: #fff; }
 .jd-bar { width: 100%; background: #bbf7d0; border-radius: 6px 6px 0 0; display: flex; align-items: flex-end; overflow: hidden; min-height: 2px; }
 .jd-profit { width: 100%; background: #15803d; }
 .jd-label { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+
+/* tap-a-name / tap-an-address menus */
+.popup { position: relative; display: inline-block; }
+.popup-trigger { all: unset; cursor: pointer; color: var(--brand-dark); text-decoration: underline dotted; text-underline-offset: 3px; }
+.popup-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 3px; }
+.popup-menu { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: 4px; min-width: 11rem; display: flex; flex-direction: column; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); overflow: hidden; }
+.popup-menu a { padding: .65rem .9rem; color: inherit; text-decoration: none; white-space: nowrap; }
+.popup-menu a:hover, .popup-menu a:focus-visible { background: var(--brand-soft); }
+.popup-menu a + a { border-top: 1px solid var(--border); }
+
+/* dashboard (home) */
+.quick-contact { position: relative; }
+.quick-panel { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: 6px; width: min(22rem, 90vw); background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: .6rem; display: grid; gap: .5rem; }
+.quick-row { display: flex; align-items: center; gap: .4rem; justify-content: space-between; }
+.quick-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+a.button.small, .quick-row a.button { min-height: 36px; padding: 0 14px; }
+.today-top { display: flex; align-items: flex-start; gap: .75rem; }
+.today-top .hello { flex: 1; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .6rem; }
+.kpi-tile { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: .8rem; display: grid; gap: .15rem; }
+.kpi-tile strong { font-size: 1.4rem; }
+.task-list > * { display: grid; gap: .1rem; padding: .6rem 0; }
+.task-list > * + * { border-top: 1px solid var(--border); }

@@ -50,7 +50,9 @@ export const customersModule: ModuleManifest = {
 
 export type { Customer, CustomerContact, PartyRole, Property, PropertyParty } from './types';
 export { customerLabel, displayContact } from './display';
+export { AddressLink, CustomerName } from './ui/Links';
+export { addressText } from './address';
 export { CustomerPropertyPicker } from './ui/CustomerPropertyPicker';
 export type { WhoValue } from './ui/CustomerPropertyPicker';
 export { addContactAction, createCustomerAction, updateContactAction, updateCustomerAction, updatePropertyAction } from './actions';
-export { billingFor, getCustomer, getPropertyBilling, getProperty, listAllContacts, listAllProperties, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';
+export { billingFor, getCustomer, getPropertyBilling, getProperty, listAllContacts, listAllParties, listAllProperties, listCustomers, listPropertiesFor, resolveBilling } from './services/customerService';

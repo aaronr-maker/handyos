@@ -14,8 +14,8 @@ interface NavItem {
 const home: NavItem = { to: '/', label: 'Home', icon: 'home', end: true };
 /** Menu items for a role: sections hidden from the role are left out. */
 const itemsFor = (role: UserRole) => {
-  // the owner and admins open straight onto the dashboard, so they have no separate Home
-  const boss = role === 'owner' || role === 'admin';
+  // the Dashboard is everyone's front page; the old Home tile page is only used when that section is switched off
+  const boss = modules.some((m) => m.id === 'today') || role === 'owner' || role === 'admin';
   const visible = modules.filter((m) => !m.hiddenFromRoles?.includes(role) && !m.hiddenFromNav);
   return {
     all: [

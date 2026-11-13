@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatMoney, resultError, useAction, useAsync, useSession } from '@/core';
-import { customerLabel, getCustomer, getProperty } from '@/modules/customers';
+import { AddressLink, CustomerName, getCustomer, getProperty } from '@/modules/customers';
 import { approveEstimateAction, declineEstimateAction, sendEstimateAction } from '../actions';
 import { getEstimate } from '../services/estimateService';
 import { lineTotal } from '../totals';
@@ -61,19 +61,19 @@ export default function EstimateDetail() {
       <div className="card">
         <p>
           <span className="muted">Billed to: </span>
-          {billTo ? <Link to={`/customers/${billTo.id}`}>{customerLabel(billTo)}</Link> : 'Unknown'}
+          {billTo ? <CustomerName customer={billTo} /> : 'Unknown'}
           {owedBy && owedBy.id !== billTo?.id && (
             <>
               <br />
               <span className="muted">Owed by: </span>
-              <Link to={`/customers/${owedBy.id}`}>{customerLabel(owedBy)}</Link>
+              <CustomerName customer={owedBy} />
             </>
           )}
         </p>
         {property && (
           <p>
             <span className="muted">Property: </span>
-            {[property.address_line1, property.city, property.state].filter(Boolean).join(', ')}
+            <AddressLink property={property} />
           </p>
         )}
         {e.valid_until && (

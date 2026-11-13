@@ -18,6 +18,8 @@ export const MODULE_IDS = [
   'desk',
   'handy',
   'dashboard',
+  'today',
+  'addresses',
   'phone',
   'messaging',
 ] as const;

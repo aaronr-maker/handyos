@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatDateTime, formatDuration, fromDateTimeLocal, resultError, toDateTimeLocal, useAction, useAsync, useRuntime, useSession } from '@/core';
-import { customerLabel, getCustomer, getProperty } from '@/modules/customers';
+import { AddressLink, CustomerName, getCustomer, getProperty } from '@/modules/customers';
 import { assignJobAction, clockInAction, clockOutAction, completeJobAction, updateJobAction } from '../actions';
 import { getJob, getOpenEntry, listAssignments, listTimeEntries } from '../services/jobService';
 import { statusClass, statusLabel } from './status';
@@ -129,19 +129,19 @@ export default function JobDetail() {
         <div className="card">
           <p>
             <span className="muted">Billed to: </span>
-            {billTo ? <Link to={`/customers/${billTo.id}`}>{customerLabel(billTo)}</Link> : 'Unknown'}
+            {billTo ? <CustomerName customer={billTo} /> : 'Unknown'}
             {owedBy && owedBy.id !== billTo?.id && (
               <>
                 <br />
                 <span className="muted">Owed by: </span>
-                <Link to={`/customers/${owedBy.id}`}>{customerLabel(owedBy)}</Link>
+                <CustomerName customer={owedBy} />
               </>
             )}
           </p>
           {property && (
             <p>
               <span className="muted">Property: </span>
-              {[property.address_line1, property.city, property.state].filter(Boolean).join(', ')}
+              <AddressLink property={property} />
             </p>
           )}
           {job.notes && <p className="notes">{job.notes}</p>}

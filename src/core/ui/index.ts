@@ -7,3 +7,6 @@ export { MoreMenu } from './MoreMenu';
 export type { MoreMenuItem } from './MoreMenu';
 export { askAssistant, onAssistantRequest } from './assistantBridge';
 export type { AssistantRequest } from './assistantBridge';
+export { Popup } from './Popup';
+export { digits, mapsUrl } from './links';
+export type { PopupItem } from './Popup';
