@@ -108,34 +108,39 @@ export default function EstimateTimesScreen() {
           const starts = slotStarts(b.week[d]);
           const setStarts = (next: string[]) => setDay(d, startsToBlocks(next));
           return (
-            <div key={d} style={{ margin: '8px 0' }}>
-              <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
-              {starts.map((st, i) => (
-                <span key={`${st}-${i}`} className="row" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
-                  <input type="time" defaultValue={st} onBlur={(e) => e.target.value && e.target.value !== st && setStarts(starts.map((x, j) => (j === i ? e.target.value : x)))} />
-                  <span className="muted small-note">to {clock(startsToBlocks([st])[0]?.end ?? st)}</span>
-                  <button type="button" className="link" onClick={() => setStarts(starts.filter((_, j) => j !== i))}>
-                    ✕
-                  </button>
-                </span>
-              ))}
-              <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setStarts([...starts, nextStart(starts)])}>
-                + Add time
-              </button>
-              {starts.length > 0 && (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => {
-                    setCopying(copying === d ? null : d);
-                    setTargets([]);
-                  }}
-                >
-                  Copy to other days
+            <div key={d} className="sched-row">
+              <strong className="sched-day">{label}</strong>
+              <div className="sched-times">
+                {starts.length === 0 && <span className="muted">No estimates</span>}
+                {starts.map((st, i) => (
+                  <span key={`${st}-${i}`} className="sched-block">
+                    <input type="time" defaultValue={st} onBlur={(e) => e.target.value && e.target.value !== st && setStarts(starts.map((x, j) => (j === i ? e.target.value : x)))} />
+                    <span className="muted">to {clock(startsToBlocks([st])[0]?.end ?? st)}</span>
+                    <button type="button" className="sched-x" aria-label="Remove this time" onClick={() => setStarts(starts.filter((_, j) => j !== i))}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="sched-actions">
+                <button type="button" className="secondary" onClick={() => setStarts([...starts, nextStart(starts)])}>
+                  + Add time
                 </button>
-              )}
+                {starts.length > 0 && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setCopying(copying === d ? null : d);
+                      setTargets([]);
+                    }}
+                  >
+                    Copy to…
+                  </button>
+                )}
+              </div>
               {copying === d && (
-                <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
+                <div className="sched-copy">
                   <p className="muted small-note">Copy {label}'s times to:</p>
                   <div className="row" style={{ gap: 12 }}>
                     {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
@@ -146,15 +151,14 @@ export default function EstimateTimesScreen() {
                     ))}
                   </div>
                   <div className="row" style={{ marginTop: 8 }}>
-                    <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets((['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[]).filter((x) => x !== d))}>
+                    <button type="button" className="secondary" onClick={() => setTargets((['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[]).filter((x) => x !== d))}>
                       Weekdays
                     </button>
-                    <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
+                    <button type="button" className="secondary" onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
                       Every day
                     </button>
                     <button
                       type="button"
-                      style={{ minHeight: 36 }}
                       disabled={targets.length === 0}
                       onClick={() => {
                         const week = { ...b.week };
