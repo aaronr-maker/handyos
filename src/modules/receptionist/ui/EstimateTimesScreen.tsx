@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AddressInput, listTeamMembers, resultError, useAction, useAsync, useSession } from '@/core';
 import { listAllProperties } from '@/modules/customers';
+import { listCalendarEvents } from '@/modules/scheduling';
 import { upcomingJobsFor, loadTimeFacts } from '@/modules/timesheets';
 import { offerSentence, openSlots, pickOffers, type EstimateBlocks, type Weekday } from '../availability';
 import { saveEstimateTimesAction } from '../actions';
@@ -29,6 +30,7 @@ export default function EstimateTimesScreen() {
       facts: await loadTimeFacts(companyId),
       properties: await listAllProperties(companyId),
       hours: await getAvailability(companyId),
+      away: await listCalendarEvents(companyId),
     }),
     [companyId],
   );
@@ -48,7 +50,11 @@ export default function EstimateTimesScreen() {
   const setDay = (d: Weekday, list: { start: string; end: string }[]) => set({ week: { ...b.week, [d]: list } });
 
   const sellers = data.team.filter((m) => m.is_seller).map((m) => ({ id: m.id, name: m.full_name || m.email, ...(data.hours[m.id] ? { hours: data.hours[m.id] } : {}) }));
-  const busy = sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end) })));
+  // jobs, and time off or appointments, all block a person
+  const busy = [
+    ...sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end) }))),
+    ...data.away.map((e) => ({ seller: e.user_id, start: Date.parse(e.starts_at), end: Date.parse(e.ends_at) })),
+  ];
   const offers = pickOffers(openSlots({ now, blocks: b, sellers, busy }), b.timezone);
 
   /** Works out what a caller at this address would be offered, using real drive times. */
@@ -60,7 +66,10 @@ export default function EstimateTimesScreen() {
         const p = data.properties.find((x) => x.id === job.property_id);
         return p ? oneLine(p) : undefined;
       };
-      const jobs = sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end), place: place(j) })));
+      const jobs = [
+        ...sellers.flatMap((s) => upcomingJobsFor(data.facts, s.id).map((j) => ({ seller: s.id, start: Date.parse(j.scheduled_start), end: Date.parse(j.scheduled_end), place: place(j) }))),
+        ...data.away.map((e) => ({ seller: e.user_id, start: Date.parse(e.starts_at), end: Date.parse(e.ends_at), place: undefined as string | undefined })),
+      ];
       const homes = Object.fromEntries(data.team.filter((m) => m.is_seller && m.home_address).map((m) => [m.id, m.home_address as string]));
       const places = [...new Set([...Object.values(homes), ...jobs.map((j) => j.place).filter((x): x is string => !!x)])];
       const pairs = places.flatMap((p) => [

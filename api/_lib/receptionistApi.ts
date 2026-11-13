@@ -152,6 +152,9 @@ export function supabaseReceptionistStore(env: { SUPABASE_URL?: string; SUPABASE
               busy.push({ seller: a.user_id as string, start: Date.parse(j.scheduled_start as string), end, place: place.get(j.property_id as string) });
           }
         }
+        // time off and personal appointments on anyone's calendar block them too
+        const { data: away } = await db.from('calendar_events').select('user_id, starts_at, ends_at').eq('company_id', companyId).in('user_id', sellerIds).gt('ends_at', new Date(now).toISOString());
+        for (const e of away ?? []) busy.push({ seller: e.user_id as string, start: Date.parse(e.starts_at as string), end: Date.parse(e.ends_at as string) });
         // estimates the assistant already booked, so the same time is never offered twice
         const { data: booked } = await db
           .from('ai_requests')
