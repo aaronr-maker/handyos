@@ -114,3 +114,6 @@ Update (Handy on Grok): the typed chat can run on xAI's Grok instead of OpenAI. 
 
 ## Aaron's own Grok bots on his profile (maybe later, 2026-11-13)
 Handy stays on OpenAI for now. Possibly later: an interface on Aaron's profile for his own Grok assistants (business overview, marketing), separate from Handy. The Grok switch for typed chat exists but is off unless `HANDY_PROVIDER=xai` is set.
+
+## Positions and permissions (spec from Aaron, 2026-11-13)
+Settings gets position presets built from a checkbox list of every screen and kind of information, assigned to employees with per-person extras and removals; Handy can edit them with approval. Full notes and open questions: [docs/specs/PERMISSIONS.md](specs/PERMISSIONS.md).

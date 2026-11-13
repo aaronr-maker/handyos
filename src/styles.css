@@ -425,3 +425,17 @@ button.danger { background: #dc2626; color: #fff; }
 
 /* a round + button for "add" */
 .plus-button { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 1.8rem; line-height: 1; display: inline-grid; place-items: center; box-shadow: 0 4px 12px rgb(21 128 61 / 0.3); }
+
+/* the three-dot menu */
+.more-menu { position: relative; display: inline-block; }
+.more-button { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; }
+.more-list { position: absolute; z-index: 40; right: 0; top: calc(100% + 6px); min-width: 190px; padding: 6px; background: #fff; border: 1.5px solid var(--border); border-radius: 16px; box-shadow: 0 10px 28px rgb(15 23 42 / 0.16); display: flex; flex-direction: column; }
+.more-list a, .more-list button { display: block; width: 100%; min-height: 44px; padding: 10px 14px; text-align: left; border-radius: 10px; background: transparent; color: var(--text); font-weight: 600; border: 0; border-radius: 10px; }
+.more-list a:hover, .more-list button:hover { background: var(--brand-soft); }
+
+/* jobs data chart */
+.jd-chart { display: flex; align-items: flex-end; gap: 6px; height: 190px; padding: 8px 0 0; overflow-x: auto; }
+.jd-col { flex: 1 0 34px; max-width: 70px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.jd-bar { width: 100%; background: #bbf7d0; border-radius: 6px 6px 0 0; display: flex; align-items: flex-end; overflow: hidden; min-height: 2px; }
+.jd-profit { width: 100%; background: #15803d; }
+.jd-label { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }

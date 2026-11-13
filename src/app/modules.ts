@@ -15,6 +15,7 @@ import { revenueModule } from '@/modules/revenue';
 import { timesheetsModule } from '@/modules/timesheets';
 import { timetrackModule } from '@/modules/timetrack';
 import { phoneModule } from '@/modules/phone';
+import { jobsdataModule } from '@/modules/jobsdata';
 import { receptionistModule } from '@/modules/receptionist';
 import { salesModule } from '@/modules/sales';
 import { schedulingModule } from '@/modules/scheduling';
@@ -22,6 +23,7 @@ import { schedulingModule } from '@/modules/scheduling';
 /** The only place the app learns which modules exist. Order = sidebar order. */
 export const modules: ModuleManifest[] = [
   dashboardModule,
+  jobsdataModule,
   salesModule,
   customersModule,
   estimatesModule,
