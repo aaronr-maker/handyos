@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { resultError, useAction, useAsync, useSession } from '@/core';
+import { MoreMenu, resultError, useAction, useAsync, useSession } from '@/core';
 import { createCustomerAction } from '../actions';
 import { customerLabel, displayContact } from '../display';
 import { listAllContacts, listCustomers } from '../services/customerService';
@@ -29,15 +29,13 @@ export function CustomerList() {
           <p className="muted">{data ? `${data.customers.length} total` : ' '}</p>
         </div>
         <div className="row push-right">
-          <Link to="cleanup" className="button secondary">
-            Clean up
-          </Link>
-          <Link to="duplicates" className="button secondary">
-            Duplicates
-          </Link>
-          <Link to="import" className="button secondary">
-            Import
-          </Link>
+          <MoreMenu
+            items={[
+              { label: 'Clean up', to: 'cleanup' },
+              { label: 'Find duplicates', to: 'duplicates' },
+              { label: 'Import customers', to: 'import' },
+            ]}
+          />
           <button type="button" className="plus-button" onClick={() => setAdding(true)} aria-label="Add customer" title="Add customer">
             +
           </button>

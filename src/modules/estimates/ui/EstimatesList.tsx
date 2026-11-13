@@ -10,10 +10,7 @@ const STATUSES: ('all' | EstimateStatus)[] = ['all', 'draft', 'sent', 'approved'
 
 export function EstimatesList() {
   const { companyId } = useSession();
-  const { data, loading, error } = useAsync(
-    async () => ({ estimates: await listEstimates(companyId), customers: await listCustomers(companyId) }),
-    [companyId],
-  );
+  const { data, loading, error } = useAsync(async () => ({ estimates: await listEstimates(companyId), customers: await listCustomers(companyId) }), [companyId]);
   const [status, setStatus] = useState<'all' | EstimateStatus>('all');
   const name = (id: string) => {
     const c = data?.customers.find((x) => x.id === id);
@@ -29,9 +26,6 @@ export function EstimatesList() {
           <p className="muted">{data ? `${data.estimates.length} total` : ' '}</p>
         </div>
         <div className="row push-right">
-          <Link to="pricebook" className="button secondary">
-            Price book
-          </Link>
           <Link to="new" className="button">
             New estimate
           </Link>
