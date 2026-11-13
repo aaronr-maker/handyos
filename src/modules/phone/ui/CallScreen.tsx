@@ -45,7 +45,10 @@ export function CallScreen({ script }: { script: string }) {
   const call = calls.find((c) => c.call_sid === sid) ?? null;
   const last = lines.length ? Date.parse(lines[lines.length - 1].created_at) : 0;
   const talking = !!call && !call.summary && now - last < 20_000 && lines.length > 0;
-  const points = script.split('\n').map((l) => l.trim()).filter(Boolean);
+  const points = script
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   return (
     <div className="call-screen">
@@ -75,7 +78,7 @@ export function CallScreen({ script }: { script: string }) {
         <div className="call-lines" aria-live="polite">
           {lines.map((l) => (
             <p key={l.id} className={l.speaker === 'caller' ? 'caller' : 'team'}>
-              <strong>{l.speaker === 'caller' ? 'Customer' : 'Us'}:</strong> {l.body}
+              <strong>{l.speaker === 'caller' ? 'Customer' : l.speaker === 'assistant' ? 'Assistant' : 'Us'}:</strong> {l.body}
             </p>
           ))}
         </div>

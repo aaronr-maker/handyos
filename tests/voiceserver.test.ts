@@ -24,3 +24,30 @@ describe('voice server logic', () => {
     expect(transcriptText([{ speaker: 'caller', body: 'x'.repeat(50), at: 1 }], 10)).toHaveLength(10);
   });
 });
+
+import { ASSISTANT_TOOLS, ASSISTANT_VOICE, assistantInstructions, toolAnswer } from '../voice-server/src/logic';
+
+describe("the AI receptionist's instructions and tools", () => {
+  const text = assistantInstructions('That Handyman Van', '+14175550100');
+  it('carries the firm rules: no prices, no promises beyond the offered times, emergencies, any language, and the booking steps', () => {
+    expect(text).toMatch(/Never give, guess or discuss prices/);
+    expect(text).toMatch(/in-home estimates are free/);
+    expect(text).toMatch(/materials, service minimums or trip charges/);
+    expect(text).toMatch(/Never promise a time that find_times did not give you/);
+    expect(text).toMatch(/911/);
+    expect(text).toMatch(/Answer in whatever language the caller speaks/);
+    expect(text).toMatch(/language barrier/);
+    expect(text).toMatch(/Yeah, no problem\. We can have a technician call you and set up a time outside our normal estimate times to get you taken care of\./);
+    expect(text).toContain('+14175550100');
+    expect(text).toMatch(/woman's voice/);
+  });
+  it("offers only the four things the assistant may do, with the booking details required, and a woman's voice", () => {
+    expect(ASSISTANT_TOOLS.map((t) => t.name)).toEqual(['find_times', 'book_estimate', 'request_callback', 'end_call']);
+    expect(ASSISTANT_TOOLS[1].parameters.required).toEqual(['seller_id', 'start', 'name', 'phone', 'address']);
+    expect(ASSISTANT_VOICE).toBe('marin');
+  });
+  it('keeps a tool answer short', () => {
+    expect(toolAnswer({ ok: true })).toBe('{"ok":true}');
+    expect(toolAnswer({ x: 'a'.repeat(9000) }).length).toBe(4000);
+  });
+});

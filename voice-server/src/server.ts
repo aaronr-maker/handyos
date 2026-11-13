@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import { WebSocket, WebSocketServer } from 'ws';
+import { handleAssistantCall } from './assistant.js';
 import { speakerOf, summaryRequest, validStreamToken, type Line } from './logic.js';
 
 /**
@@ -19,18 +20,53 @@ const need = (k: string) => {
 const OPENAI_KEY = need('OPENAI_API_KEY');
 const STREAM_SECRET = need('STREAM_SECRET');
 // settings pasted with spaces, quotes, a trailing slash or a /rest/v1 tail are cleaned up
-const tidyUrl = (u: string) => u.trim().replace(/^["']|["']$/g, '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const tidyUrl = (u: string) =>
+  u
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/\/rest\/v1\/?$/, '')
+    .replace(/\/+$/, '');
 const URL_ = tidyUrl(need('SUPABASE_URL'));
 const KEY = need('SUPABASE_SERVICE_ROLE_KEY').replace(/\s|^["']|["']$/g, '');
 const db = createClient(URL_, KEY, { auth: { persistSession: false } });
-const why = (e: { message?: string; code?: string; details?: string; hint?: string }, status?: number, statusText?: string) => JSON.stringify({ status, statusText, message: e.message, code: e.code, details: e.details, hint: e.hint, keyStartsWith: KEY.slice(0, 6), urlHost: new URL(URL_).host });
+const why = (e: { message?: string; code?: string; details?: string; hint?: string }, status?: number, statusText?: string) =>
+  JSON.stringify({ status, statusText, message: e.message, code: e.code, details: e.details, hint: e.hint, keyStartsWith: KEY.slice(0, 6), urlHost: new URL(URL_).host });
 const TRANSCRIBE_MODEL = env.TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const SUMMARY_MODEL = env.SUMMARY_MODEL || 'gpt-4o-mini';
 
 const http = createServer((req, res) => {
   res.writeHead(req.url === '/health' ? 200 : 404).end(req.url === '/health' ? 'ok' : '');
 });
-const wss = new WebSocketServer({ server: http, path: '/stream' });
+// two kinds of call audio arrive here: /stream (live transcript of a call to someone's phone) and /ai (the AI receptionist)
+const wss = new WebSocketServer({ noServer: true });
+const assistantWss = new WebSocketServer({ noServer: true });
+http.on('upgrade', (req, socket, head) => {
+  const path = (req.url ?? '').split('?')[0];
+  const target = path === '/stream' ? wss : path === '/ai' ? assistantWss : null;
+  if (!target) return void socket.destroy();
+  target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
+});
+const APP_URL = (env.APP_URL ?? '').trim();
+assistantWss.on('connection', (twilio) => {
+  if (!APP_URL) {
+    console.error('APP_URL is not set on this server, so the AI receptionist cannot reach the company app. Set APP_URL (like https://app.example.com).');
+    return twilio.close();
+  }
+  handleAssistantCall(twilio, {
+    openaiKey: OPENAI_KEY,
+    streamSecret: STREAM_SECRET,
+    appUrl: APP_URL,
+    model: env.AI_REALTIME_MODEL || 'gpt-realtime',
+    companyName: env.COMPANY_NAME || 'That Handyman Van',
+    saveLine: (companyId, callSid, speaker, body) => {
+      void db
+        .from('call_transcripts')
+        .insert({ company_id: companyId, call_sid: callSid, speaker, body })
+        .then(({ error }) => error && console.error('Saving a line failed:', error.message));
+    },
+    finish: (companyId, callSid, lines) => void summarize(companyId, callSid, lines).catch((e) => console.error('Summary problem:', e instanceof Error ? e.message : e)),
+  });
+});
 
 interface Leg {
   ws: WebSocket;
@@ -72,7 +108,14 @@ async function summarize(companyId: string, callSid: string, lines: Line[]) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: SUMMARY_MODEL, store: false, messages: [{ role: 'system', content: req.system }, { role: 'user', content: req.user }] }),
+    body: JSON.stringify({
+      model: SUMMARY_MODEL,
+      store: false,
+      messages: [
+        { role: 'system', content: req.system },
+        { role: 'user', content: req.user },
+      ],
+    }),
   });
   if (!res.ok) return console.error('The summary request failed:', res.status);
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -90,9 +133,12 @@ wss.on('connection', (twilio) => {
 
   const hear = (speaker: 'caller' | 'team') => (body: string) => {
     lines.push({ speaker, body, at: Date.now() });
-    void db.from('call_transcripts').insert({ company_id: companyId, call_sid: callSid, speaker, body }).then(({ error, status, statusText }) => {
-      if (error) console.error('Saving a transcript line failed:', why(error, status, statusText));
-    });
+    void db
+      .from('call_transcripts')
+      .insert({ company_id: companyId, call_sid: callSid, speaker, body })
+      .then(({ error, status, statusText }) => {
+        if (error) console.error('Saving a transcript line failed:', why(error, status, statusText));
+      });
   };
 
   let finished = false;

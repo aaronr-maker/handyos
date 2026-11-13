@@ -410,3 +410,11 @@ button.danger { background: #dc2626; color: #fff; }
 .sched-actions button, .sched-copy button { min-height: 36px; padding: 0 14px; }
 .sched-copy { grid-column: 1 / -1; background: #f6f8f4; border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
 @media (max-width: 640px) { .sched-row { grid-template-columns: 1fr; } .sched-actions { flex-wrap: wrap; } }
+
+/* what the AI receptionist booked */
+.ai-request { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.ai-request:first-of-type { border-top: 0; }
+
+/* what the AI receptionist booked */
+.ai-request { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.ai-request:first-of-type { border-top: 0; }

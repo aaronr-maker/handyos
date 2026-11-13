@@ -19,3 +19,11 @@ It needs the small server in [voice-server](../voice-server/README.md), deployed
 3. In Vercel add `STREAM_SECRET` (the same text) and `VOICE_STREAM_URL` = `wss://<the server's address>/stream`, then redeploy. Remove `VOICE_STREAM_URL` to switch live transcripts off.
 
 Not yet tested against live OpenAI/Twilio: expect to adjust after the first real call.
+
+## The AI receptionist (live phone conversation)
+In the call tree, the **AI receptionist** block hands the call to the assistant (a woman's voice) running on the voice server. It finds open in-home estimate times (Settings, Estimate times and Team availability, with real drive times), books one, or asks the office to call back. It never quotes prices. Everything it books or promises shows under Phone, Calls & voicemails, "From the AI receptionist", and its words appear on the Call screen.
+1. Run `supabase/migrations/20261205000000_ai_receptionist.sql` in Supabase.
+2. Vercel: add `VOICE_AI_URL` = `wss://<the voice server's address>/ai` and `VOICE_AI_READY` = `1` (the same `STREAM_SECRET` as the live transcript is used).
+3. Render (the voice server): add `APP_URL` = `https://app.thathandymanvan.com` (optional `COMPANY_NAME`, `AI_REALTIME_MODEL`).
+4. In the call tree, put an **AI receptionist** block where you want it (for example after hours), and connect its exit.
+Not yet tested against the live OpenAI voice service: expect to adjust after the first real call. Only the English transcript is saved for now; the second transcript in the caller's own language is still to come.

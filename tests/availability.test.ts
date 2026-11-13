@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offerSentence, openSlots, pickOffers, zonedTime, type EstimateBlocks } from '../src/modules/receptionist/availability';
+import { offerSentence, openSlots, pickOffers, zonedTime, type EstimateBlocks } from '../api/_lib/availability';
 
 const TZ = 'America/Chicago';
 const blocks: EstimateBlocks = {

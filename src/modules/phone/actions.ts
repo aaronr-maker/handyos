@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core';
-import { markHeard, saveFlow, saveSettings } from './service';
+import { markHeard, saveFlow, saveSettings, setAiRequestStatus } from './service';
 
 const digit = z.string().regex(/^[0-9]$/);
 const node = z.object({
@@ -11,11 +11,17 @@ const node = z.object({
   data: z.object({
     text: z.string().max(1000).optional(),
     prompt: z.string().max(1000).optional(),
-    options: z.array(z.object({ digit, label: z.string().max(80) })).max(10).optional(),
+    options: z
+      .array(z.object({ digit, label: z.string().max(80) }))
+      .max(10)
+      .optional(),
     people: z.array(z.string().max(60)).max(30).optional(),
     numbers: z.array(z.string().max(30)).max(10).optional(),
     customers: z.array(z.string().max(60)).max(500).optional(),
-    areas: z.array(z.object({ label: z.string().max(60), codes: z.array(z.string().max(5)).max(30) })).max(12).optional(),
+    areas: z
+      .array(z.object({ label: z.string().max(60), codes: z.array(z.string().max(5)).max(30) }))
+      .max(12)
+      .optional(),
     app: z.boolean().optional(),
     reach: z.enum(['app', 'cell', 'both']).optional(),
     assigned: z.boolean().optional(),
@@ -32,7 +38,21 @@ export const saveCallFlowAction = defineAction({
   name: 'phone.save_flow',
   module: 'phone',
   description: 'Save the call tree that answers the company phone. It takes effect for the next call.',
-  input: z.object({ nodes: z.array(node).max(80), edges: z.array(z.object({ id: z.string().max(80), source: z.string().max(60), handle: z.string().max(10), target: z.string().max(60), from: z.enum(['r', 'b', 't']).optional(), to: z.enum(['l', 't', 'b']).optional() })).max(300) }),
+  input: z.object({
+    nodes: z.array(node).max(80),
+    edges: z
+      .array(
+        z.object({
+          id: z.string().max(80),
+          source: z.string().max(60),
+          handle: z.string().max(10),
+          target: z.string().max(60),
+          from: z.enum(['r', 'b', 't']).optional(),
+          to: z.enum(['l', 't', 'b']).optional(),
+        }),
+      )
+      .max(300),
+  }),
   risk: 'high',
   roles: ['owner', 'admin'],
   // this decides what every caller hears, so an AI agent can only propose a change
@@ -49,11 +69,25 @@ export const savePhoneSettingsAction = defineAction({
   name: 'phone.save_settings',
   module: 'phone',
   description: 'Save the business phone number, time zone, opening hours and the voice that reads greetings.',
-  input: z.object({ number: z.string().trim().max(30), timezone: z.string().trim().min(3).max(60), voice: z.string().trim().min(3).max(40), notice: z.string().trim().max(400), script: z.string().trim().max(3000), week: z.object({ mon: hoursDay, tue: hoursDay, wed: hoursDay, thu: hoursDay, fri: hoursDay, sat: hoursDay, sun: hoursDay }) }),
+  input: z.object({
+    number: z.string().trim().max(30),
+    timezone: z.string().trim().min(3).max(60),
+    voice: z.string().trim().min(3).max(40),
+    notice: z.string().trim().max(400),
+    script: z.string().trim().max(3000),
+    week: z.object({ mon: hoursDay, tue: hoursDay, wed: hoursDay, thu: hoursDay, fri: hoursDay, sat: hoursDay, sun: hoursDay }),
+  }),
   risk: 'high',
   roles: ['owner', 'admin'],
   requiresApproval: (_i, ctx) => ctx.actor.kind === 'agent',
-  example: { number: '+15125550000', timezone: 'America/Chicago', voice: 'Polly.Joanna', notice: 'This call may be recorded.', script: 'Get their name and address.', week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } },
+  example: {
+    number: '+15125550000',
+    timezone: 'America/Chicago',
+    voice: 'Polly.Joanna',
+    notice: 'This call may be recorded.',
+    script: 'Get their name and address.',
+    week: { mon: [{ open: '08:00', close: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
+  },
   async handler({ number, timezone, voice, notice, script, week }, ctx) {
     await saveSettings(ctx.companyId, { number, hours: { timezone, week }, voice, notice, script });
     return { saved: true };
@@ -71,6 +105,21 @@ export const markVoicemailHeardAction = defineAction({
   example: { voicemail_id: 'voicemail-id' },
   async handler({ voicemail_id }, ctx) {
     await markHeard(ctx.companyId, voicemail_id);
+    return { ok: true };
+  },
+});
+
+export const setAiRequestStatusAction = defineAction({
+  name: 'phone.set_ai_request_status',
+  module: 'phone',
+  description: 'Mark something the AI receptionist booked or promised as done or cancelled.',
+  input: z.object({ request_id: z.string().min(1), status: z.enum(['new', 'done', 'cancelled']) }),
+  risk: 'low',
+  roles: ['owner', 'admin', 'office'],
+  requiresApproval: false,
+  example: { request_id: 'request-id', status: 'done' as const },
+  async handler({ request_id, status }, ctx) {
+    await setAiRequestStatus(ctx.companyId, request_id, status);
     return { ok: true };
   },
 });
