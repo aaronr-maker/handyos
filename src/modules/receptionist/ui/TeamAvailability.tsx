@@ -71,102 +71,105 @@ export default function TeamAvailability() {
           </select>
         </label>
         {!hasSchedule && <p className="muted small-note">No schedule saved yet, so there is no limit on this person. Add times below to set one.</p>}
-        {DAYS.map(([d, label]) => (
-          <div key={d} style={{ margin: '8px 0' }}>
-            <strong style={{ display: 'inline-block', width: 100 }}>{label}</strong>
-            {(week[d] ?? []).map((blk, i) => (
-              <span key={i} className="row" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
-                <input
-                  type="time"
-                  value={blk.start}
-                  onChange={(e) =>
-                    setDay(
-                      d,
-                      (week[d] ?? []).map((x, j) => (j === i ? { ...x, start: e.target.value } : x)),
-                    )
-                  }
-                />
-                to
-                <input
-                  type="time"
-                  value={blk.end}
-                  onChange={(e) =>
-                    setDay(
-                      d,
-                      (week[d] ?? []).map((x, j) => (j === i ? { ...x, end: e.target.value } : x)),
-                    )
-                  }
-                />
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() =>
-                    setDay(
-                      d,
-                      (week[d] ?? []).filter((_, j) => j !== i),
-                    )
-                  }
-                >
-                  ✕
+        {DAYS.map(([d, label]) => {
+          const list = week[d] ?? [];
+          return (
+            <div key={d} className="sched-row">
+              <strong className="sched-day">{label}</strong>
+              <div className="sched-times">
+                {list.length === 0 && <span className="muted">Day off</span>}
+                {list.map((blk, i) => (
+                  <span key={i} className="sched-block">
+                    <input
+                      type="time"
+                      value={blk.start}
+                      onChange={(e) =>
+                        setDay(
+                          d,
+                          list.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <span className="muted">to</span>
+                    <input
+                      type="time"
+                      value={blk.end}
+                      onChange={(e) =>
+                        setDay(
+                          d,
+                          list.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="sched-x"
+                      aria-label="Remove these hours"
+                      onClick={() =>
+                        setDay(
+                          d,
+                          list.filter((_, j) => j !== i),
+                        )
+                      }
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="sched-actions">
+                <button type="button" className="secondary" onClick={() => setDay(d, [...list, { start: '07:00', end: '16:00' }])}>
+                  + Add hours
                 </button>
-              </span>
-            ))}
-            {(week[d] ?? []).length === 0 && (
-              <span className="muted small-note" style={{ marginRight: 8 }}>
-                day off
-              </span>
-            )}
-            <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setDay(d, [...(week[d] ?? []), { start: '07:00', end: '16:00' }])}>
-              + Add hours
-            </button>
-            {(week[d] ?? []).length > 0 && (
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setCopying(copying === d ? null : d);
-                  setTargets([]);
-                }}
-              >
-                Copy to other days
-              </button>
-            )}
-            {copying === d && (
-              <div className="card" style={{ margin: '8px 0 8px 100px', padding: 12 }}>
-                <p className="muted small-note">Copy {label}'s hours to:</p>
-                <div className="row" style={{ gap: 12 }}>
-                  {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
-                    <label key={x} className="check" style={{ margin: 0 }}>
-                      <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
-                      {name}
-                    </label>
-                  ))}
-                </div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets((['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[]).filter((x) => x !== d))}>
-                    Weekdays
-                  </button>
-                  <button type="button" className="secondary" style={{ minHeight: 36 }} onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
-                    Every day
-                  </button>
+                {list.length > 0 && (
                   <button
                     type="button"
-                    style={{ minHeight: 36 }}
-                    disabled={targets.length === 0}
+                    className="secondary"
                     onClick={() => {
-                      const next = { ...week };
-                      for (const t of targets) next[t] = (week[d] ?? []).map((blk) => ({ ...blk }));
-                      setEdit(next);
-                      setCopying(null);
+                      setCopying(copying === d ? null : d);
+                      setTargets([]);
                     }}
                   >
-                    Copy
+                    Copy to…
                   </button>
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+              {copying === d && (
+                <div className="sched-copy">
+                  <p className="muted small-note">Copy {label}'s hours to:</p>
+                  <div className="row" style={{ gap: 12 }}>
+                    {DAYS.filter(([x]) => x !== d).map(([x, name]) => (
+                      <label key={x} className="check" style={{ margin: 0 }}>
+                        <input type="checkbox" checked={targets.includes(x)} onChange={(e) => setTargets(e.target.checked ? [...targets, x] : targets.filter((t) => t !== x))} />
+                        {name}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button type="button" className="secondary" onClick={() => setTargets((['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[]).filter((x) => x !== d))}>
+                      Weekdays
+                    </button>
+                    <button type="button" className="secondary" onClick={() => setTargets(DAYS.map(([x]) => x).filter((x) => x !== d))}>
+                      Every day
+                    </button>
+                    <button
+                      type="button"
+                      disabled={targets.length === 0}
+                      onClick={() => {
+                        const next = { ...week };
+                        for (const t of targets) next[t] = list.map((blk) => ({ ...blk }));
+                        setEdit(next);
+                        setCopying(null);
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
         <div className="row" style={{ alignItems: 'center' }}>
           <button type="button" onClick={() => void submit()} disabled={!edit}>
             Save
