@@ -21,6 +21,13 @@
 2. Database-level protection for the sensitive tables.
 3. Move the existing role checks onto permissions, then retire the old four-role checks.
 
-## Open questions
+## Decided (Aaron, 2026-11-13)
+- Aaron can **create his own positions** and give them presets (not only the starter ones).
+- **Timesheets:** the manager's dashboard (owner/admin) shows everyone's timesheets. Techs see only **My time**, which contains their own timesheet; there is no separate Timesheets item for them. Time punches can be edited (as today): every edit is posted as an edit and asks for a reason, and the reason is posted too.
+- **Database lock:** sensitive information (pay rates, profit, customer details, financials) is protected in the database itself, not only hidden on screen, and nothing may be able to leak it (screens, Handy, exports, the server's own functions).
+- **Handy** looks at who is asking and what they are allowed to see first. If they lack the permission he says plainly "I don't have access to that." He has access to everything himself, but answers each person only within their permissions.
+- "GFs dash" meant the manager's dashboard.
+
+## Open questions (closed)
 - "GFs dash" in the timesheets note: assumed to mean the manager's (GM's) dashboard. Confirm.
 - Should a tech see the "Timesheets" menu item at all, or only "My time"?
