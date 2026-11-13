@@ -36,6 +36,9 @@ export function SettingsScreen() {
         <button className={section === 'estimates' ? '' : 'secondary'} onClick={() => setSection('estimates')}>
           Estimate times
         </button>
+        <Link to="/job-costing" className="button secondary">
+          Job costing &amp; pay rates
+        </Link>
         <Link to="/estimates/pricebook" className="button secondary">
           Price book
         </Link>
