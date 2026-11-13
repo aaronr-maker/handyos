@@ -111,3 +111,6 @@ Today there is one assistant, Handy (office, OpenAI). The plan: a small list of 
 Provider choice per assistant (OpenAI or Grok through xAI's OpenAI-style interface for typed chat; voice needs checking). Customer names, phones and addresses stay masked before anything leaves the app, whichever provider is used. Before sending any customer details to a new provider, read its data terms. Open: what Aaron's current Grok assistants do and what data they see.
 
 Update (Handy on Grok): the typed chat can run on xAI's Grok instead of OpenAI. In Vercel: `HANDY_PROVIDER` = `xai`, `XAI_API_KEY` = the key from the xAI console, `HANDY_MODEL` = a Grok model name from that console (`XAI_BASE_URL` only if xAI's address ever changes; default https://api.x.ai/v1). Remove `HANDY_PROVIDER` to go back to OpenAI. The same masking, private-detail check and tools apply. Voice still uses OpenAI; whether Grok's voice service can replace it is unverified (xAI's documentation could not be read from the build environment).
+
+## Aaron's own Grok bots on his profile (maybe later, 2026-11-13)
+Handy stays on OpenAI for now. Possibly later: an interface on Aaron's profile for his own Grok assistants (business overview, marketing), separate from Handy. The Grok switch for typed chat exists but is off unless `HANDY_PROVIDER=xai` is set.
