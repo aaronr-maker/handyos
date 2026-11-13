@@ -11,5 +11,7 @@ export const looksLikePhone = (text: string | null | undefined): boolean => {
  * company) and no address. These are the leftovers worth sweeping up. `hasAddress` says which customers have an address.
  */
 export function phoneOnlyCustomers(all: Customer[], hasAddress: (customerId: string) => boolean): Customer[] {
-  return all.filter((c) => !hasAddress(c.id) && looksLikePhone(c.name) && !c.first_name?.trim() && !c.last_name?.trim() && !c.company_name?.trim() && !c.display_name?.trim());
+  // a name field that is blank, or only a phone number (imports often put the number in the name), is not a real name
+  const noRealName = (v: string | null | undefined) => looksLikePhone(v);
+  return all.filter((c) => !hasAddress(c.id) && [c.name, c.first_name, c.last_name, c.company_name, c.display_name].every(noRealName));
 }

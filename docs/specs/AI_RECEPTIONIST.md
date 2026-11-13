@@ -32,3 +32,6 @@
 2. Settings and data: estimate time blocks, the seller flag, languages spoken, estimates booked by the assistant on the calendar and the to-do list. (The transcription server today is told the call is English; it needs to detect the language and also produce the English version.)
 3. The voice server: the live conversation over the phone (Twilio audio to OpenAI's voice model), using the availability logic, booking and callback tools.
 4. Fit it into the call tree's "AI receptionist" block (replaces the "unavailable" exit).
+
+## Status (2026-11-13)
+Built: the open-slot logic with real drive times and each person's hours; the server functions the assistant calls (find times, book, request a callback); the voice bridge on the voice server (`voice-server/src/assistant.ts`) with the instructions and the firm rules; the call tree block connecting a call to it; the list of what it booked or promised, and its words on the Call screen. Still to do: test with real calls, the second transcript in the caller's own language, booking straight onto the calendar as a job (today the office confirms from the list), a to-do alert for new requests.

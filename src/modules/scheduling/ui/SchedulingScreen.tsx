@@ -4,7 +4,9 @@ import { fromDateTimeLocal, listTeamMembers, resultError, toDateTimeLocal, useAc
 import { customerLabel, listCustomers } from '@/modules/customers';
 import { assignJobAction, type Job } from '@/modules/jobs';
 import { efficiencyFor, loadTimeFacts } from '@/modules/timesheets';
-import { rescheduleJobAction } from '../actions';
+import { addCalendarEventAction, removeCalendarEventAction, rescheduleJobAction } from '../actions';
+import { KIND_LABEL, listCalendarEvents } from '../events';
+import type { CalendarEvent } from '../types';
 import { dayCapacity, hoursText, WORKDAY_MINUTES } from '../capacity';
 
 const DAY = 86_400_000;
@@ -48,10 +50,15 @@ function lanes(jobs: Job[]): Map<string, { lane: number; of: number }> {
  * allowing for how long their jobs usually really take, and how much more work fits.
  */
 export default function SchedulingScreen() {
-  const { companyId } = useSession();
+  const { companyId, role, user } = useSession();
   const reschedule = useAction(rescheduleJobAction);
+  const addEvent = useAction(addCalendarEventAction);
+  const removeEvent = useAction(removeCalendarEventAction);
   const assign = useAction(assignJobAction);
-  const { data, loading, error, reload } = useAsync(async () => ({ facts: await loadTimeFacts(companyId), customers: await listCustomers(companyId), team: await listTeamMembers() }), [companyId]);
+  const { data, loading, error, reload } = useAsync(
+    async () => ({ facts: await loadTimeFacts(companyId), customers: await listCustomers(companyId), team: await listTeamMembers(), events: await listCalendarEvents(companyId) }),
+    [companyId],
+  );
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [problem, setProblem] = useState<string | null>(null);
@@ -60,6 +67,9 @@ export default function SchedulingScreen() {
   const [openJob, setOpenJob] = useState<string | null>(null);
   const [picking, setPicking] = useState('');
   const [now] = useState(() => Date.now());
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ who: '', kind: 'time_off' as CalendarEvent['kind'], title: '', allDay: true, from: '', to: '' });
+  const [openEvent, setOpenEvent] = useState<string | null>(null);
 
   const jobs = (data?.facts.jobs ?? []).filter((j) => j.status !== 'completed');
   const crewOf = (jobId: string) => (data?.facts.assignments ?? []).filter((a) => a.job_id === jobId).map((a) => a.user_id);
@@ -72,6 +82,30 @@ export default function SchedulingScreen() {
     return c ? customerLabel(c) : '';
   };
 
+  const events = data?.events ?? [];
+  const boss = role === 'owner' || role === 'admin' || role === 'office';
+  /** The part of an entry that falls on one day, as minutes from midnight (clipped to that day). */
+  const eventOn = (e: CalendarEvent, d: Date) => {
+    const from = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const a = Math.max(Date.parse(e.starts_at), from);
+    const b = Math.min(Date.parse(e.ends_at), from + DAY);
+    return b > a ? { startMin: Math.round((a - from) / 60000), endMin: Math.round((b - from) / 60000) } : null;
+  };
+  const eventLabel = (e: CalendarEvent) => (boss || e.user_id === user.id ? e.title || KIND_LABEL[e.kind] : KIND_LABEL[e.kind]);
+  const saveEvent = async () => {
+    const who = form.who || user.id;
+    const start = form.allDay ? new Date(`${form.from.slice(0, 10)}T00:00:00`) : new Date(form.from);
+    const end = form.allDay ? new Date(`${(form.to || form.from).slice(0, 10)}T23:59:00`) : new Date(form.to);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return setProblem('Pick when it starts and ends.');
+    const message = resultError(await addEvent({ user_id: who, kind: form.kind, title: form.title.trim() || null, starts_at: start.toISOString(), ends_at: end.toISOString(), all_day: form.allDay }));
+    setProblem(message);
+    if (!message) {
+      setAdding(false);
+      setForm({ ...form, title: '', from: '', to: '' });
+      reload();
+    }
+  };
+
   // the days on screen: one day, a week, or the six weeks that make up a month grid
   const monthFirst = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
   const rangeStart = view === 'day' ? anchor : view === 'week' ? startOfWeek(anchor) : startOfWeek(monthFirst);
@@ -81,7 +115,13 @@ export default function SchedulingScreen() {
   const unscheduled = jobs.filter((j) => !j.scheduled_start);
   const weekJobs = scheduled.filter((j) => Date.parse(j.scheduled_start!) >= days[0].getTime() && Date.parse(j.scheduled_start!) < days[days.length - 1].getTime() + DAY);
   // columns: every technician, plus anybody who has work this week
-  const people = (data?.team ?? []).filter((m) => m.role === 'tech' || weekJobs.some((j) => crewOf(j.id).includes(m.id)));
+  const rangeEnd = days[days.length - 1].getTime() + DAY;
+  const people = (data?.team ?? []).filter(
+    (m) =>
+      m.role === 'tech' ||
+      weekJobs.some((j) => crewOf(j.id).includes(m.id)) ||
+      events.some((e) => e.user_id === m.id && Date.parse(e.starts_at) < rangeEnd && Date.parse(e.ends_at) > days[0].getTime()),
+  );
   const columns = [UNASSIGNED, ...people.map((p) => p.id)];
   const rates = Object.fromEntries(people.map((p) => [p.id, data ? efficiencyFor(data.facts, p.id, now) : { rate: 1, jobs: 0, defaulted: true }]));
   const today = new Date(now);
@@ -194,9 +234,14 @@ export default function SchedulingScreen() {
             {title}. {view === 'month' ? 'Click a day to open it.' : 'Drag a job onto a technician to assign it.'}
           </p>
         </div>
-        <Link to="/jobs/new" className="button push-right">
-          New job
-        </Link>
+        <div className="row push-right">
+          <button type="button" className="secondary" onClick={() => setAdding(!adding)}>
+            + Time off / appointment
+          </button>
+          <Link to="/jobs/new" className="button">
+            New job
+          </Link>
+        </div>
       </header>
 
       <div className="row" style={{ alignItems: 'center' }}>
@@ -220,6 +265,61 @@ export default function SchedulingScreen() {
 
       {(error || problem) && <p className="err">{error ?? problem}</p>}
       {loading && <p className="muted">Loading…</p>}
+
+      {adding && (
+        <div className="card" style={{ margin: '10px 0' }}>
+          <h2>Time off or an appointment</h2>
+          <p className="muted small-note">It goes on the calendar and nothing else can be scheduled over it, including estimates the phone assistant books.</p>
+          <div className="row">
+            {boss && (
+              <label className="grow">
+                Whose calendar
+                <select value={form.who || user.id} onChange={(e) => setForm({ ...form, who: e.target.value })}>
+                  {(data?.team ?? []).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name || m.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="grow">
+              What it is
+              <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as CalendarEvent['kind'] })}>
+                <option value="time_off">Time off</option>
+                <option value="appointment">Personal appointment</option>
+                <option value="other">Other (busy)</option>
+              </select>
+            </label>
+            <label className="grow">
+              Note (optional)
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Dentist" />
+            </label>
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={form.allDay} onChange={(e) => setForm({ ...form, allDay: e.target.checked, from: '', to: '' })} />
+            All day (or several days)
+          </label>
+          <div className="row">
+            <label className="grow">
+              {form.allDay ? 'First day' : 'Starts'}
+              <input type={form.allDay ? 'date' : 'datetime-local'} value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} />
+            </label>
+            <label className="grow">
+              {form.allDay ? 'Last day (leave empty for one day)' : 'Ends'}
+              <input type={form.allDay ? 'date' : 'datetime-local'} value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />
+            </label>
+          </div>
+          <div className="row">
+            <button type="button" onClick={() => void saveEvent()}>
+              Put it on the calendar
+            </button>
+            <button type="button" className="secondary" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ margin: '10px 0' }}>
         <strong>Needs a date ({unscheduled.length})</strong> <span className="muted">Drag one into the week.</span>
@@ -281,6 +381,7 @@ export default function SchedulingScreen() {
                   </span>
                 )}
                 {unassigned > 0 && <span className="pill medium">{unassigned} unassigned</span>}
+                {events.some((e) => eventOn(e, d)) && <span className="pill">{new Set(events.filter((e) => eventOn(e, d)).map((e) => e.user_id)).size} away</span>}
                 <span className="mo-bars">
                   {people.map((p) => {
                     const cap = dayCapacity(
@@ -360,6 +461,41 @@ export default function SchedulingScreen() {
                           onDrop={(e) => void drop(e, col, d)}
                         >
                           {list.map((j) => card(j, col, lane.get(j.id)))}
+                          {col !== UNASSIGNED &&
+                            events
+                              .filter((e) => e.user_id === col)
+                              .map((e) => {
+                                const seg = eventOn(e, d);
+                                if (!seg) return null;
+                                const top = Math.max(0, ((seg.startMin - FIRST_HOUR * 60) / 60) * HOUR_PX);
+                                const bottom = Math.min(hours.length * HOUR_PX, ((seg.endMin - FIRST_HOUR * 60) / 60) * HOUR_PX);
+                                if (bottom <= 0 || top >= hours.length * HOUR_PX) return null;
+                                return (
+                                  <div
+                                    key={`${e.id}-${d.toDateString()}`}
+                                    className={`wk-event ${openEvent === e.id ? 'wk-open' : ''}`}
+                                    style={{ top, height: Math.max(22, bottom - top) }}
+                                    onClick={() => setOpenEvent(openEvent === e.id ? null : e.id)}
+                                    title={eventLabel(e)}
+                                  >
+                                    <strong>{eventLabel(e)}</strong>
+                                    {openEvent === e.id && (boss || e.user_id === user.id) && (
+                                      <button
+                                        type="button"
+                                        className="link"
+                                        onClick={async (ev) => {
+                                          ev.stopPropagation();
+                                          const message = resultError(await removeEvent({ event_id: e.id }));
+                                          setProblem(message);
+                                          if (!message) reload();
+                                        }}
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
                         </div>
                       </div>
                     );

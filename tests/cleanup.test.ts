@@ -16,4 +16,8 @@ describe('phone-only customers', () => {
     const all = [c('a', { name: '4175550100', phone: '4175550100' }), c('b', { name: '4175550101', phone: '4175550101' }), c('c', { name: 'Pat Rivera', first_name: 'Pat', last_name: 'Rivera' }), c('d', { name: '4175550102', company_name: 'Rivera Rentals' }), c('e', { name: '' })];
     expect(phoneOnlyCustomers(all, (id) => id === 'b').map((x) => x.id)).toEqual(['a', 'e']);
   });
+  it('catches a customer whose phone number is stored in the first name or the company name too (the way imports often do it)', () => {
+    const all = [c('x', { name: '2132890924', first_name: '2132890924', last_name: null }), c('y', { name: '(417) 555-0101', first_name: '4175550101', company_name: '417-555-0101' }), c('z', { name: 'Pat', first_name: 'Pat' })];
+    expect(phoneOnlyCustomers(all, () => false).map((v) => v.id)).toEqual(['x', 'y']);
+  });
 });

@@ -20,6 +20,7 @@ export interface EventCatalog {
   'estimate.approved': { estimateId: Id; customerId: Id; title: string; propertyId: Id | null; owedById: Id | null; soldBy: Id | null };
   'job.created': { jobId: Id; customerId: Id };
   'job.rescheduled': { jobId: Id; from: string | null; to: string };
+  'calendar.event_added': { eventId: Id; userId: Id };
   'job.completed': { jobId: Id; customerId: Id };
   'job.assigned': { jobId: Id; userIds: Id[] };
   /** A tech clocked in/out of a job. Job costing turns these into labor cost. */

@@ -368,6 +368,8 @@ export interface TwimlOptions {
   recordingUrl: string;
   /** When set, the audio of a connected call is also sent here to be typed out (a live transcript). Nothing is stored. */
   stream?: { url: string; params: Record<string, string> };
+  /** The AI receptionist's address and pass; when set, the AI block connects the call to it. */
+  assistant?: { url: string; params: Record<string, string> };
   /** This call's id, passed along to a ringing phone app so it can show this call's transcript. */
   callSid?: string;
 }
@@ -397,7 +399,8 @@ export function toTwiml(step: Step, o: TwimlOptions): string {
       out.push(say('Thank you. Goodbye.'), '<Hangup/>');
       break;
     case 'ai':
-      out.push(say('One moment.'), '<Hangup/>'); // the AI receptionist connects here once it exists
+      if (o.assistant) out.push(`<Connect><Stream url="${esc(o.assistant.url)}">${Object.entries(o.assistant.params).map(([k, v]) => `<Parameter name="${esc(k)}" value="${esc(v)}"/>`).join('')}</Stream></Connect>`);
+      else out.push(say('One moment.'), '<Hangup/>'); // not connected: nothing to hand the call to
       break;
     case 'hangup':
       out.push('<Hangup/>');

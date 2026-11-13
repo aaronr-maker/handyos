@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import type { ModuleManifest } from '@/core';
-import { rescheduleJobAction } from './actions';
+import { addCalendarEventAction, removeCalendarEventAction, rescheduleJobAction } from './actions';
 
 export const schedulingModule: ModuleManifest = {
   id: 'scheduling',
@@ -12,7 +12,10 @@ export const schedulingModule: ModuleManifest = {
   Screen: lazy(() => import('./ui/SchedulingScreen')),
   register({ actions }) {
     actions.register(rescheduleJobAction);
+    actions.register(addCalendarEventAction);
+    actions.register(removeCalendarEventAction);
   },
 };
 
-export type { ScheduleSlot } from './types';
+export type { CalendarEvent, ScheduleSlot } from './types';
+export { listCalendarEvents, KIND_LABEL } from './events';

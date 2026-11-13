@@ -35,7 +35,7 @@ export interface VoiceDeps {
   store: VoiceStore;
   /** The public address this request arrived at (like https://app.example.com), read from the request itself. */
   origin?: string;
-  env: { TWILIO_AUTH_TOKEN?: string; APP_URL?: string; VOICE_AI_READY?: string; /** wss:// address of the transcription server; empty means no live transcript */ VOICE_STREAM_URL?: string; /** secret shared with that server */ STREAM_SECRET?: string };
+  env: { TWILIO_AUTH_TOKEN?: string; APP_URL?: string; VOICE_AI_READY?: string; /** wss:// address of the AI receptionist on the voice server */ VOICE_AI_URL?: string; /** wss:// address of the transcription server; empty means no live transcript */ VOICE_STREAM_URL?: string; /** secret shared with that server */ STREAM_SECRET?: string };
   now: () => number;
 }
 
@@ -76,7 +76,7 @@ function check(deps: VoiceDeps, path: string, query: string, params: Record<stri
   throw new VoiceError(403, 'This request did not come from Twilio (the signature did not match: check that TWILIO_AUTH_TOKEN is the Primary auth token).');
 }
 
-const env = (deps: VoiceDeps, c: CompanyPhone, team: { names: Record<string, string>; clockedIn?: string[] }, caller: { customers: string[]; crew: string[] } = { customers: [], crew: [] }, from?: string): Env => ({ now: deps.now(), hours: c.hours, names: team.names, clockedIn: team.clockedIn, callerCrew: caller.crew, callerCustomers: caller.customers, callerNumber: from, aiReady: deps.env.VOICE_AI_READY === '1' });
+const env = (deps: VoiceDeps, c: CompanyPhone, team: { names: Record<string, string>; clockedIn?: string[] }, caller: { customers: string[]; crew: string[] } = { customers: [], crew: [] }, from?: string): Env => ({ now: deps.now(), hours: c.hours, names: team.names, clockedIn: team.clockedIn, callerCrew: caller.crew, callerCustomers: caller.customers, callerNumber: from, aiReady: deps.env.VOICE_AI_READY === '1' && !!deps.env.VOICE_AI_URL?.trim() && !!deps.env.STREAM_SECRET?.trim() });
 
 /** Looks the caller up only when the tree has a block that uses it. */
 const usesCaller = (flow: Flow) => flow.nodes.some((n) => n.kind === 'job' || n.kind === 'direct' || (n.kind === 'ring' && n.data.assigned));
@@ -88,7 +88,10 @@ const render = (step: Step, base: string, c: CompanyPhone, deps: VoiceDeps, para
   const sid = params.CallSid ?? '';
   // a live transcript is only started when the server address and the shared secret are both set
   const stream = url && secret && sid ? { url, params: { callSid: sid, companyId: c.companyId, token: streamToken(secret, sid, c.companyId) } } : undefined;
-  return toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId: params.From, stream, callSid: sid || undefined });
+  const aiUrl = deps.env.VOICE_AI_URL?.trim();
+  // the assistant gets the same kind of signed pass the live transcript uses, plus who is calling
+  const assistant = aiUrl && secret && sid ? { url: aiUrl, params: { callSid: sid, companyId: c.companyId, token: streamToken(secret, sid, c.companyId), from: params.From ?? '' } } : undefined;
+  return toTwiml(step, { stepUrl: `${base}/api/voice/step`, voice: c.voice, recordingUrl: `${base}/api/voice/recording`, callerId: params.From, stream, assistant, callSid: sid || undefined });
 };
 
 const hangupWith = (text: string) => `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${text}</Say><Hangup/></Response>`;

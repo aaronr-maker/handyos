@@ -9,10 +9,7 @@ import { CustomerForm } from './CustomerForm';
 export function CustomerList() {
   const { companyId } = useSession();
   const createCustomer = useAction(createCustomerAction);
-  const { data, error, loading, reload } = useAsync(
-    async () => ({ customers: await listCustomers(companyId), contacts: await listAllContacts(companyId) }),
-    [companyId],
-  );
+  const { data, error, loading, reload } = useAsync(async () => ({ customers: await listCustomers(companyId), contacts: await listAllContacts(companyId) }), [companyId]);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -22,10 +19,7 @@ export function CustomerList() {
     return { c, label: customerLabel(c), secondary: secondary.join(' · ') || 'No contact info', contact };
   });
   const q = query.trim().toLowerCase();
-  const shown = rows.filter(
-    ({ c, label, contact }) =>
-      !q || [label, c.name, c.company_name, c.phone, c.email, contact.name, contact.phone, contact.email].some((v) => v?.toLowerCase().includes(q)),
-  );
+  const shown = rows.filter(({ c, label, contact }) => !q || [label, c.name, c.company_name, c.phone, c.email, contact.name, contact.phone, contact.email].some((v) => v?.toLowerCase().includes(q)));
 
   return (
     <section className="page">
@@ -44,7 +38,9 @@ export function CustomerList() {
           <Link to="import" className="button secondary">
             Import
           </Link>
-          <button onClick={() => setAdding(true)}>Add customer</button>
+          <button type="button" className="plus-button" onClick={() => setAdding(true)} aria-label="Add customer" title="Add customer">
+            +
+          </button>
         </div>
       </header>
 
