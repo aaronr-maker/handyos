@@ -422,3 +422,6 @@ button.danger { background: #dc2626; color: #fff; }
 /* time off and appointments on the calendar */
 .wk-event { position: absolute; left: 2px; right: 2px; box-sizing: border-box; overflow: hidden; padding: 2px 5px; font-size: 0.72rem; line-height: 1.2; color: #475569; border: 1px dashed #94a3b8; border-radius: 6px; background: repeating-linear-gradient(135deg, #f1f5f9, #f1f5f9 6px, #e2e8f0 6px, #e2e8f0 12px); cursor: pointer; z-index: 1; }
 .wk-event.wk-open { border-color: var(--brand); }
+
+/* a round + button for "add" */
+.plus-button { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 1.8rem; line-height: 1; display: inline-grid; place-items: center; box-shadow: 0 4px 12px rgb(21 128 61 / 0.3); }
