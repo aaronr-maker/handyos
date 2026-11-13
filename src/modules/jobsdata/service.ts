@@ -34,18 +34,32 @@ async function replace<T>(
   for (let i = 0; i < rows.length; i += CHUNK) await repo.insertMany(companyId, rows.slice(i, i + CHUNK).map((r) => ({ ...r, source, ...extra })) as never[]);
 }
 
+/** The same record twice in one file (same job #, invoice # or payment) is kept once, the last one, so nothing is counted twice. */
+export function dedupe<T>(rows: T[], key: (r: T) => string | number): T[] {
+  return [...new Map(rows.map((r) => [key(r), r])).values()];
+}
+
 /** Loads one report from `source` (like "jobber"), replacing what an earlier load of the same kind of report from the same place put in. */
 export async function importReport(companyId: Id, source: string, parsed: Parsed): Promise<number> {
   switch (parsed.kind) {
     case 'jobs':
-      await replace<JobRow>(jobs, companyId, source, parsed.rows);
-      return parsed.rows.length;
+      {
+        const rows = dedupe(parsed.rows, (r) => r.job_number);
+        await replace<JobRow>(jobs, companyId, source, rows);
+        return rows.length;
+      }
     case 'invoices':
-      await replace<InvoiceRow>(invoices, companyId, source, parsed.rows);
-      return parsed.rows.length;
+      {
+        const rows = dedupe(parsed.rows, (r) => r.invoice_number);
+        await replace<InvoiceRow>(invoices, companyId, source, rows);
+        return rows.length;
+      }
     case 'payments':
-      await replace<PaymentRow>(payments, companyId, source, parsed.rows);
-      return parsed.rows.length;
+      {
+        const rows = dedupe(parsed.rows, (r) => r.external_key);
+        await replace<PaymentRow>(payments, companyId, source, rows);
+        return rows.length;
+      }
     case 'timesheets':
       await replace(hours, companyId, source, parsed.summary.jobs);
       await people.removeWhere(companyId, { source, report: 'timesheet_total' });
