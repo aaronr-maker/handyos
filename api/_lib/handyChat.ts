@@ -1,4 +1,4 @@
-import { ApiError, type Deps } from './qb.js';
+import { ApiError, type Deps, type Env } from './qb.js';
 
 /**
  * The server's part of Handy: it checks who is asking, checks that no private details are about to leave, and passes the
@@ -64,11 +64,24 @@ async function requireStaff(deps: Deps, token: string | null) {
   return { companyId: m.companyId, userId: user.id };
 }
 
+/** Which company's AI answers the typed chat, with its address, key and model. The same request and answer shape is used for both. */
+export function chatProvider(env: Env): { name: string; url: string; key: string; model: string; keepNothing: boolean } {
+  if ((env.HANDY_PROVIDER ?? '').trim().toLowerCase() === 'xai') {
+    const key = (env.XAI_API_KEY ?? '').trim();
+    if (!key) throw new ApiError(503, 'Handy is set to use Grok, but the Grok key is missing on the server (XAI_API_KEY).');
+    const model = (env.HANDY_MODEL ?? '').trim();
+    if (!model) throw new ApiError(503, 'Handy is set to use Grok, but no model is chosen. Set HANDY_MODEL in Vercel to a Grok model name from the xAI console.');
+    return { name: 'Grok', url: `${(env.XAI_BASE_URL ?? 'https://api.x.ai/v1').trim().replace(/\/+$/, '')}/chat/completions`, key, model, keepNothing: false };
+  }
+  const key = env.OPENAI_API_KEY;
+  if (!key) throw new ApiError(503, 'Handy is not set up yet: the OpenAI key is missing on the server (OPENAI_API_KEY).');
+  return { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', key, model: env.HANDY_MODEL || 'gpt-4.1', keepNothing: true };
+}
+
 /** One turn: the conversation so far (already masked) goes in; Handy's next message (words and/or things he wants to do) comes out. */
 export async function handyChat(deps: Deps, token: string | null, body: { messages?: ChatMessage[]; tools?: ToolDef[] }): Promise<{ message: ChatMessage; usage: { input: number; output: number } }> {
   await requireStaff(deps, token);
-  const key = deps.env.OPENAI_API_KEY;
-  if (!key) throw new ApiError(503, 'Handy is not set up yet: the OpenAI key is missing on the server (OPENAI_API_KEY).');
+  const ai = chatProvider(deps.env);
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const tools = Array.isArray(body.tools) ? body.tools : [];
   if (messages.length === 0 || messages.length > MAX_MESSAGES) throw new ApiError(400, 'That conversation is too long. Start a new chat.');
@@ -80,21 +93,21 @@ export async function handyChat(deps: Deps, token: string | null, body: { messag
     if (found) throw new ApiError(422, `Handy did not send this because it contained ${found}. Remove it and try again, or use a name instead.`);
   }
 
-  const res = await deps.fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await deps.fetch(ai.url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: deps.env.HANDY_MODEL || 'gpt-4.1', messages, ...(tools.length ? { tools, tool_choice: 'auto' } : {}), store: false }),
+    headers: { Authorization: `Bearer ${ai.key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: ai.model, messages, ...(tools.length ? { tools, tool_choice: 'auto' } : {}), ...(ai.keepNothing ? { store: false } : {}) }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: { message?: string; code?: string } };
     const why = err.error?.message ?? `answered ${res.status}`;
-    if (res.status === 401) throw new ApiError(502, 'OpenAI did not accept the key. Check OPENAI_API_KEY in Vercel.');
-    if (res.status === 429) throw new ApiError(502, `OpenAI says to slow down or that the account is out of credit: ${why}`);
-    throw new ApiError(502, `OpenAI could not answer: ${why}`);
+    if (res.status === 401) throw new ApiError(502, `${ai.name} did not accept the key. Check ${ai.name === 'Grok' ? 'XAI_API_KEY' : 'OPENAI_API_KEY'} in Vercel.`);
+    if (res.status === 429) throw new ApiError(502, `${ai.name} says to slow down or that the account is out of credit: ${why}`);
+    throw new ApiError(502, `${ai.name} could not answer: ${why}`);
   }
   const json = (await res.json()) as { choices?: { message?: ChatMessage }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const message = json.choices?.[0]?.message;
-  if (!message) throw new ApiError(502, 'OpenAI sent back nothing. Try again.');
+  if (!message) throw new ApiError(502, `${ai.name} sent back nothing. Try again.`);
   return {
     message: { role: 'assistant', content: message.content ?? null, ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
     usage: { input: json.usage?.prompt_tokens ?? 0, output: json.usage?.completion_tokens ?? 0 },

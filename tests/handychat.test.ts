@@ -31,6 +31,28 @@ describe('the check for private details', () => {
   });
 });
 
+describe('Handy on Grok instead of OpenAI', () => {
+  const xai = { HANDY_PROVIDER: 'xai', XAI_API_KEY: 'xai-test-key', HANDY_MODEL: 'grok-test' };
+  it('sends the typed chat to xAI with its own key and model, and does not send OpenAI-only settings', async () => {
+    const w = world({ env: xai });
+    const r = await handyChat(w.deps, 'tok', say('What is on today?'));
+    expect(r.message.content).toBe('Hello');
+    expect(w.calls[0].url).toBe('https://api.x.ai/v1/chat/completions');
+    expect(w.calls[0].headers.Authorization).toBe('Bearer xai-test-key');
+    expect(w.calls[0].body.model).toBe('grok-test');
+    expect(w.calls[0].body).not.toHaveProperty('store');
+  });
+  it('uses a different address when one is set, still checks for private details, and says what is missing in plain words', async () => {
+    const w = world({ env: { ...xai, XAI_BASE_URL: 'https://api.example.test/v1/' } });
+    await handyChat(w.deps, 'tok', say('Hi'));
+    expect(w.calls[0].url).toBe('https://api.example.test/v1/chat/completions');
+    await expect(handyChat(world({ env: xai }).deps, 'tok', say('email pat@example.com'))).rejects.toThrow(/email/);
+    await expect(handyChat(world({ env: { HANDY_PROVIDER: 'xai', HANDY_MODEL: 'g' } }).deps, 'tok', say('Hi'))).rejects.toThrow(/XAI_API_KEY/);
+    await expect(handyChat(world({ env: { HANDY_PROVIDER: 'xai', XAI_API_KEY: 'k', HANDY_MODEL: '' } }).deps, 'tok', say('Hi'))).rejects.toThrow(/HANDY_MODEL/);
+    await expect(handyChat(world({ env: xai, status: 401 }).deps, 'tok', say('Hi'))).rejects.toThrow(/Grok did not accept the key/);
+  });
+});
+
 describe('Handy on the server', () => {
   it('sends the conversation to OpenAI with the key, asks it not to store anything, and returns only the new message', async () => {
     const w = world({ reply: { choices: [{ message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'week_hours', arguments: '{}' } }], extra: 'ignored' } }] } });
